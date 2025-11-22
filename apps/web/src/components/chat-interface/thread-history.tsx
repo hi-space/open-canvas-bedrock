@@ -205,22 +205,16 @@ export function ThreadHistoryComponent(props: ThreadHistoryProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window == "undefined" || userThreads.length || !user) return;
+    // Authentication disabled - load threads without user check
+    if (typeof window == "undefined" || userThreads.length) return;
 
-    getUserThreads();
-  }, [user]);
+    getUserThreads().catch((e) => {
+      console.warn("Failed to load thread history:", e);
+    });
+  }, []);
 
   const handleDeleteThread = async (id: string) => {
-    if (!user) {
-      toast({
-        title: "Failed to delete thread",
-        description: "User not found",
-        duration: 5000,
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // Authentication disabled - allow delete without user
     await deleteThread(id, () => setMessages([]));
   };
 

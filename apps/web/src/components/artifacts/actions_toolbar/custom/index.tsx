@@ -108,9 +108,10 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
   };
 
   useEffect(() => {
-    if (typeof window === undefined || !assistantId || !user) return;
-    getAndSetCustomQuickActions(user.id);
-  }, [assistantId, user]);
+    // Authentication disabled - allow without user
+    if (typeof window === undefined || !assistantId) return;
+    getAndSetCustomQuickActions(user?.id || "anonymous");
+  }, [assistantId]);
 
   const handleNewActionClick = (e: Event) => {
     e.preventDefault();
@@ -130,15 +131,7 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user) {
-      toast({
-        title: "Failed to delete",
-        description: "User not found",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return;
-    }
+    // Authentication disabled - allow delete without user
     try {
       const deletionSuccess = await deleteCustomQuickAction(
         id,

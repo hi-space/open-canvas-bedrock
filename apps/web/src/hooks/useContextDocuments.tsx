@@ -61,15 +61,8 @@ export function useContextDocuments(userId: string) {
   };
 
   const processDocuments = async () => {
-    if (!userId) {
-      toast({
-        title: "User not found",
-        description: "Please try again later.",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return [];
-    }
+    // Authentication disabled - use anonymous user ID if not provided
+    const effectiveUserId = userId || "anonymous";
 
     const files = documents?.length ? Array.from(documents) : [];
     const currentFileNames = new Set(files.map((f) => f.name));
@@ -98,7 +91,7 @@ export function useContextDocuments(userId: string) {
             ffmpeg: ffmpegRef.current,
             messageRef,
             documents: unprocessedFileList,
-            userId: userId,
+            userId: effectiveUserId,
             toast,
           })
         : [],

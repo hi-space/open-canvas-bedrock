@@ -71,16 +71,7 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
   useLangSmithLinkToolUI();
 
   const handleNewSession = async () => {
-    if (!user) {
-      toast({
-        title: "User not found",
-        description: "Failed to create thread without user",
-        duration: 5000,
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // Authentication disabled - allow new session without user
     // Remove the threadId param from the URL
     setThreadId(null);
 

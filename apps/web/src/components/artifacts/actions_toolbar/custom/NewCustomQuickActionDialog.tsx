@@ -94,14 +94,7 @@ export function NewCustomQuickActionDialog(
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) {
-      toast({
-        title: "User not found",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return;
-    }
+    // Authentication disabled - allow without user
     setIsSubmitLoading(true);
 
     try {

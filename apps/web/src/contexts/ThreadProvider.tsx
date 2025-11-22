@@ -137,22 +137,13 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const createThread = async (): Promise<Thread | undefined> => {
-    if (!user) {
-      toast({
-        title: "Failed to create thread",
-        description: "User not found",
-        duration: 5000,
-        variant: "destructive",
-      });
-      return;
-    }
+    // Authentication disabled - allow thread creation without user
     const client = createClient();
     setCreateThreadLoading(true);
 
     try {
       const thread = await client.threads.create({
         metadata: {
-          supabase_user_id: user.id,
           customModelName: modelName,
           modelConfig: {
             ...modelConfig,
@@ -167,7 +158,10 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       setThreadId(thread.thread_id);
       // Fetch updated threads so the new thread is included.
       // Do not await since we do not want to block the UI.
-      getUserThreads().catch(console.error);
+      // Silently fail if getUserThreads fails
+      getUserThreads().catch((e) => {
+        console.warn("Failed to refresh thread list after creation:", e);
+      });
       return thread;
     } catch (e) {
       console.error("Failed to create thread", e);
@@ -184,35 +178,36 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const getUserThreads = async () => {
-    if (!user) {
-      toast({
-        title: "Failed to create thread",
-        description: "User not found",
-        duration: 5000,
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // Authentication disabled - get all threads without user filter
     setIsUserThreadsLoading(true);
     try {
       const client = createClient();
 
-      const userThreads = await client.threads.search({
-        metadata: {
-          supabase_user_id: user.id,
-        },
-        limit: 100,
-      });
+      // Search without user filter - get all threads
+      // If search fails (e.g., no threads exist), return empty array
+      try {
+        const userThreads = await client.threads.search({
+          limit: 100,
+        });
 
-      if (userThreads.length > 0) {
-        const lastInArray = userThreads[0];
-        const allButLast = userThreads.slice(1, userThreads.length);
-        const filteredThreads = allButLast.filter(
-          (thread) => thread.values && Object.keys(thread.values).length > 0
-        );
-        setUserThreads([...filteredThreads, lastInArray]);
+        if (userThreads.length > 0) {
+          const lastInArray = userThreads[0];
+          const allButLast = userThreads.slice(1, userThreads.length);
+          const filteredThreads = allButLast.filter(
+            (thread) => thread.values && Object.keys(thread.values).length > 0
+          );
+          setUserThreads([...filteredThreads, lastInArray]);
+        } else {
+          setUserThreads([]);
+        }
+      } catch (searchError) {
+        // If search fails (404 or other errors), just set empty array
+        console.warn("Failed to search threads, returning empty list:", searchError);
+        setUserThreads([]);
       }
+    } catch (e) {
+      console.error("Error in getUserThreads:", e);
+      setUserThreads([]);
     } finally {
       setIsUserThreadsLoading(false);
     }

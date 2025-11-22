@@ -18,32 +18,16 @@ const UserContext = createContext<UserContentType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User>();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user || typeof window === "undefined") return;
-
-    getUser();
+    // Authentication disabled - user is always undefined
+    setLoading(false);
   }, []);
 
   async function getUser() {
-    if (user) {
-      setLoading(false);
-      return user;
-    }
-
-    const supabase = createSupabaseClient();
-    if (!supabase) {
-      setLoading(false);
-      return undefined;
-    }
-
-    const {
-      data: { user: supabaseUser },
-    } = await supabase.auth.getUser();
-    setUser(supabaseUser || undefined);
-    setLoading(false);
-    return supabaseUser || undefined;
+    // Authentication disabled - always return undefined
+    return undefined;
   }
 
   const contextValue: UserContentType = {

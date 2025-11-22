@@ -108,6 +108,12 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [selectedAssistant, setSelectedAssistant] = useState<Assistant>();
 
   const getAssistants = async (userId: string): Promise<void> => {
+    // Skip for anonymous users
+    if (userId === "anonymous") {
+      setAssistants([]);
+      return;
+    }
+
     setIsLoadingAllAssistants(true);
     try {
       const client = createClient();
@@ -165,6 +171,16 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     userId,
     successCallback,
   }: CreateCustomAssistantArgs): Promise<Assistant | undefined> => {
+    // Skip for anonymous users
+    if (userId === "anonymous") {
+      toast({
+        title: "Cannot create assistant",
+        description: "Assistants are not available for anonymous users.",
+        variant: "destructive",
+      });
+      return undefined;
+    }
+
     setIsCreatingAssistant(true);
     try {
       const client = createClient();
@@ -311,6 +327,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     const client = createClient();
     let userAssistants: Assistant[] = [];
 
+    // Skip assistant creation for anonymous users
+    if (userId === "anonymous") {
+      console.log("Skipping assistant creation for anonymous user");
+      setIsLoadingAllAssistants(false);
+      return;
+    }
+
     const assistantIdCookie = getCookie(ASSISTANT_ID_COOKIE);
     if (assistantIdCookie) {
       await legacyGetAndUpdateAssistant(userId, assistantIdCookie);
@@ -330,22 +353,28 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       });
     } catch (e) {
       console.error("Failed to get default assistant", e);
+      // If search fails, don't try to create assistant
+      setIsLoadingAllAssistants(false);
+      return;
     }
 
     if (!userAssistants.length) {
       // No assistants found, create a new assistant and set it as the default.
-      await createCustomAssistant({
-        newAssistant: {
-          iconData: {
-            iconName: "User",
-            iconColor: "#000000",
+      // Only create if userId is not anonymous
+      if (userId !== "anonymous") {
+        await createCustomAssistant({
+          newAssistant: {
+            iconData: {
+              iconName: "User",
+              iconColor: "#000000",
+            },
+            name: "Default assistant",
+            description: "Your default assistant.",
+            is_default: true,
           },
-          name: "Default assistant",
-          description: "Your default assistant.",
-          is_default: true,
-        },
-        userId,
-      });
+          userId,
+        });
+      }
 
       // Return early because this function will set the selected assistant and assistants state.
       setIsLoadingAllAssistants(false);

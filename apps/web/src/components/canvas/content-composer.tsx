@@ -68,14 +68,7 @@ export function ContentComposerChatInterfaceComponent(
     // Explicitly check for false and not ! since this does not provide a default value
     // so we should assume undefined is true.
     if (message.startRun === false) return;
-    if (!userData.user) {
-      toast({
-        title: "User not found",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return;
-    }
+    // Authentication disabled - allow without user
 
     if (message.content?.[0]?.type !== "text") {
       toast({
@@ -100,7 +93,7 @@ export function ContentComposerChatInterfaceComponent(
           ffmpeg: ffmpegRef.current,
           messageRef,
           documents: fileList,
-          userId: userData.user.id,
+          userId: userData.user?.id || "anonymous",
           toast,
         });
         contentDocuments.push(...documentsResult);
@@ -124,7 +117,10 @@ export function ContentComposerChatInterfaceComponent(
     } finally {
       setIsRunning(false);
       // Re-fetch threads so that the current thread's title is updated.
-      await getUserThreads();
+      // Silently fail if getUserThreads fails
+      getUserThreads().catch((e) => {
+        console.warn("Failed to refresh thread list after message:", e);
+      });
     }
   }
 

@@ -148,7 +148,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (typeof window === "undefined" || !userData.user) return;
+    // Authentication disabled - allow without user
+    if (typeof window === "undefined") return;
 
     // Get or create a new assistant if there isn't one set in state, and we're not
     // loading all assistants already.
@@ -156,9 +157,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       !assistantsData.selectedAssistant &&
       !assistantsData.isLoadingAllAssistants
     ) {
-      assistantsData.getOrCreateAssistant(userData.user.id);
+      assistantsData.getOrCreateAssistant(userData.user?.id || "anonymous");
     }
-  }, [userData.user]);
+  }, []);
 
   // Very hacky way of ensuring updateState is not called when a thread is switched
   useEffect(() => {
@@ -211,9 +212,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
   // Attempt to load the thread if an ID is present in query params.
   useEffect(() => {
+    // Authentication disabled - allow without user
     if (
       typeof window === "undefined" ||
-      !userData.user ||
       threadData.createThreadLoading ||
       !threadData.threadId
     ) {
@@ -235,7 +236,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       // Failed to fetch thread. Remove from query params
       threadData.setThreadId(null);
     });
-  }, [threadData.threadId, userData.user]);
+  }, [threadData.threadId]);
 
   const updateArtifact = async (
     artifactToUpdate: ArtifactV3,

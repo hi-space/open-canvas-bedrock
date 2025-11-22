@@ -1,5 +1,7 @@
 export const FASTAPI_API_URL =
   process.env.FASTAPI_API_URL ?? "http://localhost:8000";
+export const LANGGRAPH_API_URL =
+  process.env.LANGGRAPH_API_URL ?? "https://api.langchain.com";
 // v2 is tied to the 'open-canvas-prod' deployment.
 export const ASSISTANT_ID_COOKIE = "oc_assistant_id_v2";
 // export const ASSISTANT_ID_COOKIE = "oc_assistant_id";
