@@ -112,9 +112,16 @@ function extractStreamDataChunk(chunk: any) {
       // Try to extract string content
       if (Array.isArray(result.content)) {
         // Content might be an array of content blocks
+        // ChatBedrockConverse returns: [{'type': 'text', 'text': '...', 'index': 0}]
         const textContent = result.content
-          .filter((block: any) => block.type === "text")
-          .map((block: any) => block.text || "")
+          .map((block: any) => {
+            if (typeof block === 'string') return block;
+            if (typeof block === 'object') {
+              // Try different possible field names
+              return block.text || block.content || "";
+            }
+            return "";
+          })
           .join("");
         result = { ...result, content: textContent };
       } else {
@@ -439,7 +446,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       let followupMessageId = "";
       let thinkingMessageId = "";
 
+      let eventCount = 0;
       for await (const event of stream) {
+        eventCount++;
         const eventType = event?.event || "unknown";
         const nodeName = event?.name || "unknown";
         
@@ -463,9 +472,26 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           const {
             runId: runId_,
             event: eventType,
-            name: langgraphNode,
+            name: modelName,
             data,
+            tags,
+            metadata,
           } = event;
+          
+          // Get the actual LangGraph node name from metadata
+          // LangGraph stores the node name in metadata.langgraph_node
+          const langgraphNode = metadata?.langgraph_node || modelName;
+          
+          // Log event structure for debugging
+          if (eventType === "on_chat_model_stream" && eventCount <= 5) {
+            console.log(`[DEBUG] Event #${eventCount}:`, { 
+              eventType,
+              modelName,
+              langgraphNode,
+              hasContent: !!data?.chunk?.content,
+              content: data?.chunk?.content
+            });
+          }
 
           if (!runId && runId_) {
             runId = runId_;
@@ -504,6 +530,22 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               console.warn("on_chat_model_stream event has no chunk", { data, langgraphNode });
               continue;
             }
+            
+            // Extract content from chunk
+            const message = extractStreamDataChunk(chunk);
+            const content = message?.content || "";
+            
+            // Skip empty chunks (Bedrock sends many empty chunks)
+            if (!content || content.length === 0) {
+              continue;
+            }
+            
+            if (eventCount <= 5) {
+              console.log(`[STREAM] Chunk from ${langgraphNode}:`, { 
+                contentLength: content.length,
+                contentPreview: content.substring(0, 100)
+              });
+            }
 
             // These are generating new messages to insert to the chat window.
             if (
@@ -511,8 +553,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 langgraphNode
               )
             ) {
-              const message = extractStreamDataChunk(chunk);
-              
               if (!message?.id) {
                 message.id = `msg-${Date.now()}-${Math.random()}`;
               }
@@ -521,6 +561,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 followupMessageId = message.id;
               }
               
+              console.log(`[CHAT] Message chunk: "${content.substring(0, 50)}..."`);
+              
               setMessages((prevMessages) => {
                 const updated = replaceOrInsertMessageChunk(prevMessages, message);
                 return updated;
@@ -528,20 +570,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
 
             if (langgraphNode === "generateArtifact") {
-              const message = extractStreamDataChunk(chunk);
+              console.log(`[ARTIFACT] generateArtifact chunk: "${content.substring(0, 50)}..."`);
 
-              // Accumulate content
-              if (
-                message?.tool_call_chunks?.length > 0 &&
-                typeof message?.tool_call_chunks?.[0]?.args === "string"
-              ) {
-                generateArtifactToolCallStr += message.tool_call_chunks[0].args;
-              } else if (
-                message?.content &&
-                typeof message?.content === "string"
-              ) {
-                generateArtifactToolCallStr += message.content;
-              }
+              // Accumulate content (content is already extracted above)
+              generateArtifactToolCallStr += content;
 
               // For streaming, create artifact directly from accumulated content in real-time
               // Backend generates text directly, not as tool calls
@@ -549,27 +581,29 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               if (generateArtifactToolCallStr.length > 0) {
                 const artifactContent = generateArtifactToolCallStr;
                 
-                // Update artifact in real-time (even with partial content)
-                // Create a completely new object to ensure React detects the change
-                const newArtifact: Artifact = {
-                  currentIndex: 1,
-                  contents: [
-                    {
-                      index: 1,
-                      type: "text" as const,
-                      title: "Generated Artifact",
-                      fullMarkdown: artifactContent,
-                    },
-                  ],
-                };
-                
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
-                // Create a new object reference to ensure React detects the change
-                // Deep copy to ensure React sees it as a new object
-                setArtifact(JSON.parse(JSON.stringify(newArtifact)));
-                // Always trigger rendering update during streaming
+                
+                console.log(`[ARTIFACT] Setting artifact with content length: ${artifactContent.length}`);
+                
+                // Update artifact state immediately for streaming rendering
+                // Use functional update to ensure we're working with latest state
+                setArtifact((prevArtifact) => {
+                  // Create a completely new object to ensure React detects the change
+                  return {
+                    currentIndex: 1,
+                    contents: [
+                      {
+                        index: 1,
+                        type: "text" as const,
+                        title: "Generated Artifact",
+                        fullMarkdown: artifactContent,
+                      },
+                    ],
+                  };
+                });
+                // Trigger rendering update for each chunk
                 setUpdateRenderedArtifactRequired(true);
               }
 
@@ -826,12 +860,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 const artifactCopy = JSON.parse(JSON.stringify(artifactToSet));
                 setArtifact(artifactCopy);
                 // Trigger artifact rendering update
-                // Set isStreaming to false so TextRenderer can update
-                setIsStreaming(false);
                 setUpdateRenderedArtifactRequired(true);
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
+                
+                console.log(`[FINAL] Artifact set from open_canvas on_chain_end`);
+              } else {
+                console.log(`[FINAL] No artifact in open_canvas output`);
               }
               
               // Parse messages if present

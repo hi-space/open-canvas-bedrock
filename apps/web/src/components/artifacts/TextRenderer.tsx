@@ -145,30 +145,24 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
 
       const fullMarkdown = currentContent.fullMarkdown || "";
       
-      // Skip if content hasn't changed and not required to update
-      if (lastRenderedContentRef.current === fullMarkdown && !updateRenderedArtifactRequired) {
-        return;
-      }
-      
-      // Prevent concurrent updates
-      if (isUpdatingRef.current) {
+      // Skip if content hasn't changed
+      if (lastRenderedContentRef.current === fullMarkdown) {
         return;
       }
 
-      // Update artifact in real-time during streaming
-      isUpdatingRef.current = true;
+      // Update artifact immediately - don't block on concurrent updates during streaming
+      console.log(`[TextRenderer] Rendering content, length: ${fullMarkdown.length}, streaming: ${isStreaming}`);
+      
       (async () => {
         try {
           const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(fullMarkdown);
           editor.replaceBlocks(editor.document, markdownAsBlocks);
-          // Update last rendered content
           lastRenderedContentRef.current = fullMarkdown;
           setUpdateRenderedArtifactRequired(false);
           setManuallyUpdatingArtifact(false);
+          console.log(`[TextRenderer] Rendered successfully`);
         } catch (parseError) {
           console.error("TextRenderer: Error parsing markdown:", parseError);
-        } finally {
-          isUpdatingRef.current = false;
         }
       })();
     } catch (e) {
