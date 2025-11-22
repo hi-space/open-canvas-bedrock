@@ -11,9 +11,9 @@ import { useGraphContext } from "@/contexts/GraphContext";
 import { useToast } from "@/hooks/use-toast";
 import { getLanguageTemplate } from "@/lib/get_language_template";
 import {
-  ArtifactCodeV3,
-  ArtifactMarkdownV3,
-  ArtifactV3,
+  Artifact,
+  ArtifactCode,
+  ArtifactMarkdown,
   CustomModelConfig,
   ProgrammingLanguageOptions,
 } from "@/shared/types";
@@ -68,7 +68,7 @@ export function CanvasComponent() {
     }
     setChatStarted(true);
 
-    let artifactContent: ArtifactCodeV3 | ArtifactMarkdownV3;
+    let artifactContent: ArtifactCode | ArtifactMarkdown;
     if (type === "code" && language) {
       artifactContent = {
         index: 1,
@@ -86,7 +86,7 @@ export function CanvasComponent() {
       };
     }
 
-    const newArtifact: ArtifactV3 = {
+    const newArtifact: Artifact = {
       currentIndex: 1,
       contents: [artifactContent],
     };

@@ -1,4 +1,4 @@
-import { FASTAPI_API_URL } from "../../../constants";
+import { API_URL } from "../../../constants";
 import { NextRequest, NextResponse } from "next/server";
 
 function getCorsHeaders() {
@@ -48,14 +48,14 @@ async function handleRequest(req: NextRequest, method: string) {
     }
 
     const res = await fetch(
-      `${FASTAPI_API_URL}/${path}${queryString}`,
+      `${API_URL}/${path}${queryString}`,
       options
     );
 
     if (res.status >= 400) {
       console.error(
         "ERROR IN PROXY",
-        `${FASTAPI_API_URL}/${path}${queryString}`,
+        `${API_URL}/${path}${queryString}`,
         res.status,
         res.statusText
       );

@@ -40,19 +40,6 @@ export type ArtifactLengthOptions = "shortest" | "short" | "long" | "longest";
 
 export type ArtifactType = "code" | "text";
 
-export interface ArtifactContent {
-  index: number;
-  content: string;
-  title: string;
-  type: ArtifactType;
-  language: string;
-}
-
-export interface Artifact {
-  id: string;
-  contents: ArtifactContent[];
-  currentContentIndex: number;
-}
 
 export interface ArtifactToolResponse {
   artifact?: string;
@@ -108,14 +95,14 @@ export interface CodeHighlight {
   endCharIndex: number;
 }
 
-export interface ArtifactMarkdownV3 {
+export interface ArtifactMarkdown {
   index: number;
   type: "text";
   title: string;
   fullMarkdown: string;
 }
 
-export interface ArtifactCodeV3 {
+export interface ArtifactCode {
   index: number;
   type: "code";
   title: string;
@@ -123,9 +110,9 @@ export interface ArtifactCodeV3 {
   code: string;
 }
 
-export interface ArtifactV3 {
+export interface Artifact {
   currentIndex: number;
-  contents: (ArtifactMarkdownV3 | ArtifactCodeV3)[];
+  contents: (ArtifactMarkdown | ArtifactCode)[];
 }
 
 export interface TextHighlight {
@@ -214,7 +201,7 @@ export interface GraphInput {
   highlightedCode?: CodeHighlight;
   highlightedText?: TextHighlight;
 
-  artifact?: ArtifactV3;
+  artifact?: Artifact;
 
   next?: string;
 

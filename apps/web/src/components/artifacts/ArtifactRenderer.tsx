@@ -1,8 +1,8 @@
 import { convertToOpenAIFormat } from "@/lib/convert_messages";
 import { cn } from "@/lib/utils";
 import {
-  ArtifactCodeV3,
-  ArtifactMarkdownV3,
+  ArtifactCode,
+  ArtifactMarkdown,
   ProgrammingLanguageOptions,
 } from "@/shared/types";
 import { EditorView } from "@codemirror/view";
@@ -193,8 +193,8 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
               let startIndex = 0;
               let endIndex = 0;
               let currentArtifactContent:
-                | ArtifactCodeV3
-                | ArtifactMarkdownV3
+                | ArtifactCode
+                | ArtifactMarkdown
                 | undefined = undefined;
               try {
                 currentArtifactContent = artifact

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CircleArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ArtifactV3 } from "@/shared/types";
+import { Artifact } from "@/shared/types";
 import { getArtifactContent } from "@/shared/utils/artifacts";
 import { isArtifactCodeContent } from "@/shared/utils/artifacts";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ interface AskOpenCanvasProps {
   setIsInputVisible: (visible: boolean) => void;
   handleSubmitMessage: (inputValue: string) => Promise<void>;
   handleSelectionBoxMouseDown: (e: React.MouseEvent) => void;
-  artifact: ArtifactV3;
+  artifact: Artifact;
   selectionIndexes: { start: number; end: number } | undefined;
   handleCleanupState: () => void;
   inputValue: string;

@@ -1,7 +1,7 @@
-import { FASTAPI_API_URL } from "@/constants";
+import { API_URL } from "@/constants";
 import { GraphInput } from "@/shared/types";
 
-export interface FastAPIRequest {
+export interface ApiRequest {
   messages: any[];
   artifact?: any;
   config?: {
@@ -9,20 +9,20 @@ export interface FastAPIRequest {
   };
 }
 
-export interface FastAPIResponse {
+export interface ApiResponse {
   messages?: any[];
   artifact?: any;
   [key: string]: any;
 }
 
 /**
- * Call FastAPI agent endpoint
+ * Call agent endpoint
  */
-export async function callFastAPIAgent(
+export async function callAgent(
   input: GraphInput,
   config?: { configurable?: Record<string, any> }
-): Promise<FastAPIResponse> {
-  const requestBody: FastAPIRequest = {
+): Promise<ApiResponse> {
+  const requestBody: ApiRequest = {
     messages: input.messages || [],
     artifact: input.artifact,
     config: {
@@ -34,7 +34,7 @@ export async function callFastAPIAgent(
     },
   };
 
-  const response = await fetch(`${FASTAPI_API_URL}/api/agent/run`, {
+  const response = await fetch(`${API_URL}/api/agent/run`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -44,21 +44,21 @@ export async function callFastAPIAgent(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FastAPI request failed: ${response.status} ${errorText}`);
+    throw new Error(`Request failed: ${response.status} ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
- * Call FastAPI reflection endpoint
+ * Call reflection endpoint
  */
-export async function callFastAPIReflection(
+export async function callReflection(
   messages: any[],
   artifact?: any,
   config?: { configurable?: Record<string, any> }
-): Promise<FastAPIResponse> {
-  const requestBody: FastAPIRequest = {
+): Promise<ApiResponse> {
+  const requestBody: ApiRequest = {
     messages,
     artifact,
     config: {
@@ -70,7 +70,7 @@ export async function callFastAPIReflection(
     },
   };
 
-  const response = await fetch(`${FASTAPI_API_URL}/api/reflection/reflect`, {
+  const response = await fetch(`${API_URL}/api/reflection/reflect`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -80,21 +80,21 @@ export async function callFastAPIReflection(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FastAPI reflection failed: ${response.status} ${errorText}`);
+    throw new Error(`Reflection failed: ${response.status} ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
- * Call FastAPI thread title generation endpoint
+ * Call thread title generation endpoint
  */
-export async function callFastAPIThreadTitle(
+export async function callThreadTitle(
   messages: any[],
   artifact?: any,
   config?: { configurable?: Record<string, any> }
-): Promise<FastAPIResponse> {
-  const requestBody: FastAPIRequest = {
+): Promise<ApiResponse> {
+  const requestBody: ApiRequest = {
     messages,
     artifact,
     config: {
@@ -106,7 +106,7 @@ export async function callFastAPIThreadTitle(
     },
   };
 
-  const response = await fetch(`${FASTAPI_API_URL}/api/thread-title/generate`, {
+  const response = await fetch(`${API_URL}/api/thread-title/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -116,20 +116,20 @@ export async function callFastAPIThreadTitle(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FastAPI thread title failed: ${response.status} ${errorText}`);
+    throw new Error(`Thread title failed: ${response.status} ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
- * Call FastAPI summarizer endpoint
+ * Call summarizer endpoint
  */
-export async function callFastAPISummarizer(
+export async function callSummarizer(
   messages: any[],
   threadId: string,
   config?: { configurable?: Record<string, any> }
-): Promise<FastAPIResponse> {
+): Promise<ApiResponse> {
   const requestBody = {
     messages,
     threadId,
@@ -142,7 +142,7 @@ export async function callFastAPISummarizer(
     },
   };
 
-  const response = await fetch(`${FASTAPI_API_URL}/api/summarizer/summarize`, {
+  const response = await fetch(`${API_URL}/api/summarizer/summarize`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -152,20 +152,20 @@ export async function callFastAPISummarizer(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FastAPI summarizer failed: ${response.status} ${errorText}`);
+    throw new Error(`Summarizer failed: ${response.status} ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
- * Call FastAPI web search endpoint
+ * Call web search endpoint
  */
-export async function callFastAPIWebSearch(
+export async function callWebSearch(
   messages: any[],
   config?: { configurable?: Record<string, any> }
-): Promise<FastAPIResponse> {
-  const requestBody: FastAPIRequest = {
+): Promise<ApiResponse> {
+  const requestBody: ApiRequest = {
     messages,
     config: {
       configurable: {
@@ -176,7 +176,7 @@ export async function callFastAPIWebSearch(
     },
   };
 
-  const response = await fetch(`${FASTAPI_API_URL}/api/web-search/search`, {
+  const response = await fetch(`${API_URL}/api/web-search/search`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -186,16 +186,16 @@ export async function callFastAPIWebSearch(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FastAPI web search failed: ${response.status} ${errorText}`);
+    throw new Error(`Web search failed: ${response.status} ${errorText}`);
   }
 
   return await response.json();
 }
 
 /**
- * Stream FastAPI agent events
+ * Stream agent events
  */
-export async function* streamFastAPIAgent(
+export async function* streamAgent(
   input: GraphInput,
   config?: { configurable?: Record<string, any> }
 ): AsyncGenerator<any, void, unknown> {
@@ -214,7 +214,7 @@ export async function* streamFastAPIAgent(
     });
   }
   
-  const requestBody: FastAPIRequest = {
+  const requestBody: ApiRequest = {
     messages: input.messages || [],
     artifact: input.artifact,
     config: {
@@ -222,7 +222,7 @@ export async function* streamFastAPIAgent(
     },
   };
 
-  const response = await fetch(`${FASTAPI_API_URL}/api/agent/stream`, {
+  const response = await fetch(`${API_URL}/api/agent/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -232,7 +232,7 @@ export async function* streamFastAPIAgent(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FastAPI stream failed: ${response.status} ${errorText}`);
+    throw new Error(`Stream failed: ${response.status} ${errorText}`);
   }
 
   if (!response.body) {

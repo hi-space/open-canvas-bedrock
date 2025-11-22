@@ -1,4 +1,4 @@
-import { ArtifactCodeV3 } from "@/shared/types";
+import { ArtifactCode } from "@/shared/types";
 import React, { MutableRefObject, useEffect } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
@@ -79,7 +79,7 @@ export function CodeRendererComponent(props: Readonly<CodeRendererProps>) {
     return null;
   }
 
-  const artifactContent = getArtifactContent(artifact) as ArtifactCodeV3;
+  const artifactContent = getArtifactContent(artifact) as ArtifactCode;
   const extensions = [getLanguageExtension(artifactContent.language)];
 
   if (!artifactContent.code) {

@@ -3,12 +3,11 @@ import { useUserContext } from "@/contexts/UserContext";
 import {
   isArtifactCodeContent,
   isArtifactMarkdownContent,
-  isDeprecatedArtifactType,
 } from "@/shared/utils/artifacts";
 import { reverseCleanContent } from "@/lib/normalize_string";
 import {
+  Artifact,
   ArtifactType,
-  ArtifactV3,
   CustomModelConfig,
   GraphInput,
   ProgrammingLanguageOptions,
@@ -18,7 +17,7 @@ import {
 } from "@/shared/types";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useRuns } from "@/hooks/useRuns";
-import { streamFastAPIAgent } from "@/lib/fastapi-client";
+import { streamAgent } from "@/lib/api-client";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
 import {
   DEFAULT_INPUTS,
@@ -44,7 +43,6 @@ import {
   useState,
 } from "react";
 import {
-  convertToArtifactV3,
   extractChunkFields,
   handleGenerateArtifactToolCallChunk,
   removeCodeBlockFormatting,
@@ -60,7 +58,7 @@ import {
 import { debounce } from "lodash";
 import { useThreadContext } from "./ThreadProvider";
 import { useAssistantContext } from "./AssistantContext";
-// import { StreamWorkerService } from "@/workers/graph-stream/streamWorker"; // Removed - FastAPI doesn't support streaming
+// import { StreamWorkerService } from "@/workers/graph-stream/streamWorker"; // Removed - streaming not supported
 import { useQueryState } from "nuqs";
 
 interface GraphData {
@@ -69,7 +67,7 @@ interface GraphData {
   error: boolean;
   selectedBlocks: TextHighlight | undefined;
   messages: BaseMessage[];
-  artifact: ArtifactV3 | undefined;
+  artifact: Artifact | undefined;
   updateRenderedArtifactRequired: boolean;
   isArtifactSaved: boolean;
   firstTokenReceived: boolean;
@@ -81,7 +79,7 @@ interface GraphData {
   setChatStarted: Dispatch<SetStateAction<boolean>>;
   setIsStreaming: Dispatch<SetStateAction<boolean>>;
   setFeedbackSubmitted: Dispatch<SetStateAction<boolean>>;
-  setArtifact: Dispatch<SetStateAction<ArtifactV3 | undefined>>;
+  setArtifact: Dispatch<SetStateAction<Artifact | undefined>>;
   setSelectedBlocks: Dispatch<SetStateAction<TextHighlight | undefined>>;
   setSelectedArtifact: (index: number) => void;
   setMessages: Dispatch<SetStateAction<BaseMessage[]>>;
@@ -151,15 +149,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const { shareRun } = useRuns();
   const [chatStarted, setChatStarted] = useState(false);
   const [messages, setMessages] = useState<BaseMessage[]>([]);
-  const [artifact, setArtifact] = useState<ArtifactV3>();
+  const [artifact, setArtifact] = useState<Artifact>();
   const [selectedBlocks, setSelectedBlocks] = useState<TextHighlight>();
   const [isStreaming, setIsStreaming] = useState(false);
   const [updateRenderedArtifactRequired, setUpdateRenderedArtifactRequired] =
     useState(false);
-  const lastSavedArtifact = useRef<ArtifactV3 | undefined>(undefined);
+  const lastSavedArtifact = useRef<Artifact | undefined>(undefined);
   const debouncedAPIUpdate = useRef(
     debounce(
-      (artifact: ArtifactV3, threadId: string) =>
+      (artifact: Artifact, threadId: string) =>
         updateArtifact(artifact, threadId),
       5000
     )
@@ -269,14 +267,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   }, [threadData.threadId]);
 
   const updateArtifact = async (
-    artifactToUpdate: ArtifactV3,
+    artifactToUpdate: Artifact,
     threadId: string
   ) => {
     setArtifactUpdateFailed(false);
     if (isStreaming) return;
 
     try {
-      // TODO: Implement artifact update via FastAPI
+      // TODO: Implement artifact update via API
       // For now, just update local state
       setIsArtifactSaved(true);
       lastSavedArtifact.current = artifactToUpdate;
@@ -295,7 +293,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     setFirstTokenReceived(false);
     setError(false);
     
-    // FastAPI doesn't require assistant ID, but we keep it for compatibility
+    // API doesn't require assistant ID, but we keep it for compatibility
     // if (!assistantsData.selectedAssistant) {
     //   toast({
     //     title: "Error",
@@ -376,10 +374,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     setIsStreaming(true);
     setRunId(undefined);
     setFeedbackSubmitted(false);
-    setFirstTokenReceived(true); // FastAPI returns complete response, so we can set this immediately
+    setFirstTokenReceived(true); // API returns complete response, so we can set this immediately
 
     try {
-      // Stream from FastAPI
+      // Stream from API
       // Ensure modelName and modelConfig are set, use defaults if not available
       const modelName = threadData.modelName || DEFAULT_MODEL_NAME;
       // Use the computed modelConfig from ThreadProvider, which handles fallbacks
@@ -401,7 +399,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       };
 
 
-      const stream = streamFastAPIAgent(input, config);
+      const stream = streamAgent(input, config);
 
       // Variables to keep track of content specific to this stream
       const prevCurrentContent = artifact
@@ -445,7 +443,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         const eventType = event?.event || "unknown";
         const nodeName = event?.name || "unknown";
         
-        // FastAPI streams LangGraph events in the same format as LangGraph SDK
+        // API streams LangGraph events in the same format as LangGraph SDK
         // Process events similar to the original streaming logic
         if (event.event === "error") {
           const errorMessage =
@@ -553,7 +551,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 
                 // Update artifact in real-time (even with partial content)
                 // Create a completely new object to ensure React detects the change
-                const newArtifact: ArtifactV3 = {
+                const newArtifact: Artifact = {
                   currentIndex: 1,
                   contents: [
                     {
@@ -590,7 +588,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
 
             // Handle other node types (updateHighlightedText, updateArtifact, etc.)
-            // Similar to original logic but adapted for FastAPI event format
+            // Similar to original logic but adapted for API event format
             if (langgraphNode === "updateHighlightedText") {
               const message = extractStreamDataChunk(chunk);
               if (!message || !artifact || !highlightedText || !prevCurrentContent) {
@@ -780,13 +778,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               
               // Parse artifact if present
               if (output.artifact) {
-                // Convert to ArtifactV3 if needed
-                let artifactToSet: ArtifactV3;
-                if (isDeprecatedArtifactType(output.artifact)) {
-                  artifactToSet = convertToArtifactV3(output.artifact);
-                } else {
-                  artifactToSet = output.artifact as ArtifactV3;
-                }
+                const artifactToSet = output.artifact as Artifact;
                 
                 // Ensure artifact has currentIndex and each content has index and type
                 if (!artifactToSet.currentIndex) {
@@ -1126,7 +1118,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
       lastSavedArtifact.current = artifact;
     } catch (e: any) {
-      console.error("Failed to call FastAPI", e);
+      console.error("Failed to call API", e);
       const errorMessage =
         e?.message || "Unknown error. Please try again.";
       toast({
@@ -1217,7 +1209,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     }
 
     const castValues: {
-      artifact: ArtifactV3 | undefined;
+      artifact: Artifact | undefined;
       messages: Record<string, any>[] | undefined;
     } = {
       artifact: undefined,
@@ -1225,11 +1217,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     };
     const castThreadValues = thread.values as Record<string, any>;
     if (castThreadValues?.artifact) {
-      if (isDeprecatedArtifactType(castThreadValues.artifact)) {
-        castValues.artifact = convertToArtifactV3(castThreadValues.artifact);
-      } else {
-        castValues.artifact = castThreadValues.artifact;
-      }
+      castValues.artifact = castThreadValues.artifact as Artifact;
     } else {
       castValues.artifact = undefined;
     }

@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState, forwardRef } from "react";
-import { ArtifactMarkdownV3 } from "@/shared/types";
+import { ArtifactMarkdown } from "@/shared/types";
 import "@blocknote/core/fonts/inter.css";
 import {
   getDefaultReactSlashMenuItems,
@@ -138,7 +138,7 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
       const currentIndex = artifact.currentIndex || 1;
       const currentContent = artifact.contents.find(
         (c) => c.index === currentIndex && c.type === "text"
-      ) as ArtifactMarkdownV3 | undefined;
+      ) as ArtifactMarkdown | undefined;
       if (!currentContent) {
         return;
       }

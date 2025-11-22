@@ -1,10 +1,9 @@
 import { cleanContent } from "@/lib/normalize_string";
 import {
   Artifact,
-  ArtifactCodeV3,
-  ArtifactMarkdownV3,
+  ArtifactCode,
+  ArtifactMarkdown,
   ArtifactToolResponse,
-  ArtifactV3,
   ProgrammingLanguageOptions,
   RewriteArtifactMetaToolResponse,
 } from "@/shared/types";
@@ -72,7 +71,7 @@ export const replaceOrInsertMessageChunk = (
 
 export const createNewGeneratedArtifactFromTool = (
   artifactTool: ArtifactToolResponse
-): ArtifactMarkdownV3 | ArtifactCodeV3 | undefined => {
+): ArtifactMarkdown | ArtifactCode | undefined => {
   if (!artifactTool.type) {
     console.error("Received new artifact without type");
     return;
@@ -121,12 +120,12 @@ const validateNewArtifactIndex = (
 };
 
 export const updateHighlightedMarkdown = (
-  prevArtifact: ArtifactV3,
+  prevArtifact: Artifact,
   content: string,
   newArtifactIndex: number,
-  prevCurrentContent: ArtifactMarkdownV3,
+  prevCurrentContent: ArtifactMarkdown,
   isFirstUpdate: boolean
-): ArtifactV3 | undefined => {
+): Artifact | undefined => {
   // Create a deep copy of the previous artifact
   const basePrevArtifact = {
     ...prevArtifact,
@@ -139,10 +138,10 @@ export const updateHighlightedMarkdown = (
     isFirstUpdate
   );
 
-  let newContents: (ArtifactCodeV3 | ArtifactMarkdownV3)[];
+  let newContents: (ArtifactCode | ArtifactMarkdown)[];
 
   if (isFirstUpdate) {
-    const newMarkdownContent: ArtifactMarkdownV3 = {
+    const newMarkdownContent: ArtifactMarkdown = {
       ...prevCurrentContent,
       index: currentIndex,
       fullMarkdown: content,
@@ -161,7 +160,7 @@ export const updateHighlightedMarkdown = (
   }
 
   // Create new reference for the entire artifact
-  const newArtifact: ArtifactV3 = {
+  const newArtifact: Artifact = {
     ...basePrevArtifact,
     currentIndex,
     contents: newContents,
@@ -176,12 +175,12 @@ export const updateHighlightedMarkdown = (
 };
 
 export const updateHighlightedCode = (
-  prevArtifact: ArtifactV3,
+  prevArtifact: Artifact,
   content: string,
   newArtifactIndex: number,
-  prevCurrentContent: ArtifactCodeV3,
+  prevCurrentContent: ArtifactCode,
   isFirstUpdate: boolean
-): ArtifactV3 | undefined => {
+): Artifact | undefined => {
   // Create a deep copy of the previous artifact
   const basePrevArtifact = {
     ...prevArtifact,
@@ -194,10 +193,10 @@ export const updateHighlightedCode = (
     isFirstUpdate
   );
 
-  let newContents: (ArtifactCodeV3 | ArtifactMarkdownV3)[];
+  let newContents: (ArtifactCode | ArtifactMarkdown)[];
 
   if (isFirstUpdate) {
-    const newCodeContent: ArtifactCodeV3 = {
+    const newCodeContent: ArtifactCode = {
       ...prevCurrentContent,
       index: currentIndex,
       code: content,
@@ -215,7 +214,7 @@ export const updateHighlightedCode = (
     });
   }
 
-  const newArtifact: ArtifactV3 = {
+  const newArtifact: Artifact = {
     ...basePrevArtifact,
     currentIndex,
     contents: newContents,
@@ -230,10 +229,10 @@ export const updateHighlightedCode = (
 };
 
 interface UpdateRewrittenArtifactArgs {
-  prevArtifact: ArtifactV3;
+  prevArtifact: Artifact;
   newArtifactContent: string;
   rewriteArtifactMeta: RewriteArtifactMetaToolResponse;
-  prevCurrentContent?: ArtifactMarkdownV3 | ArtifactCodeV3;
+  prevCurrentContent?: ArtifactMarkdown | ArtifactCode;
   newArtifactIndex: number;
   isFirstUpdate: boolean;
   artifactLanguage: string;
@@ -247,7 +246,7 @@ export const updateRewrittenArtifact = ({
   newArtifactIndex,
   isFirstUpdate,
   artifactLanguage,
-}: UpdateRewrittenArtifactArgs): ArtifactV3 => {
+}: UpdateRewrittenArtifactArgs): Artifact => {
   // Create a deep copy of the previous artifact
   const basePrevArtifact = {
     ...prevArtifact,
@@ -260,7 +259,7 @@ export const updateRewrittenArtifact = ({
     isFirstUpdate
   );
 
-  let artifactContents: (ArtifactMarkdownV3 | ArtifactCodeV3)[];
+  let artifactContents: (ArtifactMarkdown | ArtifactCode)[];
 
   if (isFirstUpdate) {
     if (rewriteArtifactMeta.type === "code") {
@@ -309,7 +308,7 @@ export const updateRewrittenArtifact = ({
     }
   }
 
-  const newArtifact: ArtifactV3 = {
+  const newArtifact: Artifact = {
     ...basePrevArtifact,
     currentIndex,
     contents: artifactContents,
@@ -321,39 +320,6 @@ export const updateRewrittenArtifact = ({
   }
 
   return newArtifact;
-};
-
-export const convertToArtifactV3 = (oldArtifact: Artifact): ArtifactV3 => {
-  let currentIndex = oldArtifact.currentContentIndex;
-  if (currentIndex > oldArtifact.contents.length) {
-    // If the value to be set in `currentIndex` is greater than the total number of contents,
-    // set it to the last index so that the user can see the latest content.
-    currentIndex = oldArtifact.contents.length;
-  }
-
-  const v3: ArtifactV3 = {
-    currentIndex,
-    contents: oldArtifact.contents.map((content) => {
-      if (content.type === "code") {
-        return {
-          index: content.index,
-          type: "code",
-          title: content.title,
-          language: content.language as ProgrammingLanguageOptions,
-          code: content.content,
-        };
-      } else {
-        return {
-          index: content.index,
-          type: "text",
-          title: content.title,
-          fullMarkdown: content.content,
-          blocks: undefined,
-        };
-      }
-    }),
-  };
-  return v3;
 };
 
 export function handleGenerateArtifactToolCallChunk(toolCallChunkArgs: string) {

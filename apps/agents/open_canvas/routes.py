@@ -278,10 +278,9 @@ async def stream_agent(request: OpenCanvasRequest):
                 event_json = json.dumps(converted_event, default=str)
                 event_type = event.get("event", "unknown")
                 event_name = event.get("name", "unknown")
-                print(f"Yielding event #{event_count}: {event_type} from {event_name}", file=sys.stderr, flush=True)
+                print(f"#{event_count}: {event_type} {event_name}", file=sys.stderr, flush=True)
                 yield f"data: {event_json}\n\n"
             
-            print(f"=== STREAM END: {event_count} events sent ===", file=sys.stderr, flush=True)
             # Send completion signal
             yield "data: [DONE]\n\n"
         except Exception as e:
