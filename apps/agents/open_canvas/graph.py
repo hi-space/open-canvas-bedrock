@@ -388,21 +388,25 @@ async def update_artifact_node(state: OpenCanvasState, config: RunnableConfig) -
     if not recent_human_message:
         raise ValueError("No recent human message found")
     
-    # Invoke model
-    response = await model.ainvoke([
+    # Stream model for real-time updates
+    content = ""
+    async for chunk in model.astream([
         SystemMessage(content=formatted_prompt),
         recent_human_message,
-    ])
-    
-    # Extract content
-    content = response.content
-    if isinstance(content, list):
-        content = "".join(
-            item.get("text", "") if isinstance(item, dict) else str(item)
-            for item in content
-        )
-    elif not isinstance(content, str):
-        content = str(content)
+    ]):
+        if hasattr(chunk, "content"):
+            if isinstance(chunk.content, str):
+                chunk_content = chunk.content
+            elif isinstance(chunk.content, list):
+                chunk_content = "".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in chunk.content
+                )
+            else:
+                chunk_content = str(chunk.content)
+            content += chunk_content
+        else:
+            content += str(chunk)
     
     # Build updated artifact
     entire_text_before = code[:start_char_index]
@@ -473,21 +477,25 @@ async def update_highlighted_text_node(state: OpenCanvasState, config: RunnableC
     if not recent_user_message or not isinstance(recent_user_message, HumanMessage):
         raise ValueError("Expected a human message")
     
-    # Invoke model
-    response = await model.ainvoke([
+    # Stream model for real-time updates
+    response_content = ""
+    async for chunk in model.astream([
         SystemMessage(content=formatted_prompt),
         recent_user_message,
-    ])
-    
-    # Extract content
-    response_content = response.content
-    if isinstance(response_content, list):
-        response_content = "".join(
-            item.get("text", "") if isinstance(item, dict) else str(item)
-            for item in response_content
-        )
-    elif not isinstance(response_content, str):
-        response_content = str(response_content)
+    ]):
+        if hasattr(chunk, "content"):
+            if isinstance(chunk.content, str):
+                chunk_content = chunk.content
+            elif isinstance(chunk.content, list):
+                chunk_content = "".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in chunk.content
+                )
+            else:
+                chunk_content = str(chunk.content)
+            response_content += chunk_content
+        else:
+            response_content += str(chunk)
     
     # Update artifact
     contents = artifact.get("contents", [])
@@ -589,21 +597,25 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
     if not recent_human_message:
         raise ValueError("No recent human message found")
     
-    # Invoke model
-    response = await model.ainvoke([
+    # Stream model for real-time updates
+    artifact_content_text = ""
+    async for chunk in model.astream([
         SystemMessage(content=formatted_prompt),
         recent_human_message,
-    ])
-    
-    # Extract content
-    artifact_content_text = response.content
-    if isinstance(artifact_content_text, list):
-        artifact_content_text = "".join(
-            item.get("text", "") if isinstance(item, dict) else str(item)
-            for item in artifact_content_text
-        )
-    elif not isinstance(artifact_content_text, str):
-        artifact_content_text = str(artifact_content_text)
+    ]):
+        if hasattr(chunk, "content"):
+            if isinstance(chunk.content, str):
+                chunk_content = chunk.content
+            elif isinstance(chunk.content, list):
+                chunk_content = "".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in chunk.content
+                )
+            else:
+                chunk_content = str(chunk.content)
+            artifact_content_text += chunk_content
+        else:
+            artifact_content_text += str(chunk)
     
     # Handle thinking models
     thinking_message = None
@@ -766,20 +778,24 @@ async def custom_action_node(state: OpenCanvasState, config: RunnableConfig) -> 
     
     formatted_prompt += f"\n\nHere is the current artifact content:\n<artifact-content>\n{artifact_content}\n</artifact-content>"
     
-    # Invoke model
-    response = await model.ainvoke([
+    # Stream model for real-time updates
+    new_content = ""
+    async for chunk in model.astream([
         HumanMessage(content=formatted_prompt),
-    ])
-    
-    # Extract content
-    new_content = response.content
-    if isinstance(new_content, list):
-        new_content = "".join(
-            item.get("text", "") if isinstance(item, dict) else str(item)
-            for item in new_content
-        )
-    elif not isinstance(new_content, str):
-        new_content = str(new_content)
+    ]):
+        if hasattr(chunk, "content"):
+            if isinstance(chunk.content, str):
+                chunk_content = chunk.content
+            elif isinstance(chunk.content, list):
+                chunk_content = "".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in chunk.content
+                )
+            else:
+                chunk_content = str(chunk.content)
+            new_content += chunk_content
+        else:
+            new_content += str(chunk)
     
     if not current_artifact_content:
         return {}
@@ -996,20 +1012,24 @@ async def rewrite_code_artifact_theme_node(state: OpenCanvasState, config: Runna
     else:
         raise ValueError("No theme selected")
     
-    # Invoke model
-    response = await model.ainvoke([
+    # Stream model for real-time updates
+    artifact_content_text = ""
+    async for chunk in model.astream([
         HumanMessage(content=formatted_prompt),
-    ])
-    
-    # Extract content
-    artifact_content_text = response.content
-    if isinstance(artifact_content_text, list):
-        artifact_content_text = "".join(
-            item.get("text", "") if isinstance(item, dict) else str(item)
-            for item in artifact_content_text
-        )
-    elif not isinstance(artifact_content_text, str):
-        artifact_content_text = str(artifact_content_text)
+    ]):
+        if hasattr(chunk, "content"):
+            if isinstance(chunk.content, str):
+                chunk_content = chunk.content
+            elif isinstance(chunk.content, list):
+                chunk_content = "".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in chunk.content
+                )
+            else:
+                chunk_content = str(chunk.content)
+            artifact_content_text += chunk_content
+        else:
+            artifact_content_text += str(chunk)
     
     # Handle thinking models
     thinking_message = None

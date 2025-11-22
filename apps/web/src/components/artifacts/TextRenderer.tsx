@@ -80,6 +80,7 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
   // Track last rendered content to prevent infinite loops
   const lastRenderedContentRef = useRef<string>("");
   const isUpdatingRef = useRef<boolean>(false);
+  const pendingContentRef = useRef<string | null>(null);
 
   useEffect(() => {
     const selectedText = editor.getSelectedText();
@@ -126,11 +127,13 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
 
   useEffect(() => {
     if (!artifact) {
+      console.log("[TextRenderer] No artifact");
       return;
     }
     // Always update when artifact changes, even during streaming
     // Only skip if manually updating to avoid conflicts
     if (manuallyUpdatingArtifact) {
+      console.log("[TextRenderer] Manually updating, skipping");
       return;
     }
 
@@ -140,30 +143,59 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
         (c) => c.index === currentIndex && c.type === "text"
       ) as ArtifactMarkdown | undefined;
       if (!currentContent) {
+        console.log("[TextRenderer] No current content for index:", currentIndex, "contents:", artifact.contents.map(c => c.index));
         return;
       }
 
       const fullMarkdown = currentContent.fullMarkdown || "";
-      
+            
       // Skip if content hasn't changed
       if (lastRenderedContentRef.current === fullMarkdown) {
+        console.log("[TextRenderer] Content unchanged, skipping");
         return;
       }
       
-      (async () => {
+      // If already updating, save this content as pending
+      if (isUpdatingRef.current) {
+        console.log("[TextRenderer] Already updating, saving as pending");
+        pendingContentRef.current = fullMarkdown;
+        return;
+      }
+      
+      console.log("[TextRenderer] Updating editor with new content");
+      
+      // Mark as updating before starting async operation
+      isUpdatingRef.current = true;
+      
+      const performUpdate = async (content: string) => {
         try {
-          const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(fullMarkdown);
+          const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(content);
           editor.replaceBlocks(editor.document, markdownAsBlocks);
-          lastRenderedContentRef.current = fullMarkdown;
+          lastRenderedContentRef.current = content;
           setUpdateRenderedArtifactRequired(false);
           setManuallyUpdatingArtifact(false);
         } catch (parseError) {
           console.error("TextRenderer: Error parsing markdown:", parseError);
+        } finally {
+          // Clear the updating flag
+          isUpdatingRef.current = false;
+          
+          // If there's pending content, update with it
+          if (pendingContentRef.current && pendingContentRef.current !== lastRenderedContentRef.current) {
+            console.log("[TextRenderer] Processing pending content");
+            const pending = pendingContentRef.current;
+            pendingContentRef.current = null;
+            isUpdatingRef.current = true;
+            performUpdate(pending);
+          }
         }
-      })();
+      };
+      
+      performUpdate(fullMarkdown);
     } catch (e) {
       console.error("TextRenderer: Error updating:", e);
       isUpdatingRef.current = false;
+      pendingContentRef.current = null;
     }
   }, [artifact, updateRenderedArtifactRequired, isStreaming]);
 

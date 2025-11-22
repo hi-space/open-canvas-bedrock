@@ -513,6 +513,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         eventCount++;
         const eventType = event?.event || "unknown";
         const nodeName = event?.name || "unknown";
+        const langgraphNode = event?.metadata?.langgraph_node || nodeName;
+        
+        // Log ALL events for debugging
+        // console.log(`[EVENT] type: ${eventType}, node: ${langgraphNode}, name: ${nodeName}`);
         
         // API streams LangGraph events in the same format as LangGraph SDK
         // Process events similar to the original streaming logic
@@ -587,7 +591,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             // Extract content from chunk
             const message = extractStreamDataChunk(chunk);
             const content = message?.content || "";
-            
+                        
             // Skip empty chunks (Bedrock sends many empty chunks)
             if (!content || content.length === 0) {
               continue;
@@ -720,6 +724,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 finalArtifact = updated;
                 return updated;
               });
+              // Trigger rendering update for streaming
+              setUpdateRenderedArtifactRequired(true);
 
               if (isFirstUpdate) {
                 isFirstUpdate = false;
@@ -771,6 +777,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 finalArtifact = updated;
                 return updated;
               });
+              // Trigger rendering update for streaming
+              setUpdateRenderedArtifactRequired(true);
 
               if (isFirstUpdate) {
                 isFirstUpdate = false;
@@ -780,6 +788,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             // Handle rewrite artifact events
             if (
               [
+                "rewriteArtifact",
                 "rewriteArtifactTheme",
                 "rewriteCodeArtifactTheme",
                 "customAction",
@@ -822,6 +831,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
               const firstUpdateCopy = isFirstUpdate;
               setFirstTokenReceived(true);
+                            
               setArtifact((prev) => {
                 if (!prev) {
                   throw new Error("No artifact found when updating markdown");
@@ -845,9 +855,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   isFirstUpdate: firstUpdateCopy,
                   artifactLanguage,
                 });
+                
                 finalArtifact = updated;
                 return updated;
               });
+              // Trigger rendering update for streaming
+              setUpdateRenderedArtifactRequired(true);
 
               if (isFirstUpdate) {
                 isFirstUpdate = false;
@@ -916,7 +929,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   setFirstTokenReceived(true);
                 }
                 
-                console.log(`[FINAL] Artifact set from open_canvas on_chain_end`);
+                console.log(`[FINAL] Artifact set from open_canvas on_chain_end: ${artifactCopy.contents[0].fullMarkdown}`);
               } else {
                 console.log(`[FINAL] No artifact in open_canvas output`);
               }
