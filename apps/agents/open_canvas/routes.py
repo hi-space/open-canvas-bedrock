@@ -142,8 +142,19 @@ async def stream_agent(request: OpenCanvasRequest):
             def serialize_message(msg):
                 """Convert LangChain message to dict for JSON serialization."""
                 if isinstance(msg, BaseMessage):
+                    # Determine message type explicitly
+                    msg_type = "ai"  # default
+                    if isinstance(msg, HumanMessage):
+                        msg_type = "human"
+                    elif isinstance(msg, AIMessage):
+                        msg_type = "ai"
+                    elif isinstance(msg, SystemMessage):
+                        msg_type = "system"
+                    elif hasattr(msg, 'getType'):
+                        msg_type = msg.getType()
+                    
                     result = {
-                        "type": msg.getType() if hasattr(msg, 'getType') else "ai",
+                        "type": msg_type,
                         "content": msg.content if isinstance(msg.content, str) else str(msg.content),
                         "id": getattr(msg, 'id', None),
                         "additional_kwargs": getattr(msg, 'additional_kwargs', {}),

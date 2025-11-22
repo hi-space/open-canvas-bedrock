@@ -81,17 +81,29 @@ Here is the conversation:
 
 Generate the artifact based on the user's request."""
     
-    response = await model.ainvoke([
+    # Use astream for streaming responses
+    # Accumulate the full response for the final artifact
+    full_content = ""
+    async for chunk in model.astream([
         SystemMessage(content="You are a helpful AI assistant."),
         HumanMessage(content=prompt),
-    ])
+    ]):
+        if hasattr(chunk, "content"):
+            chunk_content = chunk.content if isinstance(chunk.content, str) else str(chunk.content)
+            full_content += chunk_content
+        else:
+            full_content += str(chunk)
+    
+    # Create final response message
+    from langchain_core.messages import AIMessage
+    response = AIMessage(content=full_content)
     
     # Create artifact (simplified structure)
     artifact = {
         "type": "text",  # Could be determined by model
         "title": "Generated Artifact",
         "contents": [{
-            "fullMarkdown": response.content if hasattr(response, "content") else str(response)
+            "fullMarkdown": full_content
         }]
     }
     

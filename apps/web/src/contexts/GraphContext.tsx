@@ -575,23 +575,50 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 console.log("Accumulated content, length:", generateArtifactToolCallStr.length);
               }
 
-              // Process accumulated content with rate limiting
+              // For streaming, create artifact directly from accumulated content in real-time
+              // Backend generates text directly, not as tool calls
+              // Update artifact immediately as content streams in
+              if (generateArtifactToolCallStr.length > 0) {
+                const artifactContent = generateArtifactToolCallStr;
+                
+                // Update artifact in real-time (even with partial content)
+                // Create a completely new object to ensure React detects the change
+                const newArtifact: ArtifactV3 = {
+                  currentIndex: 1,
+                  contents: [
+                    {
+                      index: 1,
+                      type: "text" as const,
+                      title: "Generated Artifact",
+                      fullMarkdown: artifactContent,
+                    },
+                  ],
+                };
+                
+                console.log("Updating artifact in real-time (streaming, length:", artifactContent.length, "):", artifactContent.substring(0, 100));
+                if (!firstTokenReceived) {
+                  setFirstTokenReceived(true);
+                }
+                // Create a new object reference to ensure React detects the change
+                // Deep copy to ensure React sees it as a new object
+                setArtifact(JSON.parse(JSON.stringify(newArtifact)));
+                // Always trigger rendering update during streaming
+                setUpdateRenderedArtifactRequired(true);
+                console.log("Artifact state updated, should trigger TextRenderer");
+              }
+
+              // Also try tool call parsing for compatibility (but don't wait for it)
               const result = handleGenerateArtifactToolCallChunk(
                 generateArtifactToolCallStr
               );
 
-              if (result) {
-                if (result === "continue") {
-                  continue;
-                } else if (typeof result === "object") {
-                  console.log("Setting artifact from generateArtifact:", result);
-                  if (!firstTokenReceived) {
-                    setFirstTokenReceived(true);
-                  }
-                  setArtifact(result);
+              if (result && typeof result === "object") {
+                console.log("Setting artifact from generateArtifact (tool call):", result);
+                if (!firstTokenReceived) {
+                  setFirstTokenReceived(true);
                 }
-              } else {
-                console.log("handleGenerateArtifactToolCallChunk returned no result");
+                setArtifact(result);
+                setUpdateRenderedArtifactRequired(true);
               }
             }
 
@@ -796,18 +823,115 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 } else {
                   artifactToSet = output.artifact as ArtifactV3;
                 }
-                setArtifact(artifactToSet);
+                
+                // Ensure artifact has currentIndex and each content has index and type
+                if (!artifactToSet.currentIndex) {
+                  artifactToSet.currentIndex = 1;
+                }
+                if (artifactToSet.contents && Array.isArray(artifactToSet.contents)) {
+                  artifactToSet.contents = artifactToSet.contents.map((content, idx) => {
+                    // Determine type from content structure
+                    let contentType: "text" | "code" = content.type as "text" | "code";
+                    if (!contentType) {
+                      // Infer type from content structure
+                      if ("fullMarkdown" in content && content.fullMarkdown !== undefined) {
+                        contentType = "text";
+                      } else if ("code" in content && content.code !== undefined) {
+                        contentType = "code";
+                      } else {
+                        // Default to text if cannot determine
+                        contentType = "text";
+                      }
+                    }
+                    
+                    // Ensure content has required fields based on type
+                    if (contentType === "text") {
+                      return {
+                        ...content,
+                        index: content.index || idx + 1,
+                        type: "text" as const,
+                        title: content.title || "Generated Artifact",
+                        fullMarkdown: ("fullMarkdown" in content ? content.fullMarkdown : "") || "",
+                      };
+                    } else {
+                      return {
+                        ...content,
+                        index: content.index || idx + 1,
+                        type: "code" as const,
+                        title: content.title || "Generated Artifact",
+                        language: ("language" in content ? content.language : "typescript") as any,
+                        code: ("code" in content ? content.code : "") || "",
+                      };
+                    }
+                  });
+                }
+                
+                console.log("Setting artifact with currentIndex:", artifactToSet.currentIndex, "contents:", artifactToSet.contents);
+                // Create deep copy to ensure React detects the change
+                const artifactCopy = JSON.parse(JSON.stringify(artifactToSet));
+                setArtifact(artifactCopy);
+                // Trigger artifact rendering update
+                // Set isStreaming to false so TextRenderer can update
+                setIsStreaming(false);
+                setUpdateRenderedArtifactRequired(true);
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
+                console.log("Artifact set from on_chain_end, should trigger TextRenderer");
               }
               
               // Parse messages if present
+              // Only add followup messages to chat, not artifact generation messages
+              // Artifact generation messages should only appear in the canvas via the artifact
               if (output.messages && Array.isArray(output.messages)) {
                 console.log("Processing messages from on_chain_end:", output.messages);
                 
                 const parsedMessages: BaseMessage[] = [];
+                const artifactMessageIds = new Set<string>();
                 
+                // First pass: identify which messages are from generateArtifact
+                // generateArtifact messages are the ones that match the artifact content
+                // and are NOT from generateFollowup
+                if (output.artifact && output.artifact.contents && output.artifact.contents.length > 0) {
+                  const artifactContent = output.artifact.contents[0];
+                  const artifactText = artifactContent.fullMarkdown || artifactContent.code || "";
+                  
+                  for (let i = 0; i < output.messages.length; i++) {
+                    const msg = output.messages[i];
+                    let msgId: string | null = null;
+                    let msgContent: string | null = null;
+                    
+                    if (typeof msg === "string") {
+                      const idMatch = msg.match(/id=['"](.*?)['"]/);
+                      const contentMatch = msg.match(/content=['"](.*?)['"]/);
+                      msgId = idMatch ? idMatch[1] : null;
+                      msgContent = contentMatch ? contentMatch[1] : null;
+                    } else if (msg && typeof msg === "object") {
+                      msgId = msg.id || null;
+                      msgContent = typeof msg.content === "string" ? msg.content : String(msg.content || "");
+                    }
+                    
+                    // If this message's content matches the artifact content, it's from generateArtifact
+                    // generateArtifact messages have the same content as the artifact
+                    // generateFollowup messages have different, shorter content
+                    if (msgId && msgContent) {
+                      const msgContentTrimmed = msgContent.trim();
+                      // Check if content matches artifact (first 200 chars for comparison)
+                      const compareLength = Math.min(200, artifactText.length, msgContentTrimmed.length);
+                      const msgContentStart = msgContentTrimmed.substring(0, compareLength).trim();
+                      const artifactContentStart = artifactText.substring(0, compareLength).trim();
+                      
+                      // If content matches artifact exactly (or starts with artifact), it's from generateArtifact
+                      // generateFollowup messages are shorter and have different content
+                      if (msgContentStart === artifactContentStart && msgContentTrimmed.length > 50) {
+                        artifactMessageIds.add(msgId);
+                        console.log("Identified generateArtifact message (canvas only):", msgId, "content matches artifact");
+                      }
+                    }
+                  }
+                }
+                
+                // Second pass: parse and add messages, skipping artifact generation messages
                 for (const msg of output.messages) {
                   let messageObj: BaseMessage;
                   
@@ -820,6 +944,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     
                     const content = contentMatch ? contentMatch[1] : "";
                     const id = idMatch ? idMatch[1] : uuidv4();
+                    
+                    // Skip messages that are from generateArtifact node
+                    if (artifactMessageIds.has(id)) {
+                      console.log("Skipping generateArtifact message (canvas only):", id);
+                      continue;
+                    }
                     
                     // Try to parse additional_kwargs (convert Python dict to JSON)
                     let additionalKwargs = {};
@@ -860,11 +990,67 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     }
                   } else if (msg && typeof msg === "object" && msg.content !== undefined) {
                     // Message is a dict (new format from backend)
-                    const msgType = msg.type || "ai";
                     const content = typeof msg.content === "string" ? msg.content : String(msg.content);
                     const id = msg.id || uuidv4();
                     const additionalKwargs = msg.additional_kwargs || {};
                     const responseMetadata = msg.response_metadata || {};
+                    
+                    // Determine message type: prioritize backend's type field, then use heuristics
+                    let msgType = msg.type || "ai";
+                    
+                    // If backend sent type, trust it (after our fix, it should be correct)
+                    // But also apply heuristics as fallback for backwards compatibility
+                    if (msg.type === "human" || msg.type === "user") {
+                      msgType = "human";
+                    } else if (msg.type === "ai" || msg.type === "assistant") {
+                      msgType = "ai";
+                    } else {
+                      // Fallback heuristics if type is missing or unknown
+                      // Rule 1: If it has documents in additional_kwargs, it's a user message
+                      if (additionalKwargs.documents && Array.isArray(additionalKwargs.documents)) {
+                        msgType = "human";
+                      }
+                      // Rule 2: If it doesn't have lc_run-- in ID, check other characteristics
+                      if (!id.includes("lc_run--")) {
+                        // User messages typically don't have response_metadata with model info
+                        const hasModelMetadata = responseMetadata.model_name || responseMetadata.model_provider;
+                        if (!hasModelMetadata) {
+                          msgType = "human";
+                        }
+                      }
+                      // Rule 3: If it's the first message and doesn't have lc_run--, it's likely user input
+                      const isFirstMessage = output.messages.indexOf(msg) === 0;
+                      if (isFirstMessage && !id.includes("lc_run--")) {
+                        // First message without lc_run-- is almost certainly user input
+                        msgType = "human";
+                        console.log("First message identified as user message:", id, content.substring(0, 50));
+                      }
+                      // Rule 4: If response_metadata is empty or minimal, it's likely a user message
+                      if (Object.keys(responseMetadata).length === 0 && !id.includes("lc_run--")) {
+                        msgType = "human";
+                      }
+                    }
+                    
+                    // Skip messages that are from generateArtifact node
+                    if (artifactMessageIds.has(id)) {
+                      console.log("Skipping generateArtifact message (canvas only):", id);
+                      continue;
+                    }
+                    
+                    // Also check if content matches artifact (for messages without lc_run-- in ID)
+                    if (output.artifact && output.artifact.contents && output.artifact.contents.length > 0) {
+                      const artifactContent = output.artifact.contents[0];
+                      const artifactText = artifactContent.fullMarkdown || artifactContent.code || "";
+                      if (artifactText && content.trim().length > 50) {
+                        const compareLength = Math.min(200, artifactText.length, content.trim().length);
+                        const contentStart = content.trim().substring(0, compareLength);
+                        const artifactStart = artifactText.substring(0, compareLength);
+                        if (contentStart === artifactStart) {
+                          console.log("Skipping message with artifact content (canvas only):", id);
+                          continue;
+                        }
+                      }
+                    }
                     
                     if (msgType === "human" || msgType === "user") {
                       messageObj = new HumanMessage({
@@ -889,13 +1075,27 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 }
                 
                 if (parsedMessages.length > 0) {
-                  console.log(`Adding ${parsedMessages.length} messages from on_chain_end`);
+                  console.log(`Adding ${parsedMessages.length} followup messages from on_chain_end to chat`);
                   setMessages((prev) => {
                     // Filter out messages that are already in the list (by ID)
                     const existingIds = new Set(prev.map(m => m.id));
-                    const newMessages = parsedMessages.filter(m => !existingIds.has(m.id));
+                    // Also filter out user messages - they're already in the chat
+                    const newMessages = parsedMessages.filter(m => {
+                      // Skip if already exists
+                      if (existingIds.has(m.id)) {
+                        return false;
+                      }
+                      // Skip user messages - they're already in the chat from when user sent them
+                      if (m instanceof HumanMessage) {
+                        console.log("Skipping user message (already in chat):", m.id);
+                        return false;
+                      }
+                      return true;
+                    });
                     return [...prev, ...newMessages];
                   });
+                } else {
+                  console.log("No followup messages to add (artifact messages filtered out)");
                 }
               }
             }

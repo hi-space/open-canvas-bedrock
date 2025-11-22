@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef, useState, forwardRef } from "react";
 import { ArtifactMarkdownV3 } from "@/shared/types";
 import "@blocknote/core/fonts/inter.css";
 import {
@@ -59,7 +59,7 @@ export interface TextRendererProps {
   isInputVisible: boolean;
 }
 
-export function TextRendererComponent(props: TextRendererProps) {
+export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProps>((props, ref) => {
   const editor = useCreateBlockNote({});
   const { graphData } = useGraphContext();
   const {
@@ -72,10 +72,28 @@ export function TextRendererComponent(props: TextRendererProps) {
     setUpdateRenderedArtifactRequired,
   } = graphData;
 
+  // Debug: Log when artifact changes
+  useEffect(() => {
+    const firstContent = artifact?.contents?.[0];
+    const fullMarkdownLength = firstContent && 'fullMarkdown' in firstContent 
+      ? firstContent.fullMarkdown?.length 
+      : undefined;
+    console.log("TextRenderer: Artifact prop changed:", {
+      hasArtifact: !!artifact,
+      artifactCurrentIndex: artifact?.currentIndex,
+      contentsLength: artifact?.contents?.length,
+      firstContentType: firstContent?.type,
+      firstContentFullMarkdownLength: fullMarkdownLength,
+    });
+  }, [artifact]);
+
   const [rawMarkdown, setRawMarkdown] = useState("");
   const [isRawView, setIsRawView] = useState(false);
   const [manuallyUpdatingArtifact, setManuallyUpdatingArtifact] =
     useState(false);
+  // Track last rendered content to prevent infinite loops
+  const lastRenderedContentRef = useRef<string>("");
+  const isUpdatingRef = useRef<boolean>(false);
 
   useEffect(() => {
     const selectedText = editor.getSelectedText();
@@ -121,42 +139,85 @@ export function TextRendererComponent(props: TextRendererProps) {
   }, [props.isInputVisible]);
 
   useEffect(() => {
+    console.log("TextRenderer useEffect triggered:", {
+      hasArtifact: !!artifact,
+      isStreaming,
+      updateRenderedArtifactRequired,
+      manuallyUpdatingArtifact,
+    });
+
     if (!artifact) {
+      console.log("TextRenderer: No artifact, skipping update");
       return;
     }
-    if (
-      !isStreaming &&
-      !manuallyUpdatingArtifact &&
-      !updateRenderedArtifactRequired
-    ) {
+    // Always update when artifact changes, even during streaming
+    // Only skip if manually updating to avoid conflicts
+    if (manuallyUpdatingArtifact) {
+      console.log("TextRenderer: Manually updating, skipping");
       return;
     }
 
     try {
-      const currentIndex = artifact.currentIndex;
+      const currentIndex = artifact.currentIndex || 1;
       const currentContent = artifact.contents.find(
         (c) => c.index === currentIndex && c.type === "text"
       ) as ArtifactMarkdownV3 | undefined;
-      if (!currentContent) return;
+      if (!currentContent) {
+        console.warn("TextRenderer: No current content found for artifact:", {
+          artifact,
+          currentIndex,
+          contents: artifact.contents,
+        });
+        return;
+      }
 
-      // Blocks are not found in the artifact, so once streaming is done we should update the artifact state with the blocks
+      const fullMarkdown = currentContent.fullMarkdown || "";
+      const contentPreview = fullMarkdown.substring(0, 100) || "empty";
+      
+      // Skip if content hasn't changed and not required to update
+      if (lastRenderedContentRef.current === fullMarkdown && !updateRenderedArtifactRequired) {
+        console.log("TextRenderer: Content unchanged, skipping update");
+        return;
+      }
+      
+      // Prevent concurrent updates
+      if (isUpdatingRef.current) {
+        console.log("TextRenderer: Update already in progress, skipping");
+        return;
+      }
+      
+      console.log("TextRenderer: Updating with artifact content (streaming:", isStreaming, ", length:", fullMarkdown.length, "):", contentPreview);
+
+      // Update artifact in real-time during streaming
+      isUpdatingRef.current = true;
       (async () => {
-        const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(
-          currentContent.fullMarkdown
-        );
-        editor.replaceBlocks(editor.document, markdownAsBlocks);
-        setUpdateRenderedArtifactRequired(false);
-        setManuallyUpdatingArtifact(false);
+        try {
+          const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(fullMarkdown);
+          console.log("TextRenderer: Parsed markdown to blocks, count:", markdownAsBlocks.length);
+          editor.replaceBlocks(editor.document, markdownAsBlocks);
+          console.log("TextRenderer: Replaced blocks in editor");
+          // Update last rendered content
+          lastRenderedContentRef.current = fullMarkdown;
+          setUpdateRenderedArtifactRequired(false);
+          setManuallyUpdatingArtifact(false);
+        } catch (parseError) {
+          console.error("TextRenderer: Error parsing markdown:", parseError);
+        } finally {
+          isUpdatingRef.current = false;
+        }
       })();
-    } finally {
-      setManuallyUpdatingArtifact(false);
-      setUpdateRenderedArtifactRequired(false);
+    } catch (e) {
+      console.error("TextRenderer: Error updating:", e);
+      isUpdatingRef.current = false;
     }
-  }, [artifact, updateRenderedArtifactRequired]);
+  }, [artifact, updateRenderedArtifactRequired, isStreaming]);
 
   useEffect(() => {
     if (isRawView) {
-      editor.blocksToMarkdownLossy(editor.document).then(setRawMarkdown);
+      (async () => {
+        const markdown = await editor.blocksToMarkdownLossy(editor.document);
+        setRawMarkdown(markdown);
+      })();
     } else if (!isRawView && rawMarkdown) {
       try {
         (async () => {
@@ -247,7 +308,7 @@ export function TextRendererComponent(props: TextRendererProps) {
   };
 
   return (
-    <div className="w-full h-full mt-2 flex flex-col border-t-[1px] border-gray-200 overflow-y-auto py-5 relative">
+    <div ref={ref} className="w-full h-full mt-2 flex flex-col border-t-[1px] border-gray-200 overflow-y-auto py-5 relative">
       {props.isHovering && artifact && (
         <div className="absolute flex gap-2 top-2 right-4 z-10">
           <CopyText currentArtifactContent={getArtifactContent(artifact)} />
@@ -306,6 +367,8 @@ export function TextRendererComponent(props: TextRendererProps) {
       )}
     </div>
   );
-}
+});
+
+TextRendererComponent.displayName = "TextRendererComponent";
 
 export const TextRenderer = React.memo(TextRendererComponent);
