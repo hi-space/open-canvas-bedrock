@@ -83,13 +83,23 @@ Generate the artifact based on the user's request."""
     
     # Use astream for streaming responses
     # Accumulate the full response for the final artifact
+    # Note: ChatBedrockConverse returns content as a list of dicts with 'text' keys
     full_content = ""
     async for chunk in model.astream([
         SystemMessage(content="You are a helpful AI assistant."),
         HumanMessage(content=prompt),
     ]):
         if hasattr(chunk, "content"):
-            chunk_content = chunk.content if isinstance(chunk.content, str) else str(chunk.content)
+            if isinstance(chunk.content, str):
+                chunk_content = chunk.content
+            elif isinstance(chunk.content, list):
+                # ChatBedrockConverse returns content as list of dicts: [{'type': 'text', 'text': '...', 'index': 0}]
+                chunk_content = "".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in chunk.content
+                )
+            else:
+                chunk_content = str(chunk.content)
             full_content += chunk_content
         else:
             full_content += str(chunk)
@@ -210,7 +220,16 @@ async def generate_title_node(
         "messages": state.get("messages", []),
         "artifact": state.get("artifact"),
     }
-    result = await thread_title_graph.ainvoke(title_state, config)
+    # Map thread_id to open_canvas_thread_id for thread_title graph
+    configurable = config.get("configurable", {}) if config else {}
+    thread_id = configurable.get("thread_id")
+    title_config = {
+        "configurable": {
+            **configurable,
+            "open_canvas_thread_id": thread_id,
+        }
+    }
+    result = await thread_title_graph.ainvoke(title_state, config=title_config)
     return {}
 
 

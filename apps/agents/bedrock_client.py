@@ -2,7 +2,7 @@
 AWS Bedrock client wrapper for LangChain.
 """
 from typing import Optional, Dict, Any, List
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables import RunnableConfig
 import os
@@ -14,8 +14,8 @@ def get_bedrock_model(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     is_tool_calling: bool = False
-) -> ChatBedrock:
-    """Get AWS Bedrock model instance."""
+) -> ChatBedrockConverse:
+    """Get AWS Bedrock model instance using the Converse API."""
     from utils import get_model_config
     
     model_config = get_model_config(config, is_tool_calling=is_tool_calling)
@@ -47,13 +47,12 @@ def get_bedrock_model(
     # Create boto3 session
     boto_session = boto3.Session(**session_kwargs)
     
-    # Create ChatBedrock instance
-    model = ChatBedrock(
+    # Create ChatBedrockConverse instance
+    # Note: ChatBedrockConverse uses temperature and max_tokens as direct parameters, not in model_kwargs
+    model = ChatBedrockConverse(
         model_id=model_name,
-        model_kwargs={
-            "temperature": temp,
-            "max_tokens": max_toks,
-        },
+        temperature=temp,
+        max_tokens=max_toks,
         credentials_profile_name=None,  # Use boto3 session instead
     )
     

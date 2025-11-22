@@ -72,20 +72,6 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
     setUpdateRenderedArtifactRequired,
   } = graphData;
 
-  // Debug: Log when artifact changes
-  useEffect(() => {
-    const firstContent = artifact?.contents?.[0];
-    const fullMarkdownLength = firstContent && 'fullMarkdown' in firstContent 
-      ? firstContent.fullMarkdown?.length 
-      : undefined;
-    console.log("TextRenderer: Artifact prop changed:", {
-      hasArtifact: !!artifact,
-      artifactCurrentIndex: artifact?.currentIndex,
-      contentsLength: artifact?.contents?.length,
-      firstContentType: firstContent?.type,
-      firstContentFullMarkdownLength: fullMarkdownLength,
-    });
-  }, [artifact]);
 
   const [rawMarkdown, setRawMarkdown] = useState("");
   const [isRawView, setIsRawView] = useState(false);
@@ -139,21 +125,12 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
   }, [props.isInputVisible]);
 
   useEffect(() => {
-    console.log("TextRenderer useEffect triggered:", {
-      hasArtifact: !!artifact,
-      isStreaming,
-      updateRenderedArtifactRequired,
-      manuallyUpdatingArtifact,
-    });
-
     if (!artifact) {
-      console.log("TextRenderer: No artifact, skipping update");
       return;
     }
     // Always update when artifact changes, even during streaming
     // Only skip if manually updating to avoid conflicts
     if (manuallyUpdatingArtifact) {
-      console.log("TextRenderer: Manually updating, skipping");
       return;
     }
 
@@ -163,39 +140,27 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
         (c) => c.index === currentIndex && c.type === "text"
       ) as ArtifactMarkdownV3 | undefined;
       if (!currentContent) {
-        console.warn("TextRenderer: No current content found for artifact:", {
-          artifact,
-          currentIndex,
-          contents: artifact.contents,
-        });
         return;
       }
 
       const fullMarkdown = currentContent.fullMarkdown || "";
-      const contentPreview = fullMarkdown.substring(0, 100) || "empty";
       
       // Skip if content hasn't changed and not required to update
       if (lastRenderedContentRef.current === fullMarkdown && !updateRenderedArtifactRequired) {
-        console.log("TextRenderer: Content unchanged, skipping update");
         return;
       }
       
       // Prevent concurrent updates
       if (isUpdatingRef.current) {
-        console.log("TextRenderer: Update already in progress, skipping");
         return;
       }
-      
-      console.log("TextRenderer: Updating with artifact content (streaming:", isStreaming, ", length:", fullMarkdown.length, "):", contentPreview);
 
       // Update artifact in real-time during streaming
       isUpdatingRef.current = true;
       (async () => {
         try {
           const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(fullMarkdown);
-          console.log("TextRenderer: Parsed markdown to blocks, count:", markdownAsBlocks.length);
           editor.replaceBlocks(editor.document, markdownAsBlocks);
-          console.log("TextRenderer: Replaced blocks in editor");
           // Update last rendered content
           lastRenderedContentRef.current = fullMarkdown;
           setUpdateRenderedArtifactRequired(false);

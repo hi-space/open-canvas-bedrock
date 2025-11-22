@@ -100,14 +100,12 @@ const GraphContext = createContext<GraphContentType | undefined>(undefined);
 
 // Shim for recent LangGraph bugfix
 function extractStreamDataChunk(chunk: any) {
-  console.log("extractStreamDataChunk input:", chunk);
   let result;
   if (Array.isArray(chunk)) {
     result = chunk[1];
   } else {
     result = chunk;
   }
-  console.log("extractStreamDataChunk output:", result);
   
   // Ensure the result has the expected structure
   if (result && typeof result === "object") {
@@ -402,11 +400,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         },
       };
 
-      // Debug: Log config to ensure it's set correctly
-      console.log("Streaming with config:", {
-        customModelName: config.configurable.customModelName,
-        hasModelConfig: !!config.configurable.modelConfig,
-      });
 
       const stream = streamFastAPIAgent(input, config);
 
@@ -448,14 +441,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       let followupMessageId = "";
       let thinkingMessageId = "";
 
-      console.log("Starting to process stream events...");
-      let processedEventCount = 0;
-      
       for await (const event of stream) {
-        processedEventCount++;
         const eventType = event?.event || "unknown";
         const nodeName = event?.name || "unknown";
-        console.log(`Processing event #${processedEventCount}: ${eventType} from ${nodeName}`, event);
         
         // FastAPI streams LangGraph events in the same format as LangGraph SDK
         // Process events similar to the original streaming logic
@@ -526,39 +514,23 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               )
             ) {
               const message = extractStreamDataChunk(chunk);
-              console.log(`Processing ${langgraphNode} message chunk:`, {
-                message,
-                hasId: !!message?.id,
-                hasContent: !!message?.content,
-                contentType: typeof message?.content,
-                contentValue: message?.content,
-              });
               
               if (!message?.id) {
-                console.error("Message chunk missing ID, generating one");
                 message.id = `msg-${Date.now()}-${Math.random()}`;
               }
               
               if (!followupMessageId) {
                 followupMessageId = message.id;
-                console.log("Setting followupMessageId:", followupMessageId);
               }
               
               setMessages((prevMessages) => {
                 const updated = replaceOrInsertMessageChunk(prevMessages, message);
-                console.log(`Updated messages: ${prevMessages.length} -> ${updated.length}`);
                 return updated;
               });
             }
 
             if (langgraphNode === "generateArtifact") {
               const message = extractStreamDataChunk(chunk);
-              console.log("Processing generateArtifact chunk:", {
-                message,
-                hasToolCalls: !!message?.tool_call_chunks?.length,
-                hasContent: !!message?.content,
-                contentType: typeof message?.content,
-              });
 
               // Accumulate content
               if (
@@ -566,13 +538,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 typeof message?.tool_call_chunks?.[0]?.args === "string"
               ) {
                 generateArtifactToolCallStr += message.tool_call_chunks[0].args;
-                console.log("Accumulated tool call args, length:", generateArtifactToolCallStr.length);
               } else if (
                 message?.content &&
                 typeof message?.content === "string"
               ) {
                 generateArtifactToolCallStr += message.content;
-                console.log("Accumulated content, length:", generateArtifactToolCallStr.length);
               }
 
               // For streaming, create artifact directly from accumulated content in real-time
@@ -595,7 +565,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   ],
                 };
                 
-                console.log("Updating artifact in real-time (streaming, length:", artifactContent.length, "):", artifactContent.substring(0, 100));
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
@@ -604,7 +573,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 setArtifact(JSON.parse(JSON.stringify(newArtifact)));
                 // Always trigger rendering update during streaming
                 setUpdateRenderedArtifactRequired(true);
-                console.log("Artifact state updated, should trigger TextRenderer");
               }
 
               // Also try tool call parsing for compatibility (but don't wait for it)
@@ -613,7 +581,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               );
 
               if (result && typeof result === "object") {
-                console.log("Setting artifact from generateArtifact (tool call):", result);
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
@@ -809,13 +776,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           if (eventType === "on_chain_end") {
             // Handle final output from open_canvas graph
             if (langgraphNode === "open_canvas" && data?.output) {
-              console.log("Processing on_chain_end from open_canvas:", data.output);
-              
               const output = data.output;
               
               // Parse artifact if present
               if (output.artifact) {
-                console.log("Setting artifact from on_chain_end:", output.artifact);
                 // Convert to ArtifactV3 if needed
                 let artifactToSet: ArtifactV3;
                 if (isDeprecatedArtifactType(output.artifact)) {
@@ -866,7 +830,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   });
                 }
                 
-                console.log("Setting artifact with currentIndex:", artifactToSet.currentIndex, "contents:", artifactToSet.contents);
                 // Create deep copy to ensure React detects the change
                 const artifactCopy = JSON.parse(JSON.stringify(artifactToSet));
                 setArtifact(artifactCopy);
@@ -877,14 +840,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
-                console.log("Artifact set from on_chain_end, should trigger TextRenderer");
               }
               
               // Parse messages if present
               // Only add followup messages to chat, not artifact generation messages
               // Artifact generation messages should only appear in the canvas via the artifact
               if (output.messages && Array.isArray(output.messages)) {
-                console.log("Processing messages from on_chain_end:", output.messages);
                 
                 const parsedMessages: BaseMessage[] = [];
                 const artifactMessageIds = new Set<string>();
@@ -925,7 +886,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       // generateFollowup messages are shorter and have different content
                       if (msgContentStart === artifactContentStart && msgContentTrimmed.length > 50) {
                         artifactMessageIds.add(msgId);
-                        console.log("Identified generateArtifact message (canvas only):", msgId, "content matches artifact");
                       }
                     }
                   }
@@ -1018,13 +978,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                           msgType = "human";
                         }
                       }
-                      // Rule 3: If it's the first message and doesn't have lc_run--, it's likely user input
-                      const isFirstMessage = output.messages.indexOf(msg) === 0;
-                      if (isFirstMessage && !id.includes("lc_run--")) {
-                        // First message without lc_run-- is almost certainly user input
-                        msgType = "human";
-                        console.log("First message identified as user message:", id, content.substring(0, 50));
-                      }
+                    // Rule 3: If it's the first message and doesn't have lc_run--, it's likely user input
+                    const isFirstMessage = output.messages.indexOf(msg) === 0;
+                    if (isFirstMessage && !id.includes("lc_run--")) {
+                      // First message without lc_run-- is almost certainly user input
+                      msgType = "human";
+                    }
                       // Rule 4: If response_metadata is empty or minimal, it's likely a user message
                       if (Object.keys(responseMetadata).length === 0 && !id.includes("lc_run--")) {
                         msgType = "human";
@@ -1033,7 +992,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     
                     // Skip messages that are from generateArtifact node
                     if (artifactMessageIds.has(id)) {
-                      console.log("Skipping generateArtifact message (canvas only):", id);
                       continue;
                     }
                     
@@ -1046,7 +1004,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         const contentStart = content.trim().substring(0, compareLength);
                         const artifactStart = artifactText.substring(0, compareLength);
                         if (contentStart === artifactStart) {
-                          console.log("Skipping message with artifact content (canvas only):", id);
                           continue;
                         }
                       }
@@ -1075,7 +1032,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 }
                 
                 if (parsedMessages.length > 0) {
-                  console.log(`Adding ${parsedMessages.length} followup messages from on_chain_end to chat`);
                   setMessages((prev) => {
                     // Filter out messages that are already in the list (by ID)
                     const existingIds = new Set(prev.map(m => m.id));
@@ -1087,15 +1043,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       }
                       // Skip user messages - they're already in the chat from when user sent them
                       if (m instanceof HumanMessage) {
-                        console.log("Skipping user message (already in chat):", m.id);
                         return false;
                       }
                       return true;
                     });
                     return [...prev, ...newMessages];
                   });
-                } else {
-                  console.log("No followup messages to add (artifact messages filtered out)");
                 }
               }
             }

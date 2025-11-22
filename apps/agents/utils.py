@@ -6,6 +6,7 @@ from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 import uuid
 import base64
+import os
 
 
 def format_reflections(
@@ -145,7 +146,4 @@ def get_string_from_content(content: Any) -> str:
 def clean_base64(base64_string: str) -> str:
     """Clean base64 string by removing data URL prefix."""
     return base64_string.replace("data:.*?;base64,", "")
-
-
-import os
 

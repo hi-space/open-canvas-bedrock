@@ -98,6 +98,69 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
     }
 
 
+def serialize_message_for_response(msg):
+    """Convert LangChain message to dict for JSON serialization (for /run endpoint)."""
+    if isinstance(msg, BaseMessage):
+        # Determine message type explicitly
+        msg_type = "ai"  # default
+        if isinstance(msg, HumanMessage):
+            msg_type = "human"
+        elif isinstance(msg, AIMessage):
+            msg_type = "ai"
+        elif isinstance(msg, SystemMessage):
+            msg_type = "system"
+        elif hasattr(msg, 'getType'):
+            msg_type = msg.getType()
+        
+        # Handle content - ChatBedrockConverse returns content as list of dicts
+        content = msg.content
+        if isinstance(content, str):
+            content_str = content
+        elif isinstance(content, list):
+            # ChatBedrockConverse returns content as list of dicts: [{'type': 'text', 'text': '...', 'index': 0}]
+            content_str = "".join(
+                item.get("text", "") if isinstance(item, dict) else str(item)
+                for item in content
+            )
+        else:
+            content_str = str(content)
+        
+        result = {
+            "type": msg_type,
+            "content": content_str,
+            "id": getattr(msg, 'id', None),
+            "additional_kwargs": getattr(msg, 'additional_kwargs', {}),
+        }
+        if hasattr(msg, 'response_metadata'):
+            result["response_metadata"] = msg.response_metadata
+        if hasattr(msg, 'usage_metadata'):
+            result["usage_metadata"] = msg.usage_metadata
+        return result
+    return str(msg)
+
+
+def convert_messages_in_result(obj):
+    """Recursively convert message objects to dicts in result."""
+    if isinstance(obj, dict):
+        result = {}
+        for key, value in obj.items():
+            if key == "messages" or key == "_messages":
+                # Convert message list
+                if isinstance(value, list):
+                    result[key] = [serialize_message_for_response(msg) if isinstance(msg, BaseMessage) else msg for msg in value]
+                else:
+                    result[key] = value
+            else:
+                result[key] = convert_messages_in_result(value)
+        return result
+    elif isinstance(obj, list):
+        return [convert_messages_in_result(item) for item in obj]
+    elif isinstance(obj, BaseMessage):
+        return serialize_message_for_response(obj)
+    else:
+        return obj
+
+
 @router.post("/run")
 async def run_agent(request: OpenCanvasRequest):
     """Run Open Canvas agent (non-streaming)."""
@@ -113,7 +176,9 @@ async def run_agent(request: OpenCanvasRequest):
             config = {"configurable": request_config}
         
         result = await graph.ainvoke(state, config=config)
-        return result
+        # Convert LangChain message objects to dicts for JSON serialization
+        converted_result = convert_messages_in_result(result)
+        return converted_result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -153,9 +218,22 @@ async def stream_agent(request: OpenCanvasRequest):
                     elif hasattr(msg, 'getType'):
                         msg_type = msg.getType()
                     
+                    # Handle content - ChatBedrockConverse returns content as list of dicts
+                    content = msg.content
+                    if isinstance(content, str):
+                        content_str = content
+                    elif isinstance(content, list):
+                        # ChatBedrockConverse returns content as list of dicts: [{'type': 'text', 'text': '...', 'index': 0}]
+                        content_str = "".join(
+                            item.get("text", "") if isinstance(item, dict) else str(item)
+                            for item in content
+                        )
+                    else:
+                        content_str = str(content)
+                    
                     result = {
                         "type": msg_type,
-                        "content": msg.content if isinstance(msg.content, str) else str(msg.content),
+                        "content": content_str,
                         "id": getattr(msg, 'id', None),
                         "additional_kwargs": getattr(msg, 'additional_kwargs', {}),
                     }

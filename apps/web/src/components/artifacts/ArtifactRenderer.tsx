@@ -288,33 +288,11 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     ? getArtifactContent(artifact)
     : undefined;
 
-  // Debug logging
-  useEffect(() => {
-    console.log("ArtifactRenderer: artifact state:", {
-      hasArtifact: !!artifact,
-      currentIndex: artifact?.currentIndex,
-      contentsLength: artifact?.contents?.length,
-      contents: artifact?.contents?.map(c => ({
-        index: c.index,
-        type: c.type,
-        hasFullMarkdown: "fullMarkdown" in c,
-        hasCode: "code" in c,
-      })),
-      hasCurrentContent: !!currentArtifactContent,
-      currentContentType: currentArtifactContent?.type,
-      currentContentKeys: currentArtifactContent ? Object.keys(currentArtifactContent) : [],
-    });
-  }, [artifact, currentArtifactContent]);
-
   if (!artifact && isStreaming) {
     return <ArtifactLoading />;
   }
 
   if (!artifact || !currentArtifactContent) {
-    console.log("ArtifactRenderer: No artifact or content, returning empty div", {
-      hasArtifact: !!artifact,
-      hasCurrentContent: !!currentArtifactContent,
-    });
     return <div className="w-full h-full"></div>;
   }
 
