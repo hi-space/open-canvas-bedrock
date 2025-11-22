@@ -209,6 +209,11 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
       return;
 
     const fullMarkdown = await editor.blocksToMarkdownLossy(editor.document);
+    
+    // Update lastRenderedContentRef before setArtifact to prevent useEffect from triggering replaceBlocks
+    // This preserves cursor position when user is editing
+    lastRenderedContentRef.current = fullMarkdown;
+    
     setArtifact((prev) => {
       if (!prev) {
         return {

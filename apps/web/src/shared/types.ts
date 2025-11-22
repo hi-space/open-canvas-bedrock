@@ -75,7 +75,7 @@ export type RewriteArtifactMetaToolResponse =
 
 export type LanguageOptions =
   | "english"
-  | "mandarin"
+  | "korean"
   | "spanish"
   | "french"
   | "hindi";

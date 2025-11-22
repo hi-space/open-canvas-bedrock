@@ -1,6 +1,6 @@
 import {
   UsaFlag,
-  ChinaFlag,
+  KoreaFlag,
   IndiaFlag,
   SpanishFlag,
   FrenchFlag,
@@ -36,23 +36,15 @@ export function TranslateOptions(props: TranslateOptionsProps) {
         <UsaFlag />
       </TooltipIconButton>
       <TooltipIconButton
-        tooltip="Mandarin"
+        tooltip="Korean"
         variant="ghost"
         className="transition-colors w-[36px] h-[36px]"
         delayDuration={400}
-        onClick={async () => await handleSubmit("mandarin")}
+        onClick={async () => await handleSubmit("korean")}
       >
-        <ChinaFlag />
+        <KoreaFlag />
       </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Hindi"
-        variant="ghost"
-        className="transition-colors w-[36px] h-[36px]"
-        delayDuration={400}
-        onClick={async () => await handleSubmit("hindi")}
-      >
-        <IndiaFlag />
-      </TooltipIconButton>
+   
       <TooltipIconButton
         tooltip="Spanish"
         variant="ghost"
