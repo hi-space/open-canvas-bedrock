@@ -16,41 +16,6 @@ export interface ApiResponse {
 }
 
 /**
- * Call agent endpoint
- */
-export async function callAgent(
-  input: GraphInput,
-  config?: { configurable?: Record<string, any> }
-): Promise<ApiResponse> {
-  const requestBody: ApiRequest = {
-    messages: input.messages || [],
-    artifact: input.artifact,
-    config: {
-      configurable: {
-        ...config?.configurable,
-        customModelName: (config?.configurable as any)?.customModelName,
-        modelConfig: (config?.configurable as any)?.modelConfig,
-      },
-    },
-  };
-
-  const response = await fetch(`${API_URL}/api/agent/run`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Request failed: ${response.status} ${errorText}`);
-  }
-
-  return await response.json();
-}
-
-/**
  * Call reflection endpoint
  */
 export async function callReflection(
