@@ -242,12 +242,15 @@ export async function* streamFastAPIAgent(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let eventCount = 0;
 
   try {
+    console.log("Starting to read stream...");
     while (true) {
       const { done, value } = await reader.read();
       
       if (done) {
+        console.log(`Stream ended. Total events received: ${eventCount}`);
         break;
       }
 
@@ -256,19 +259,28 @@ export async function* streamFastAPIAgent(
       buffer = lines.pop() || ""; // Keep incomplete line in buffer
 
       for (const line of lines) {
+        if (line.trim() === "") continue; // Skip empty lines
+        
         if (line.startsWith("data: ")) {
           const data = line.slice(6); // Remove "data: " prefix
           
           if (data === "[DONE]") {
+            console.log("Received [DONE] signal");
             return;
           }
 
           try {
             const event = JSON.parse(data);
+            eventCount++;
+            const eventType = event?.event || "unknown";
+            const eventName = event?.name || "unknown";
+            console.log(`Received event #${eventCount}: ${eventType} from ${eventName}`, event);
             yield event;
           } catch (e) {
             console.error("Failed to parse SSE data:", data, e);
           }
+        } else {
+          console.warn("Received non-SSE line:", line);
         }
       }
     }

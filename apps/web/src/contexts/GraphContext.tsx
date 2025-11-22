@@ -16,7 +16,7 @@ import {
   SearchResult,
   TextHighlight,
 } from "@/shared/types";
-import { AIMessage, BaseMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useRuns } from "@/hooks/useRuns";
 import { streamFastAPIAgent } from "@/lib/fastapi-client";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
@@ -100,10 +100,42 @@ const GraphContext = createContext<GraphContentType | undefined>(undefined);
 
 // Shim for recent LangGraph bugfix
 function extractStreamDataChunk(chunk: any) {
+  console.log("extractStreamDataChunk input:", chunk);
+  let result;
   if (Array.isArray(chunk)) {
-    return chunk[1];
+    result = chunk[1];
+  } else {
+    result = chunk;
   }
-  return chunk;
+  console.log("extractStreamDataChunk output:", result);
+  
+  // Ensure the result has the expected structure
+  if (result && typeof result === "object") {
+    // If it's an AIMessageChunk-like object, ensure it has content
+    if (result.content !== undefined && typeof result.content !== "string") {
+      // Try to extract string content
+      if (Array.isArray(result.content)) {
+        // Content might be an array of content blocks
+        const textContent = result.content
+          .filter((block: any) => block.type === "text")
+          .map((block: any) => block.text || "")
+          .join("");
+        result = { ...result, content: textContent };
+      } else {
+        result = { ...result, content: String(result.content) };
+      }
+    }
+    
+    // Ensure ID exists
+    if (!result.id && result.response_metadata?.run_id) {
+      result.id = `msg-${result.response_metadata.run_id}`;
+    }
+    if (!result.id) {
+      result.id = `msg-${Date.now()}-${Math.random()}`;
+    }
+  }
+  
+  return result;
 }
 
 function extractStreamDataOutput(output: any) {
@@ -416,7 +448,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       let followupMessageId = "";
       let thinkingMessageId = "";
 
+      console.log("Starting to process stream events...");
+      let processedEventCount = 0;
+      
       for await (const event of stream) {
+        processedEventCount++;
+        const eventType = event?.event || "unknown";
+        const nodeName = event?.name || "unknown";
+        console.log(`Processing event #${processedEventCount}: ${eventType} from ${nodeName}`, event);
+        
         // FastAPI streams LangGraph events in the same format as LangGraph SDK
         // Process events similar to the original streaming logic
         if (event.event === "error") {
@@ -474,7 +514,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
           if (eventType === "on_chat_model_stream") {
             const chunk = data?.chunk;
-            if (!chunk) continue;
+            if (!chunk) {
+              console.warn("on_chat_model_stream event has no chunk", { data, langgraphNode });
+              continue;
+            }
 
             // These are generating new messages to insert to the chat window.
             if (
@@ -483,16 +526,39 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               )
             ) {
               const message = extractStreamDataChunk(chunk);
+              console.log(`Processing ${langgraphNode} message chunk:`, {
+                message,
+                hasId: !!message?.id,
+                hasContent: !!message?.content,
+                contentType: typeof message?.content,
+                contentValue: message?.content,
+              });
+              
+              if (!message?.id) {
+                console.error("Message chunk missing ID, generating one");
+                message.id = `msg-${Date.now()}-${Math.random()}`;
+              }
+              
               if (!followupMessageId) {
                 followupMessageId = message.id;
+                console.log("Setting followupMessageId:", followupMessageId);
               }
-              setMessages((prevMessages) =>
-                replaceOrInsertMessageChunk(prevMessages, message)
-              );
+              
+              setMessages((prevMessages) => {
+                const updated = replaceOrInsertMessageChunk(prevMessages, message);
+                console.log(`Updated messages: ${prevMessages.length} -> ${updated.length}`);
+                return updated;
+              });
             }
 
             if (langgraphNode === "generateArtifact") {
               const message = extractStreamDataChunk(chunk);
+              console.log("Processing generateArtifact chunk:", {
+                message,
+                hasToolCalls: !!message?.tool_call_chunks?.length,
+                hasContent: !!message?.content,
+                contentType: typeof message?.content,
+              });
 
               // Accumulate content
               if (
@@ -500,11 +566,13 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 typeof message?.tool_call_chunks?.[0]?.args === "string"
               ) {
                 generateArtifactToolCallStr += message.tool_call_chunks[0].args;
+                console.log("Accumulated tool call args, length:", generateArtifactToolCallStr.length);
               } else if (
                 message?.content &&
                 typeof message?.content === "string"
               ) {
                 generateArtifactToolCallStr += message.content;
+                console.log("Accumulated content, length:", generateArtifactToolCallStr.length);
               }
 
               // Process accumulated content with rate limiting
@@ -516,11 +584,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 if (result === "continue") {
                   continue;
                 } else if (typeof result === "object") {
+                  console.log("Setting artifact from generateArtifact:", result);
                   if (!firstTokenReceived) {
                     setFirstTokenReceived(true);
                   }
                   setArtifact(result);
                 }
+              } else {
+                console.log("handleGenerateArtifactToolCallChunk returned no result");
               }
             }
 
@@ -709,6 +780,126 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           }
 
           if (eventType === "on_chain_end") {
+            // Handle final output from open_canvas graph
+            if (langgraphNode === "open_canvas" && data?.output) {
+              console.log("Processing on_chain_end from open_canvas:", data.output);
+              
+              const output = data.output;
+              
+              // Parse artifact if present
+              if (output.artifact) {
+                console.log("Setting artifact from on_chain_end:", output.artifact);
+                // Convert to ArtifactV3 if needed
+                let artifactToSet: ArtifactV3;
+                if (isDeprecatedArtifactType(output.artifact)) {
+                  artifactToSet = convertToArtifactV3(output.artifact);
+                } else {
+                  artifactToSet = output.artifact as ArtifactV3;
+                }
+                setArtifact(artifactToSet);
+                if (!firstTokenReceived) {
+                  setFirstTokenReceived(true);
+                }
+              }
+              
+              // Parse messages if present
+              if (output.messages && Array.isArray(output.messages)) {
+                console.log("Processing messages from on_chain_end:", output.messages);
+                
+                const parsedMessages: BaseMessage[] = [];
+                
+                for (const msg of output.messages) {
+                  let messageObj: BaseMessage;
+                  
+                  // If message is a string (legacy format), try to parse it
+                  if (typeof msg === "string") {
+                    // Parse string like: "content='하이' additional_kwargs={'documents': []} response_metadata={} id='fb873f8b-2c62-49c9-8518-d6f579b9ab18'"
+                    const contentMatch = msg.match(/content=['"](.*?)['"]/);
+                    const idMatch = msg.match(/id=['"](.*?)['"]/);
+                    const additionalKwargsMatch = msg.match(/additional_kwargs=({.*?})/);
+                    
+                    const content = contentMatch ? contentMatch[1] : "";
+                    const id = idMatch ? idMatch[1] : uuidv4();
+                    
+                    // Try to parse additional_kwargs (convert Python dict to JSON)
+                    let additionalKwargs = {};
+                    if (additionalKwargsMatch) {
+                      try {
+                        // Replace Python dict syntax with JSON
+                        const kwargsStr = additionalKwargsMatch[1]
+                          .replace(/'/g, '"')
+                          .replace(/True/g, 'true')
+                          .replace(/False/g, 'false')
+                          .replace(/None/g, 'null');
+                        additionalKwargs = JSON.parse(kwargsStr);
+                      } catch (e) {
+                        console.warn("Failed to parse additional_kwargs:", e);
+                      }
+                    }
+                    
+                    // Determine message type from string representation
+                    let messageType = "ai";
+                    if (msg.includes("HumanMessage")) {
+                      messageType = "human";
+                    } else if (msg.includes("AIMessage") || msg.includes("lc_run--")) {
+                      messageType = "ai";
+                    }
+                    
+                    if (messageType === "human") {
+                      messageObj = new HumanMessage({
+                        content,
+                        id,
+                        additional_kwargs: additionalKwargs,
+                      });
+                    } else {
+                      messageObj = new AIMessage({
+                        content,
+                        id,
+                        additional_kwargs: additionalKwargs,
+                      });
+                    }
+                  } else if (msg && typeof msg === "object" && msg.content !== undefined) {
+                    // Message is a dict (new format from backend)
+                    const msgType = msg.type || "ai";
+                    const content = typeof msg.content === "string" ? msg.content : String(msg.content);
+                    const id = msg.id || uuidv4();
+                    const additionalKwargs = msg.additional_kwargs || {};
+                    const responseMetadata = msg.response_metadata || {};
+                    
+                    if (msgType === "human" || msgType === "user") {
+                      messageObj = new HumanMessage({
+                        content,
+                        id,
+                        additional_kwargs: additionalKwargs,
+                        response_metadata: responseMetadata,
+                      });
+                    } else {
+                      messageObj = new AIMessage({
+                        content,
+                        id,
+                        additional_kwargs: additionalKwargs,
+                        response_metadata: responseMetadata,
+                      });
+                    }
+                  } else {
+                    continue; // Skip invalid messages
+                  }
+                  
+                  parsedMessages.push(messageObj);
+                }
+                
+                if (parsedMessages.length > 0) {
+                  console.log(`Adding ${parsedMessages.length} messages from on_chain_end`);
+                  setMessages((prev) => {
+                    // Filter out messages that are already in the list (by ID)
+                    const existingIds = new Set(prev.map(m => m.id));
+                    const newMessages = parsedMessages.filter(m => !existingIds.has(m.id));
+                    return [...prev, ...newMessages];
+                  });
+                }
+              }
+            }
+            
             if (
               langgraphNode === "rewriteArtifact" &&
               data?.output

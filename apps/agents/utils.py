@@ -75,12 +75,12 @@ def get_model_config(
 
     model_config = configurable.get("modelConfig", {})
     
-    # Only support AWS Bedrock models
-    if not custom_model_name.startswith("bedrock/"):
-        raise ValueError(f"Only AWS Bedrock models are supported. Model name must start with 'bedrock/'. Got: {custom_model_name}")
-    
-    # Remove bedrock/ prefix to get actual model name
-    actual_model_name = custom_model_name.replace("bedrock/", "")
+    # Remove bedrock/ prefix if present (for compatibility with frontend)
+    # The actual Bedrock model ID doesn't need the prefix
+    if custom_model_name.startswith("bedrock/"):
+        actual_model_name = custom_model_name.replace("bedrock/", "", 1)
+    else:
+        actual_model_name = custom_model_name
     
     return {
         "modelName": actual_model_name,

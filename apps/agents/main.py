@@ -30,12 +30,14 @@ from reflection.routes import router as reflection_router
 from thread_title.routes import router as thread_title_router
 from summarizer.routes import router as summarizer_router
 from web_search.routes import router as web_search_router
+from threads.routes import router as threads_router
 
 app.include_router(open_canvas_router, prefix="/api/agent", tags=["agent"])
 app.include_router(reflection_router, prefix="/api/reflection", tags=["reflection"])
 app.include_router(thread_title_router, prefix="/api/thread-title", tags=["thread-title"])
 app.include_router(summarizer_router, prefix="/api/summarizer", tags=["summarizer"])
 app.include_router(web_search_router, prefix="/api/web-search", tags=["web-search"])
+app.include_router(threads_router, prefix="/threads", tags=["threads"])
 
 if __name__ == "__main__":
     import uvicorn

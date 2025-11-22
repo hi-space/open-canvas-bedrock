@@ -188,7 +188,7 @@ export default function ModelSelector({
       return false;
     }
     if (
-      model.name.includes("bedrock/") &&
+      model.config.provider === "bedrock" &&
       process.env.NEXT_PUBLIC_BEDROCK_ENABLED === "false"
     ) {
       return false;
