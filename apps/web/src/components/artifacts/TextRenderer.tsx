@@ -149,9 +149,6 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
       if (lastRenderedContentRef.current === fullMarkdown) {
         return;
       }
-
-      // Update artifact immediately - don't block on concurrent updates during streaming
-      console.log(`[TextRenderer] Rendering content, length: ${fullMarkdown.length}, streaming: ${isStreaming}`);
       
       (async () => {
         try {
@@ -160,7 +157,6 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
           lastRenderedContentRef.current = fullMarkdown;
           setUpdateRenderedArtifactRequired(false);
           setManuallyUpdatingArtifact(false);
-          console.log(`[TextRenderer] Rendered successfully`);
         } catch (parseError) {
           console.error("TextRenderer: Error parsing markdown:", parseError);
         }

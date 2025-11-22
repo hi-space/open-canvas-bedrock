@@ -236,23 +236,6 @@ export async function* streamAgent(
 
           try {
             const event = JSON.parse(data);
-            eventCount++;
-            const eventType = event?.event || "unknown";
-            const eventName = event?.name || "unknown";
-            
-            // Log more details for streaming events
-            if (eventType === "on_chat_model_stream") {
-              const chunk = event?.data?.chunk;
-              console.log(`[SSE #${eventCount}] ${eventType} from ${eventName}:`, {
-                fullChunk: chunk,
-                content: chunk?.content,
-                contentType: typeof chunk?.content,
-                isArray: Array.isArray(chunk?.content)
-              });
-            } else {
-              console.log(`[SSE #${eventCount}] ${eventType} from ${eventName}`);
-            }
-            
             yield event;
           } catch (e) {
             console.error("Failed to parse SSE data:", data, e);

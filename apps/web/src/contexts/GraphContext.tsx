@@ -482,17 +482,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           // LangGraph stores the node name in metadata.langgraph_node
           const langgraphNode = metadata?.langgraph_node || modelName;
           
-          // Log event structure for debugging
-          if (eventType === "on_chat_model_stream" && eventCount <= 5) {
-            console.log(`[DEBUG] Event #${eventCount}:`, { 
-              eventType,
-              modelName,
-              langgraphNode,
-              hasContent: !!data?.chunk?.content,
-              content: data?.chunk?.content
-            });
-          }
-
           if (!runId && runId_) {
             runId = runId_;
             setRunId(runId);
@@ -539,14 +528,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             if (!content || content.length === 0) {
               continue;
             }
-            
-            if (eventCount <= 5) {
-              console.log(`[STREAM] Chunk from ${langgraphNode}:`, { 
-                contentLength: content.length,
-                contentPreview: content.substring(0, 100)
-              });
-            }
-
+           
             // These are generating new messages to insert to the chat window.
             if (
               ["generateFollowup", "replyToGeneralInput"].includes(
@@ -561,8 +543,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 followupMessageId = message.id;
               }
               
-              console.log(`[CHAT] Message chunk: "${content.substring(0, 50)}..."`);
-              
               setMessages((prevMessages) => {
                 const updated = replaceOrInsertMessageChunk(prevMessages, message);
                 return updated;
@@ -570,8 +550,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
 
             if (langgraphNode === "generateArtifact") {
-              console.log(`[ARTIFACT] generateArtifact chunk: "${content.substring(0, 50)}..."`);
-
               // Accumulate content (content is already extracted above)
               generateArtifactToolCallStr += content;
 
@@ -584,8 +562,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
-                
-                console.log(`[ARTIFACT] Setting artifact with content length: ${artifactContent.length}`);
                 
                 // Update artifact state immediately for streaming rendering
                 // Use functional update to ensure we're working with latest state
