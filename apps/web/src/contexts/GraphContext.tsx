@@ -19,6 +19,7 @@ import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useRuns } from "@/hooks/useRuns";
 import { streamAgent } from "@/lib/api-client";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
+import { createClient } from "@/hooks/utils";
 import {
   DEFAULT_INPUTS,
   OC_WEB_SEARCH_RESULTS_MESSAGE_KEY,
@@ -296,7 +297,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     setFirstTokenReceived(true);
   };
 
-  const streamMessageV2 = async (params: GraphInput) => {
+  const streamMessage = async (params: GraphInput) => {
     setFirstTokenReceived(false);
     setError(false);
     
@@ -332,12 +333,69 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Build full message history: existing messages + new messages
+    // Since we don't have checkpoint system, we need to manually accumulate messages
+    // First, try to get existing messages from thread, fallback to current state
+    let existingMessages: any[] = [];
+    if (currentThreadId) {
+      try {
+        const client = createClient();
+        const thread = await client.threads.get(currentThreadId);
+        const threadValues = thread?.values as Record<string, any> | undefined;
+        if (threadValues?.messages && Array.isArray(threadValues.messages)) {
+          // Use messages from thread if available
+          existingMessages = threadValues.messages;
+        } else {
+          // Fallback to current state messages
+          existingMessages = messages.map((msg) => {
+            const msgType = msg.constructor.name === "HumanMessage" ? "user" :
+                            msg.constructor.name === "AIMessage" ? "assistant" : "system";
+            return {
+              role: msgType,
+              content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+              id: msg.id,
+              ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
+            };
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to load thread messages, using current state:", e);
+        // Fallback to current state messages
+        existingMessages = messages.map((msg) => {
+          const msgType = msg.constructor.name === "HumanMessage" ? "user" :
+                          msg.constructor.name === "AIMessage" ? "assistant" : "system";
+          return {
+            role: msgType,
+            content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+            id: msg.id,
+            ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
+          };
+        });
+      }
+    } else {
+      // No thread ID, use current state messages
+      existingMessages = messages.map((msg) => {
+        const msgType = msg.constructor.name === "HumanMessage" ? "user" :
+                        msg.constructor.name === "AIMessage" ? "assistant" : "system";
+        return {
+          role: msgType,
+          content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+          id: msg.id,
+          ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
+        };
+      });
+    }
+    
+    // Combine existing messages with new messages
+    const newMessages = params.messages || [];
+    const fullMessages = [...existingMessages, ...newMessages];
+
     const messagesInput = {
-      // `messages` contains the full, unfiltered list of messages
-      messages: params.messages,
+      // `messages` contains the full, unfiltered list of messages (existing + new)
+      messages: fullMessages,
       // `_messages` contains the list of messages which are included
       // in the LLMs context, including summarization messages.
-      _messages: params.messages,
+      _messages: fullMessages,
     };
 
     // TODO: update to properly pass the highlight data back
@@ -447,6 +505,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       let thinkingMessageId = "";
 
       let eventCount = 0;
+      // Track messages during streaming to save them later
+      let finalMessages: BaseMessage[] = [...messages];
+      let finalArtifact: Artifact | undefined = artifact;
+      
       for await (const event of stream) {
         eventCount++;
         const eventType = event?.event || "unknown";
@@ -496,7 +558,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             if (langgraphNode === "queryGenerator" && !webSearchMessageId) {
               webSearchMessageId = `web-search-results-${uuidv4()}`;
               setMessages((prev) => {
-                return [
+                const updated = [
                   ...prev,
                   new AIMessage({
                     id: webSearchMessageId,
@@ -508,6 +570,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     },
                   }),
                 ];
+                finalMessages = updated;
+                return updated;
               });
               setWebSearchResultsId(webSearchMessageId);
             }
@@ -545,6 +609,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               
               setMessages((prevMessages) => {
                 const updated = replaceOrInsertMessageChunk(prevMessages, message);
+                finalMessages = updated;
                 return updated;
               });
             }
@@ -567,7 +632,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 // Use functional update to ensure we're working with latest state
                 setArtifact((prevArtifact) => {
                   // Create a completely new object to ensure React detects the change
-                  return {
+                  const newArtifact = {
                     currentIndex: 1,
                     contents: [
                       {
@@ -578,6 +643,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       },
                     ],
                   };
+                  finalArtifact = newArtifact;
+                  return newArtifact;
                 });
                 // Trigger rendering update for each chunk
                 setUpdateRenderedArtifactRequired(true);
@@ -593,6 +660,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   setFirstTokenReceived(true);
                 }
                 setArtifact(result);
+                finalArtifact = result;
                 setUpdateRenderedArtifactRequired(true);
               }
             }
@@ -642,13 +710,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 if (!prev) {
                   throw new Error("No artifact found when updating markdown");
                 }
-                return updateHighlightedMarkdown(
+                const updated = updateHighlightedMarkdown(
                   prev,
                   `${updatedArtifactStartContent}${updatedArtifactRestContent}`,
                   newArtifactIndex,
                   prevCurrentContent,
                   firstUpdateCopy
                 );
+                finalArtifact = updated;
+                return updated;
               });
 
               if (isFirstUpdate) {
@@ -691,13 +761,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 const content = removeCodeBlockFormatting(
                   `${updatedArtifactStartContent}${updatedArtifactRestContent}`
                 );
-                return updateHighlightedCode(
+                const updated = updateHighlightedCode(
                   prev,
                   content,
                   newArtifactIndex,
                   prevCurrentContent,
                   firstUpdateCopy
                 );
+                finalArtifact = updated;
+                return updated;
               });
 
               if (isFirstUpdate) {
@@ -760,7 +832,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   content = removeCodeBlockFormatting(content);
                 }
 
-                return updateRewrittenArtifact({
+                const updated = updateRewrittenArtifact({
                   prevArtifact: prev ?? artifact,
                   newArtifactContent: content,
                   rewriteArtifactMeta: {
@@ -773,6 +845,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   isFirstUpdate: firstUpdateCopy,
                   artifactLanguage,
                 });
+                finalArtifact = updated;
+                return updated;
               });
 
               if (isFirstUpdate) {
@@ -835,6 +909,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 // Create deep copy to ensure React detects the change
                 const artifactCopy = JSON.parse(JSON.stringify(artifactToSet));
                 setArtifact(artifactCopy);
+                finalArtifact = artifactCopy;
                 // Trigger artifact rendering update
                 setUpdateRenderedArtifactRequired(true);
                 if (!firstTokenReceived) {
@@ -1051,7 +1126,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       }
                       return true;
                     });
-                    return [...prev, ...newMessages];
+                    const updated = [...prev, ...newMessages];
+                    finalMessages = updated;
+                    return updated;
                   });
                 }
               }
@@ -1071,7 +1148,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
               if (output?.webSearchResults) {
                 setMessages((prev) => {
-                  return prev.map((m) => {
+                  const updated = prev.map((m) => {
                     if (m.id !== webSearchMessageId) return m;
 
                     return new AIMessage({
@@ -1083,6 +1160,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       },
                     });
                   });
+                  finalMessages = updated;
+                  return updated;
                 });
               }
             }
@@ -1105,6 +1184,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               } else if (result && typeof result === "object") {
                 setFirstTokenReceived(true);
                 setArtifact(result);
+                finalArtifact = result;
               }
             }
           }
@@ -1128,7 +1208,48 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      lastSavedArtifact.current = artifact;
+      // Use the tracked final values instead of state (which might be stale)
+      const messagesToSave = finalMessages.length > 0 ? finalMessages : messages;
+      const artifactToSave = finalArtifact || artifact;
+      
+      lastSavedArtifact.current = artifactToSave;
+      
+      // Save messages and artifact to thread after streaming completes
+      // This matches the original implementation structure
+      if (currentThreadId && messagesToSave.length > 0) {
+        try {
+          const client = createClient();
+          // Convert messages to serializable format
+          const serializedMessages = messagesToSave.map((msg) => {
+            const baseMsg: any = {
+              type: msg.constructor.name === "HumanMessage" ? "human" : 
+                    msg.constructor.name === "AIMessage" ? "ai" : "system",
+              content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+              id: msg.id,
+            };
+            if ((msg as any).additional_kwargs) {
+              baseMsg.additional_kwargs = (msg as any).additional_kwargs;
+            }
+            if ((msg as any).response_metadata) {
+              baseMsg.response_metadata = (msg as any).response_metadata;
+            }
+            if ((msg as any).usage_metadata) {
+              baseMsg.usage_metadata = (msg as any).usage_metadata;
+            }
+            return baseMsg;
+          });
+          
+          await client.threads.updateState(currentThreadId, {
+            values: {
+              messages: serializedMessages,
+              ...(artifactToSave && { artifact: artifactToSave }),
+            },
+          });
+        } catch (saveError) {
+          console.error("Failed to save messages and artifact to thread:", saveError);
+          // Don't show error to user as this is a background operation
+        }
+      }
     } catch (e: any) {
       console.error("Failed to call API", e);
       const errorMessage =
@@ -1281,7 +1402,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       setSelectedBlocks,
       setSelectedArtifact,
       setMessages,
-      streamMessage: streamMessageV2,
+      streamMessage,
       setArtifactContent,
       clearState,
       switchSelectedThread,

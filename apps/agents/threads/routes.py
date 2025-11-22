@@ -21,6 +21,12 @@ class ThreadSearchRequest(BaseModel):
     filter: Optional[Dict[str, Any]] = None
 
 
+class ThreadUpdateRequest(BaseModel):
+    """Request model for thread update."""
+    values: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
 @router.post("")
 async def create_thread(request: ThreadCreateRequest):
     """Create a new thread."""
@@ -79,6 +85,45 @@ async def delete_thread(thread_id: str):
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Thread {thread_id} not found")
         return {"status": "deleted", "thread_id": thread_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{thread_id}/state")
+async def update_thread_state(thread_id: str, request: ThreadUpdateRequest):
+    """Update thread state (values and/or metadata).
+    
+    This endpoint is compatible with LangGraph SDK's updateState method.
+    """
+    try:
+        thread = thread_store.get(thread_id)
+        if not thread:
+            raise HTTPException(status_code=404, detail=f"Thread {thread_id} not found")
+        
+        # Update values if provided
+        if request.values is not None:
+            if "values" not in thread:
+                thread["values"] = {}
+            thread["values"].update(request.values)
+        
+        # Update metadata if provided
+        if request.metadata is not None:
+            if "metadata" not in thread:
+                thread["metadata"] = {}
+            thread["metadata"].update(request.metadata)
+        
+        # Update the thread in store
+        updated_thread = thread_store.update(thread_id, {
+            "values": thread.get("values", {}),
+            "metadata": thread.get("metadata", {}),
+        })
+        
+        if not updated_thread:
+            raise HTTPException(status_code=500, detail="Failed to update thread")
+        
+        return updated_thread
     except HTTPException:
         raise
     except Exception as e:
