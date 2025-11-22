@@ -1,0 +1,2 @@
+"""Summarizer agent module."""
+

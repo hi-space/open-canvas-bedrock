@@ -2,7 +2,7 @@
 
 [TRY IT OUT HERE](https://opencanvas.langchain.com/)
 
-![Screenshot of app](./static/screenshot.png)
+![Screenshot of app](./public/screenshot.png)
 
 Open Canvas is an open source web application for collaborating with agents to better write documents. It is inspired by [OpenAI's "Canvas"](https://openai.com/index/introducing-canvas/), but with a few key differences.
 
@@ -31,16 +31,12 @@ Open Canvas requires the following API keys and external services:
 
 - [Yarn](https://yarnpkg.com/)
 
-#### APIs
+#### LLM APIs
 
 - [OpenAI API key](https://platform.openai.com/signup/)
 - [Anthropic API key](https://console.anthropic.com/)
 - (optional) [Google GenAI API key](https://aistudio.google.com/apikey)
 - (optional) [Fireworks AI API key](https://fireworks.ai/login)
-- (optional) [Groq AI API key](https://groq.com) - audio/video transcription
-- (optional) [FireCrawl API key](https://firecrawl.dev) - web scraping
-- (optional) [ExaSearch API key](https://exa.ai) - web search
-
 
 #### Authentication
 
@@ -69,16 +65,9 @@ Next, install the dependencies:
 yarn install
 ```
 
-After installing dependencies, copy the contents of both `.env.example` files in the root of the project, and in `apps/web` into `.env` and set the required values:
+After installing dependencies, copy the `.env.example` file contents into `.env` and set the required values:
 
 ```bash
-# The root `.env` file will be read by the LangGraph server for the agents.
-cp .env.example .env
-```
-
-```bash
-# The `apps/web/.env` file will be read by the frontend.
-cd apps/web/
 cp .env.example .env
 ```
 
@@ -88,7 +77,7 @@ Then, setup authentication with Supabase.
 
 After creating a Supabase account, visit your [dashboard](https://supabase.com/dashboard/projects) and create a new project.
 
-Next, navigate to the `Project Settings` page inside your project, and then to the `API` tag. Copy the `Project URL`, and `anon public` project API key. Paste them into the `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` environment variables in the `apps/web/.env` file.
+Next, navigate to the `Project Settings` page inside your project, and then to the `API` tag. Copy the `Project URL`, and `anon public` project API key. Paste them into the `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` environment variables in the `.env` file.
 
 After this, navigate to the `Authentication` page, and the `Providers` tab. Make sure `Email` is enabled (also ensure you've enabled `Confirm Email`). You may also enable `GitHub`, and/or `Google` if you'd like to use those for authentication. (see these pages for documentation on how to setup each provider: [GitHub](https://supabase.com/docs/guides/auth/social-login/auth-github), [Google](https://supabase.com/docs/guides/auth/social-login/auth-google))
 
@@ -98,17 +87,13 @@ To verify authentication works, run `yarn dev` and visit [localhost:3000](http:/
 
 ### Setup LangGraph Server
 
-The first step to running Open Canvas locally is to build the application. This is because Open Canvas uses a monorepo setup, and requires workspace dependencies to be build so other packages/apps can access them.
-
-Run the following command from the root of the repository:
-
-```bash
-yarn build
-```
-
 Now we'll cover how to setup and run the LangGraph server locally.
 
-Navigate to `apps/agents` and run `yarn dev` (this runs `npx @langchain/langgraph-cli dev --port 54367`).
+Follow the [`Installation` instructions in the LangGraph docs](https://langchain-ai.github.io/langgraph/cloud/reference/cli/#installation) to install the LangGraph CLI.
+
+Once installed, navigate to the root of the Open Canvas repo and run `yarn dev:server` (this runs `npx @langchain/langgraph-cli dev --port 54367`).
+
+Once it finishes pulling the docker image and installing dependencies, you should see it log:
 
 ```
 Ready!
@@ -116,7 +101,7 @@ Ready!
 - 🎨 Studio UI: https://smith.langchain.com/studio?baseUrl=http://localhost:54367
 ```
 
-After your LangGraph server is running, execute the following command inside `apps/web` to start the Open Canvas frontend:
+After your LangGraph server is running, execute the following command to start the Open Canvas app:
 
 ```bash
 yarn dev
@@ -136,9 +121,9 @@ Open Canvas is designed to be compatible with any LLM model. The current deploym
 
 If you'd like to add a new model, follow these simple steps:
 
-1. Add to or update the model provider variables in `packages/shared/src/models.ts`.
-2. Install the necessary package for the provider (e.g. `@langchain/anthropic`) inside `apps/agents`.
-3. Update the `getModelConfig` function in `apps/agents/src/agent/utils.ts` to include an `if` statement for your new model name and provider.
+1. Add to or update the model provider variables in `constants.ts`.
+2. Install the necessary package for the provider (e.g. `@langchain/anthropic`).
+3. Update the `getModelConfig` function in `src/agent/utils.ts` to include an `if` statement for your new model name and provider.
 4. Manually test by checking you can:
    > - 4a. Generate a new artifact
    > - 4b. Generate a followup message (happens automatically after generating an artifact)
