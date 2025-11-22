@@ -147,3 +147,132 @@ def clean_base64(base64_string: str) -> str:
     """Clean base64 string by removing data URL prefix."""
     return base64_string.replace("data:.*?;base64,", "")
 
+
+# Artifact utility functions
+def is_artifact_code_content(content: Any) -> bool:
+    """Check if artifact content is code type."""
+    return (
+        isinstance(content, dict) and
+        content.get("type") == "code"
+    )
+
+
+def is_artifact_markdown_content(content: Any) -> bool:
+    """Check if artifact content is markdown/text type."""
+    return (
+        isinstance(content, dict) and
+        content.get("type") == "text"
+    )
+
+
+def get_artifact_content(artifact: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Get current artifact content from artifact."""
+    if not artifact:
+        return None
+    
+    if not isinstance(artifact, dict):
+        return None
+    
+    contents = artifact.get("contents", [])
+    if not contents:
+        return None
+    
+    current_index = artifact.get("currentIndex")
+    if current_index:
+        # Find content with matching index
+        for content in contents:
+            if isinstance(content, dict) and content.get("index") == current_index:
+                return content
+    
+    # Return last content if no current index
+    return contents[-1] if contents else None
+
+
+def format_artifact_content(
+    content: Dict[str, Any],
+    shorten_content: bool = False
+) -> str:
+    """Format artifact content for display."""
+    if not content:
+        return ""
+    
+    title = content.get("title", "Untitled")
+    artifact_type = content.get("type", "unknown")
+    
+    if is_artifact_code_content(content):
+        code = content.get("code", "")
+        artifact_content = code[:500] if shorten_content else code
+    else:
+        markdown = content.get("fullMarkdown", "")
+        artifact_content = markdown[:500] if shorten_content else markdown
+    
+    return f"Title: {title}\nArtifact type: {artifact_type}\nContent: {artifact_content}"
+
+
+def format_artifact_content_with_template(
+    template: str,
+    content: Dict[str, Any],
+    shorten_content: bool = False
+) -> str:
+    """Format artifact content with template."""
+    formatted = format_artifact_content(content, shorten_content)
+    return template.replace("{artifact}", formatted)
+
+
+# Thinking model utility functions
+def is_thinking_model(model_name: str) -> bool:
+    """Check if model is a thinking model (o1, o3, etc.)."""
+    thinking_models = ["o1", "o3", "o1-mini", "o3-mini"]
+    return any(model in model_name.lower() for model in thinking_models)
+
+
+def extract_thinking_and_response_tokens(text: str) -> Dict[str, str]:
+    """Extract thinking and response tokens from text with <think> tags."""
+    think_start_tag = "<think>"
+    think_end_tag = "</think>"
+    
+    start_index = text.find(think_start_tag)
+    
+    # No thinking tag found
+    if start_index == -1:
+        return {
+            "thinking": "",
+            "response": text.strip(),
+        }
+    
+    after_start_tag = text[start_index + len(think_start_tag):]
+    end_index = after_start_tag.find(think_end_tag)
+    
+    # If no closing tag, all remaining text is thinking
+    if end_index == -1:
+        return {
+            "thinking": after_start_tag.strip(),
+            "response": text[:start_index].strip(),
+        }
+    
+    # We have both opening and closing tags
+    thinking = after_start_tag[:end_index].strip()
+    response = (
+        text[:start_index] +
+        after_start_tag[end_index + len(think_end_tag):]
+    ).strip()
+    
+    return {
+        "thinking": thinking,
+        "response": response,
+    }
+
+
+def get_formatted_reflections(config: RunnableConfig) -> str:
+    """Get formatted reflections from config."""
+    if not config:
+        return "No reflections found."
+    
+    configurable = config.get("configurable", {})
+    reflections_dict = configurable.get("reflections", {})
+    
+    if not reflections_dict:
+        return "No reflections found."
+    
+    return format_reflections(reflections_dict)
+

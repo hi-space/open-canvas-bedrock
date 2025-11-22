@@ -269,7 +269,7 @@ export function CreateEditAssistantDialog(
             </TighterText>
           </DialogTitle>
           <DialogDescription className="mt-2 text-md font-light text-gray-600">
-            <TighterText>
+            <TighterText as="span">
               Creating a new assistant allows you to tailor your reflections to
               a specific context, as reflections are unique to assistants.
             </TighterText>

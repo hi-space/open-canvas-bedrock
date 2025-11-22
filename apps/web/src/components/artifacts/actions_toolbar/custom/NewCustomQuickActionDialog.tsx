@@ -173,7 +173,7 @@ export function NewCustomQuickActionDialog(
             </TighterText>
           </DialogTitle>
           <DialogDescription className="mt-2 text-md font-light text-gray-600">
-            <TighterText>
+            <TighterText as="span">
               Custom quick actions are a way to create your own actions to take
               against the selected artifact.
             </TighterText>

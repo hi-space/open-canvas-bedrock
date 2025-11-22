@@ -42,13 +42,13 @@ function NoReflections(props: NoReflectionsProps) {
 
   return (
     <div className="flex flex-col items-center mt-6 mb-[-24px] gap-3">
-      <TighterText>No reflections have been generated yet.</TighterText>
-      <TighterText className="text-sm text-gray-500">
+      <TighterText as="span">No reflections have been generated yet.</TighterText>
+      <TighterText as="span" className="text-sm text-gray-500">
         Reflections generate after 30s of inactivity. If none appear, try again
         later.
       </TighterText>
       <Button onClick={getReflections} variant="secondary" size="sm">
-        <TighterText>Search for reflections</TighterText>
+        <TighterText as="span">Search for reflections</TighterText>
       </Button>
     </div>
   );
@@ -142,7 +142,7 @@ export function ReflectionsDialog(props: ReflectionsDialogProps) {
             )}
           </DialogTitle>
           <DialogDescription className="mt-2 text-md font-light text-gray-600">
-            <TighterText>
+            <TighterText as="span">
               {isLoadingReflections ? (
                 "Loading reflections..."
               ) : reflections?.content || reflections?.styleRules ? (

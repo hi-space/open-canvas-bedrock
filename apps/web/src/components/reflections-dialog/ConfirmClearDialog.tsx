@@ -27,7 +27,7 @@ export function ConfirmClearDialog(props: ReflectionsProps) {
       <DialogContent className="max-w-xl p-8 bg-white rounded-lg shadow-xl">
         <DialogHeader>
           <DialogDescription className="mt-2 text-md text-center font-light text-red-500">
-            <TighterText>
+            <TighterText as="span">
               Are you sure you want to clear all reflections? This action can
               not be undone.
             </TighterText>
