@@ -151,7 +151,6 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
             
       // Skip if content hasn't changed
       if (lastRenderedContentRef.current === fullMarkdown) {
-        console.log("[TextRenderer] Content unchanged, skipping");
         return;
       }
       
@@ -161,8 +160,6 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
         pendingContentRef.current = fullMarkdown;
         return;
       }
-      
-      console.log("[TextRenderer] Updating editor with new content");
       
       // Mark as updating before starting async operation
       isUpdatingRef.current = true;
