@@ -276,12 +276,25 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     //   return;
     // }
 
-    // FastAPI doesn't use thread management, but we keep threadId for local state
+    // Ensure thread exists before sending message
     let currentThreadId = threadData.threadId;
     if (!currentThreadId) {
-      // Create a simple thread ID for local tracking
-      currentThreadId = `thread-${uuidv4()}`;
-      threadData.setThreadId(currentThreadId);
+      // Create a thread via LangGraph SDK for proper persistence
+      try {
+        const newThread = await threadData.createThread();
+        if (newThread) {
+          currentThreadId = newThread.thread_id;
+        } else {
+          // Fallback to local thread ID if creation fails
+          currentThreadId = `thread-${uuidv4()}`;
+          threadData.setThreadId(currentThreadId);
+        }
+      } catch (e) {
+        console.error("Failed to create thread, using local ID:", e);
+        // Fallback to local thread ID if creation fails
+        currentThreadId = `thread-${uuidv4()}`;
+        threadData.setThreadId(currentThreadId);
+      }
     }
 
     const messagesInput = {
@@ -337,12 +350,31 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
     try {
       // Stream from FastAPI
+      // Ensure modelName and modelConfig are set, use defaults if not available
+      const modelName = threadData.modelName || DEFAULT_MODEL_NAME;
+      // Use the computed modelConfig from ThreadProvider, which handles fallbacks
+      const modelConfig = threadData.modelConfig || DEFAULT_MODEL_CONFIG;
+      
+      // Debug logging
+      if (!threadData.modelName) {
+        console.warn("Model name not set in threadData, using default:", DEFAULT_MODEL_NAME);
+      }
+      if (!threadData.modelConfig) {
+        console.warn("Model config not set in threadData, using default:", DEFAULT_MODEL_CONFIG);
+      }
+      
       const config = {
         configurable: {
-          customModelName: threadData.modelName,
-          modelConfig: threadData.modelConfigs[threadData.modelName],
+          customModelName: modelName,
+          modelConfig: modelConfig,
         },
       };
+
+      // Debug: Log config to ensure it's set correctly
+      console.log("Streaming with config:", {
+        customModelName: config.configurable.customModelName,
+        hasModelConfig: !!config.configurable.modelConfig,
+      });
 
       const stream = streamFastAPIAgent(input, config);
 

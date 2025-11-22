@@ -32,11 +32,11 @@ class ModelConfigurationParams(BaseModel):
     isNew: bool = False
 
 
-# AWS Bedrock models
+# AWS Bedrock models - matching models.ts
 BEDROCK_MODELS: List[ModelConfigurationParams] = [
     {
-        "name": "bedrock/claude-3-5-sonnet-20240620",
-        "label": "Claude 3.5 Sonnet (Bedrock)",
+        "name": "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "label": "Claude Haiku 4.5",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
@@ -55,8 +55,8 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
         "isNew": False,
     },
     {
-        "name": "bedrock/claude-3-5-haiku-20241022",
-        "label": "Claude 3.5 Haiku (Bedrock)",
+        "name": "bedrock/global.anthropic.claude-sonnet-4-20250514-v1:0",
+        "label": "Claude Sonnet 4",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
@@ -75,48 +75,8 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
         "isNew": False,
     },
     {
-        "name": "bedrock/claude-3-opus-20240229",
-        "label": "Claude 3 Opus (Bedrock)",
-        "config": {
-            "provider": "bedrock",
-            "temperatureRange": {
-                "min": 0,
-                "max": 1,
-                "default": 0.5,
-                "current": 0.5,
-            },
-            "maxTokens": {
-                "min": 1,
-                "max": 4096,
-                "default": 4096,
-                "current": 4096,
-            },
-        },
-        "isNew": False,
-    },
-    {
-        "name": "bedrock/amazon.titan-text-lite-v1",
-        "label": "Amazon Titan Text Lite (Bedrock)",
-        "config": {
-            "provider": "bedrock",
-            "temperatureRange": {
-                "min": 0,
-                "max": 1,
-                "default": 0.5,
-                "current": 0.5,
-            },
-            "maxTokens": {
-                "min": 1,
-                "max": 4096,
-                "default": 4096,
-                "current": 4096,
-            },
-        },
-        "isNew": False,
-    },
-    {
-        "name": "bedrock/amazon.titan-text-express-v1",
-        "label": "Amazon Titan Text Express (Bedrock)",
+        "name": "bedrock/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "label": "Claude Sonnet 4.5",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
@@ -135,8 +95,148 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
         "isNew": False,
     },
     {
-        "name": "bedrock/ai21.j2-ultra-v1",
-        "label": "AI21 Jurassic-2 Ultra (Bedrock)",
+        "name": "bedrock/us.anthropic.claude-opus-4-1-20250805-v1:0",
+        "label": "Claude Opus 4.1",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/us.amazon.nova-premier-v1:0",
+        "label": "Nova Premier",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/us.amazon.nova-pro-v1:0",
+        "label": "Nova Pro",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/us.amazon.nova-micro-v1:0",
+        "label": "Nova Micro",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/us.amazon.nova-lite-v1:0",
+        "label": "Nova Lite",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+        "label": "Llama 3.3 70B Instruct",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/us.deepseek.r1-v1:0",
+        "label": "DeepSeek R1",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "bedrock/deepseek.v3-v1:0",
+        "label": "DeepSeek V3",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {

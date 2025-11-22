@@ -60,11 +60,18 @@ def get_model_config(
     is_tool_calling: bool = False
 ) -> Dict[str, Any]:
     """Get model configuration from config, supporting only AWS Bedrock."""
+    from models import DEFAULT_MODEL_NAME
+    
     configurable = config.get("configurable", {}) if config else {}
     custom_model_name = configurable.get("customModelName")
     
+    # Debug logging
     if not custom_model_name:
-        raise ValueError("Model name is missing in config.")
+        print(f"WARNING: customModelName not found in config. Configurable keys: {list(configurable.keys())}")
+        print(f"WARNING: Full config: {config}")
+        # Use default model name as fallback
+        custom_model_name = DEFAULT_MODEL_NAME
+        print(f"WARNING: Using default model name: {custom_model_name}")
 
     model_config = configurable.get("modelConfig", {})
     

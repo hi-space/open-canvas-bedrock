@@ -61,7 +61,13 @@ export async function callFastAPIReflection(
   const requestBody: FastAPIRequest = {
     messages,
     artifact,
-    config,
+    config: {
+      configurable: {
+        ...config?.configurable,
+        customModelName: (config?.configurable as any)?.customModelName,
+        modelConfig: (config?.configurable as any)?.modelConfig,
+      },
+    },
   };
 
   const response = await fetch(`${FASTAPI_API_URL}/api/reflection/reflect`, {
@@ -91,7 +97,13 @@ export async function callFastAPIThreadTitle(
   const requestBody: FastAPIRequest = {
     messages,
     artifact,
-    config,
+    config: {
+      configurable: {
+        ...config?.configurable,
+        customModelName: (config?.configurable as any)?.customModelName,
+        modelConfig: (config?.configurable as any)?.modelConfig,
+      },
+    },
   };
 
   const response = await fetch(`${FASTAPI_API_URL}/api/thread-title/generate`, {
@@ -121,7 +133,13 @@ export async function callFastAPISummarizer(
   const requestBody = {
     messages,
     threadId,
-    config,
+    config: {
+      configurable: {
+        ...config?.configurable,
+        customModelName: (config?.configurable as any)?.customModelName,
+        modelConfig: (config?.configurable as any)?.modelConfig,
+      },
+    },
   };
 
   const response = await fetch(`${FASTAPI_API_URL}/api/summarizer/summarize`, {
@@ -149,7 +167,13 @@ export async function callFastAPIWebSearch(
 ): Promise<FastAPIResponse> {
   const requestBody: FastAPIRequest = {
     messages,
-    config,
+    config: {
+      configurable: {
+        ...config?.configurable,
+        customModelName: (config?.configurable as any)?.customModelName,
+        modelConfig: (config?.configurable as any)?.modelConfig,
+      },
+    },
   };
 
   const response = await fetch(`${FASTAPI_API_URL}/api/web-search/search`, {
@@ -175,15 +199,26 @@ export async function* streamFastAPIAgent(
   input: GraphInput,
   config?: { configurable?: Record<string, any> }
 ): AsyncGenerator<any, void, unknown> {
+  // Ensure customModelName and modelConfig are always present
+  const configurable = {
+    ...config?.configurable,
+    customModelName: (config?.configurable as any)?.customModelName,
+    modelConfig: (config?.configurable as any)?.modelConfig,
+  };
+  
+  // Debug logging
+  if (!configurable.customModelName) {
+    console.error("ERROR: customModelName is missing in config!", {
+      config,
+      configurable,
+    });
+  }
+  
   const requestBody: FastAPIRequest = {
     messages: input.messages || [],
     artifact: input.artifact,
     config: {
-      configurable: {
-        ...config?.configurable,
-        customModelName: (config?.configurable as any)?.customModelName,
-        modelConfig: (config?.configurable as any)?.modelConfig,
-      },
+      configurable: configurable,
     },
   };
 

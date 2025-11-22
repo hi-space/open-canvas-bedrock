@@ -83,9 +83,12 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
   const modelConfig = useMemo(() => {
     // Try exact match first, then try without "azure/" or "groq/" prefixes
-    return (
-      modelConfigs[modelName] || modelConfigs[modelName.replace("azure/", "")]
-    );
+    const config = 
+      modelConfigs[modelName] || 
+      modelConfigs[modelName.replace("azure/", "")] ||
+      modelConfigs[modelName.replace("groq/", "")] ||
+      DEFAULT_MODEL_CONFIG;
+    return config;
   }, [modelName, modelConfigs]);
 
   const setModelConfig = (
