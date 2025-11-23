@@ -165,12 +165,31 @@ async def reflect_node(
     config: RunnableConfig
 ) -> Dict[str, Any]:
     """Reflect on conversation and artifact."""
-    # Use reflection graph
-    reflection_state = {
-        "messages": state.get("messages", []),
-        "artifact": state.get("artifact"),
-    }
-    result = await reflection_graph.ainvoke(reflection_state, config)
+    # Check if assistant_id is available
+    configurable = config.get("configurable", {}) if config else {}
+    assistant_id = configurable.get("open_canvas_assistant_id")
+    
+    # Skip reflection if assistant_id is not available
+    if not assistant_id:
+        import sys
+        print("Skipping reflection: Assistant ID is not available.", file=sys.stderr, flush=True)
+        return {}
+    
+    # Use reflection graph with error handling
+    try:
+        reflection_state = {
+            "messages": state.get("messages", []),
+            "artifact": state.get("artifact"),
+        }
+        result = await reflection_graph.ainvoke(reflection_state, config)
+        import sys
+        print(f"Reflection completed successfully for assistant {assistant_id}", file=sys.stderr, flush=True)
+    except Exception as e:
+        import sys
+        print(f"Error during reflection: {e}", file=sys.stderr, flush=True)
+        # Continue without failing the entire graph
+        pass
+    
     return {}
 
 
@@ -1106,7 +1125,7 @@ builder.add_conditional_edges(
         "rewriteArtifact": "rewriteArtifact",
     }
 )
-builder.add_edge("replyToGeneralInput", "cleanState")
+builder.add_edge("replyToGeneralInput", "generateFollowup")
 builder.add_edge("generateFollowup", "reflect")
 builder.add_edge("reflect", "cleanState")
 builder.add_conditional_edges(

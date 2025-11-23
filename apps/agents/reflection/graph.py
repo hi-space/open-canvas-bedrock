@@ -10,6 +10,7 @@ from reflection.state import ReflectionGraphState
 from reflection.prompts import REFLECT_SYSTEM_PROMPT, REFLECT_USER_PROMPT
 from utils import format_reflections
 from bedrock_client import get_bedrock_model
+from store.store import store
 
 
 @tool
@@ -31,13 +32,20 @@ async def reflect_node(
     config: RunnableConfig
 ) -> Dict[str, Any]:
     """Reflect on the conversation and artifact."""
-    # Get store from config (simplified - in real implementation, you'd get from config)
-    # For now, we'll assume reflections are passed in config or state
     configurable = config.get("configurable", {}) if config else {}
     assistant_id = configurable.get("open_canvas_assistant_id")
     
-    # Get existing reflections (simplified - in real implementation, get from store)
-    existing_reflections = configurable.get("reflections", {})
+    if not assistant_id:
+        raise ValueError("Assistant ID is required for reflections.")
+    
+    # Get existing reflections from store
+    namespace = ["memories", assistant_id]
+    key = "reflection"
+    store_item = store.get_item(namespace, key)
+    existing_reflections = {}
+    if store_item and store_item.get("value"):
+        existing_reflections = store_item["value"]
+    
     memories_as_string = format_reflections(existing_reflections) if existing_reflections else "No reflections found."
     
     # Get artifact content
@@ -93,8 +101,11 @@ async def reflect_node(
         "content": reflection_tool_call["args"].get("content", []),
     }
     
-    # Store new memories (simplified - in real implementation, save to store)
-    # For now, we'll return it in the state
+    # Store new memories to store
+    namespace = ["memories", assistant_id]
+    key = "reflection"
+    store.put_item(namespace, key, new_memories)
+    
     return {
         "reflections": new_memories
     }

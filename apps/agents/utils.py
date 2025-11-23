@@ -264,12 +264,27 @@ def extract_thinking_and_response_tokens(text: str) -> Dict[str, str]:
 
 
 def get_formatted_reflections(config: RunnableConfig) -> str:
-    """Get formatted reflections from config."""
+    """Get formatted reflections from config or store."""
     if not config:
         return "No reflections found."
     
     configurable = config.get("configurable", {})
     reflections_dict = configurable.get("reflections", {})
+    
+    # If not in config, try to get from store
+    if not reflections_dict:
+        assistant_id = configurable.get("open_canvas_assistant_id")
+        if assistant_id:
+            try:
+                from store.store import store
+                namespace = ["memories", assistant_id]
+                key = "reflection"
+                store_item = store.get_item(namespace, key)
+                if store_item and store_item.get("value"):
+                    reflections_dict = store_item["value"]
+            except Exception:
+                # If store access fails, continue with empty reflections
+                pass
     
     if not reflections_dict:
         return "No reflections found."

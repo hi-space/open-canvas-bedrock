@@ -476,6 +476,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           customModelName: modelName,
           modelConfig: modelConfig,
           userId: userData.user?.id || "anonymous",
+          open_canvas_assistant_id: assistantsData.selectedAssistant?.assistant_id,
         },
       };
 
