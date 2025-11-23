@@ -1,5 +1,15 @@
-import { Feedback } from "langsmith";
 import { useCallback, useState } from "react";
+import { API_URL } from "@/constants";
+
+export interface Feedback {
+  id?: string;
+  run_id?: string;
+  key?: string;
+  score?: number;
+  value?: number;
+  comment?: string;
+  [key: string]: any;
+}
 
 export interface FeedbackResponse {
   success: boolean;
@@ -36,7 +46,7 @@ export function useFeedback(): UseFeedbackResult {
       setError(null);
 
       try {
-        const res = await fetch("/api/runs/feedback", {
+        const res = await fetch(`${API_URL}/runs/feedback`, {
           method: "POST",
           body: JSON.stringify({ runId, feedbackKey, score, comment }),
           headers: {
@@ -71,14 +81,15 @@ export function useFeedback(): UseFeedbackResult {
       setError(null);
       try {
         const res = await fetch(
-          `/api/runs/feedback?runId=${encodeURIComponent(runId)}&feedbackKey=${encodeURIComponent(feedbackKey)}`
+          `${API_URL}/runs/feedback?runId=${encodeURIComponent(runId)}&feedbackKey=${encodeURIComponent(feedbackKey)}`
         );
 
         if (!res.ok) {
           return;
         }
 
-        return await res.json();
+        const data = await res.json();
+        return data.feedback;
       } catch (error) {
         console.error("Error getting feedback:", error);
         setError(

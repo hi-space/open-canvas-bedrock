@@ -8,6 +8,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configure LangSmith tracing if API key is available
+# LANGCHAIN_TRACING_V2=true is sufficient for LangSmith tracing
+langchain_api_key = os.getenv("LANGCHAIN_API_KEY") or os.getenv("LANGSMITH_API_KEY")
+if langchain_api_key:
+    # Set LangSmith tracing environment variables
+    os.environ["LANGCHAIN_API_KEY"] = langchain_api_key
+    # LANGCHAIN_TRACING_V2 enables LangSmith tracing (v2 is the current version)
+    os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "true")
+    
+    # Optional: Set LangSmith endpoint if provided
+    if os.getenv("LANGSMITH_ENDPOINT"):
+        os.environ["LANGSMITH_ENDPOINT"] = os.getenv("LANGSMITH_ENDPOINT")
+    
+    # Optional: Set project name if provided
+    if os.getenv("LANGSMITH_PROJECT"):
+        os.environ["LANGSMITH_PROJECT"] = os.getenv("LANGSMITH_PROJECT")
+    
+    print("LangSmith tracing enabled", flush=True)
+else:
+    print("Warning: LANGCHAIN_API_KEY or LANGSMITH_API_KEY not set. LangSmith tracing will be disabled.", flush=True)
+
 app = FastAPI(title="Open Canvas Agents API")
 
 # CORS middleware
@@ -33,6 +54,7 @@ from web_search.routes import router as web_search_router
 from threads.routes import router as threads_router
 from assistants.routes import router as assistants_router
 from store.routes import router as store_router
+from runs.routes import router as runs_router
 
 app.include_router(open_canvas_router, prefix="/api/agent", tags=["agent"])
 app.include_router(reflection_router, prefix="/api/reflection", tags=["reflection"])
@@ -42,6 +64,7 @@ app.include_router(web_search_router, prefix="/api/web-search", tags=["web-searc
 app.include_router(threads_router, prefix="/threads", tags=["threads"])
 app.include_router(assistants_router, prefix="/assistants", tags=["assistants"])
 app.include_router(store_router, prefix="/store", tags=["store"])
+app.include_router(runs_router, prefix="/runs", tags=["runs"])
 
 if __name__ == "__main__":
     import uvicorn

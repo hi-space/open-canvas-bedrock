@@ -10,4 +10,5 @@ typing-extensions==4.15.0
 PyPDF2==3.0.1
 langchain-community==0.3.7
 tavily-python==0.7.13
+langsmith==0.4.46
 

@@ -107,22 +107,18 @@ pip install -r requirements.txt
 
 환경 변수를 직접 설정하거나 `.env` 파일을 생성할 수 있습니다:
 
-```bash
-export AWS_REGION=us-east-1
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export TAVILY_API_KEY=your_tavily_api_key  # 선택사항: 웹 검색 기능용
-export PORT=8000  # 선택사항: 서버 포트 (기본값: 8000)
-```
-
-또는 `apps/agents` 디렉토리에 `.env` 파일 생성:
-
 ```
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 TAVILY_API_KEY=your_tavily_api_key
 PORT=8000
+
+# LangSmith 트레이싱 (선택사항)
+LANGCHAIN_API_KEY=your_langsmith_api_key
+LANGCHAIN_TRACING_V2=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_PROJECT=your_project_name
 ```
 
 ### 3. 서버 실행
@@ -202,6 +198,22 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 - **POST** `/store/get` - 스토어에서 항목 조회
 - **POST** `/store/put` - 스토어에 항목 저장
 - **POST** `/store/delete` - 스토어에서 항목 삭제
+
+### Runs Management (LangSmith)
+
+- **POST** `/runs/feedback` - LangSmith run에 피드백 생성
+  - `runId`: LangSmith run ID
+  - `feedbackKey`: 피드백 키 (예: "correctness", "helpfulness")
+  - `score`: 피드백 점수 (0.0 ~ 1.0)
+  - `comment`: 선택사항, 피드백 코멘트
+  
+- **GET** `/runs/feedback` - LangSmith run의 피드백 조회
+  - `runId`: LangSmith run ID
+  - `feedbackKey`: 피드백 키
+  
+- **POST** `/runs/share` - LangSmith run 공유 URL 생성
+  - `runId`: LangSmith run ID
+  - 반환: 공개 공유 가능한 URL
 
 ## 에이전트 동작 구조
 
