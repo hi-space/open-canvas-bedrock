@@ -1,182 +1,222 @@
-# Open Canvas
+# Open Canvas Web
 
-[TRY IT OUT HERE](https://opencanvas.langchain.com/)
+Open Canvas는 AI 에이전트와 협업하여 문서와 코드를 작성하는 오픈소스 웹 애플리케이션입니다. OpenAI의 "Canvas"에서 영감을 받았으며, 오픈소스로 제공되며 메모리 시스템과 기존 문서에서 시작할 수 있는 기능을 제공합니다.
 
-![Screenshot of app](./public/screenshot.png)
+## 주요 기능
 
-Open Canvas is an open source web application for collaborating with agents to better write documents. It is inspired by [OpenAI's "Canvas"](https://openai.com/index/introducing-canvas/), but with a few key differences.
+### 1. 멀티 어시스턴트 관리
 
-1. **Open Source**: All the code, from the frontend, to the content generation agent, to the reflection agent is open source and MIT licensed.
-2. **Built in memory**: Open Canvas ships out of the box with a [reflection agent](https://langchain-ai.github.io/langgraphjs/tutorials/reflection/reflection/) which stores style rules and user insights in a [shared memory store](https://langchain-ai.github.io/langgraphjs/concepts/memory/). This allows Open Canvas to remember facts about you across sessions.
-3. **Start from existing documents**: Open Canvas allows users to start with a blank text, or code editor in the language of their choice, allowing you to start the session with your existing content, instead of being forced to start with a chat interaction. We believe this is an ideal UX because many times you will already have some content to start with, and want to iterate on-top of it.
+- **커스텀 어시스턴트 생성**: 이름, 아이콘, 색상을 설정하여 여러 어시스턴트를 생성하고 관리할 수 있습니다
+- **컨텍스트 문서**: 각 어시스턴트에 텍스트, PDF, 오디오, 비디오 파일 또는 URL을 첨부하여 모든 대화에 컨텍스트로 제공할 수 있습니다
+  - 최대 20개 파일 지원
+  - 문서: 10MB, 오디오: 25MB, 비디오: 1GB 제한
+- **어시스턴트 전환**: 대화 중 언제든지 다른 어시스턴트로 전환 가능
 
-## Features
+### 2. 아티팩트 관리
 
-- **Memory**: Open Canvas has a built in memory system which will automatically generate reflections and memories on you, and your chat history. These are then included in subsequent chat interactions to give a more personalized experience.
-- **Custom quick actions**: Custom quick actions allow you to define your own prompts which are tied to your user, and persist across sessions. These then can be easily invoked through a single click, and apply to the artifact you're currently viewing.
-- **Pre-built quick actions**: There are also a series of pre-built quick actions for common writing and coding tasks that are always available.
-- **Artifact versioning**: All artifacts have a "version" tied to them, allowing you to travel back in time and see previous versions of your artifact.
-- **Code, Markdown, or both**: The artifact view allows for viewing and editing both code, and markdown. You can even have chats which generate code, and markdown artifacts, and switch between them.
-- **Live markdown rendering & editing**: Open Canvas's markdown editor allows you to view the rendered markdown while you're editing, without having to toggle back and fourth.
+- **코드 및 마크다운 지원**: 코드와 마크다운 텍스트 모두 생성 및 편집 가능
+- **다중 프로그래밍 언어**: Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure 등 다양한 언어 지원
+- **버전 관리**: 모든 아티팩트는 버전 히스토리를 가지며 이전 버전으로 되돌아갈 수 있습니다
+- **실시간 마크다운 렌더링**: 마크다운을 편집하면서 동시에 렌더링된 결과를 확인할 수 있습니다
+- **텍스트 선택 편집**: 아티팩트에서 텍스트를 선택하여 특정 부분만 수정할 수 있습니다
 
-## Setup locally
+### 3. 퀵 액션 (Quick Actions)
 
-This guide will cover how to setup and run Open Canvas locally. If you prefer a YouTube video guide, check out [this video](https://youtu.be/sBzcQYPMekc).
+#### 텍스트 아티팩트용 퀵 액션
+- **번역**: 다양한 언어로 번역
+- **읽기 수준 조정**: 텍스트의 읽기 난이도 조정
+- **길이 조정**: 텍스트를 더 짧게 또는 길게 만들기
+- **이모지 추가**: 텍스트에 이모지 자동 추가
 
-### Prerequisites
+#### 코드 아티팩트용 퀵 액션
+- **주석 추가**: 코드에 설명 주석 자동 추가
+- **로그 추가**: 디버깅을 위한 로그 문 추가
+- **언어 포팅**: 다른 프로그래밍 언어로 코드 변환
+- **버그 수정**: 코드의 버그 자동 감지 및 수정
 
-Open Canvas requires the following API keys and external services:
+#### 커스텀 퀵 액션
+- **사용자 정의 액션 생성**: 자신만의 프롬프트를 작성하여 퀵 액션으로 저장
+- **세션 간 지속**: 생성한 커스텀 퀵 액션은 모든 세션에서 사용 가능
+- **컨텍스트 포함 옵션**: Reflection(Reflections), 최근 대화 기록, 프리픽스 포함 여부 설정 가능
 
-#### Package Manager
+### 4. 메모리 및 Reflection 시스템
 
-- [Yarn](https://yarnpkg.com/)
+- **자동 Reflection 생성**: 대화 내용을 분석하여 사용자의 스타일 규칙과 선호도를 자동으로 추출
+- **스타일 규칙 저장**: 작성 스타일, 톤, 포맷 선호도 등을 학습하여 일관된 응답 제공
+- **사용자 메모리**: 사용자에 대한 사실과 정보를 저장하여 개인화된 경험 제공
+- **Reflection 확인**: Reflection 다이얼로그에서 생성된 스타일 규칙과 컨텐츠 Reflection을 확인하고 삭제할 수 있습니다
 
-#### LLM APIs
+### 5. 웹 검색 통합
 
-- [OpenAI API key](https://platform.openai.com/signup/)
-- [Anthropic API key](https://console.anthropic.com/)
-- (optional) [Google GenAI API key](https://aistudio.google.com/apikey)
-- (optional) [Fireworks AI API key](https://fireworks.ai/login)
+- **자동 웹 검색**: 대화 내용을 분석하여 필요한 경우 자동으로 웹 검색 수행
+- **검색 결과 표시**: 검색 결과를 사이드 패널에 카드 형태로 표시
+- **실시간 정보**: 최신 정보를 포함한 콘텐츠 생성 지원
 
-#### Authentication
+### 6. 대화 관리
 
-- [Supabase](https://supabase.com/) account for authentication
+- **스레드 히스토리**: 모든 대화를 스레드로 관리하며 날짜별로 그룹화 (오늘, 어제, 최근 7일, 그 이전)
+- **스레드 제목 자동 생성**: 대화 내용을 기반으로 스레드 제목 자동 생성
+- **스레드 검색 및 삭제**: 이전 대화를 검색하고 삭제할 수 있습니다
 
-#### LangGraph Server
+### 7. 모델 선택 및 설정
 
-- [LangGraph CLI](https://langchain-ai.github.io/langgraph/cloud/reference/cli/) for running the graph locally
+- **다양한 AWS Bedrock 모델 지원**:
+  - Anthropic: Claude Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1
+  - Amazon: Nova Premier, Pro, Lite, Micro
+  - Meta: Llama 3.3 70B Instruct
+  - DeepSeek: R1, V3
+- **모델 설정**: 온도(Temperature)와 최대 토큰 수(Max Tokens)를 조정할 수 있습니다
+- **대화별 모델 선택**: 각 대화에서 사용할 모델을 선택할 수 있습니다
 
-#### LangSmith
+### 8. 파일 첨부 및 미디어 지원
 
-- [LangSmith](https://smith.langchain.com/) for tracing & observability
+- **파일 첨부**: 대화에 텍스트, PDF, 이미지, 오디오, 비디오 파일 첨부 가능
+- **오디오 전사**: Whisper를 통한 오디오 파일 자동 전사
+- **웹 스크래핑**: Firecrawl을 통한 웹페이지 스크래핑 및 콘텐츠 추출
 
-### Installation
+### 9. 사용자 인터페이스
 
-First, clone the repository:
+- **리사이저블 패널**: 채팅과 캔버스 패널을 드래그하여 크기 조정 가능
+- **채팅 패널 접기/펼치기**: 채팅 패널을 접어서 캔버스에 더 많은 공간 확보
+- **반응형 디자인**: 다양한 화면 크기에 최적화된 레이아웃
+
+### 10. 피드백 및 공유
+
+- **실행 피드백**: 각 AI 응답에 대해 피드백 제공 가능
+- **실행 공유**: LangSmith를 통한 실행 추적 및 공유
+
+## 기술 스택
+
+- **프레임워크**: Next.js 14
+- **UI 라이브러리**: React, Radix UI, Tailwind CSS
+- **에이전트 UI**: @assistant-ui/react
+- **에디터**: CodeMirror (코드), BlockNote (마크다운)
+- **상태 관리**: Zustand, React Context
+- **인증**: Supabase
+- **백엔드 통신**: LangGraph SDK, FastAPI
+- **LLM**: AWS Bedrock
+
+## 시작하기
+
+### 필수 요구사항
+
+- Node.js 18+
+- Yarn 패키지 매니저
+- AWS Bedrock 접근 권한
+- (선택사항) Supabase 계정 (인증용)
+
+### 설치
 
 ```bash
+# 저장소 클론
 git clone https://github.com/langchain-ai/open-canvas.git
 cd open-canvas
-```
 
-Next, install the dependencies:
-
-```bash
+# 의존성 설치
 yarn install
-```
 
-After installing dependencies, copy the `.env.example` file contents into `.env` and set the required values:
-
-```bash
+# 환경 변수 설정
 cp .env.example .env
 ```
 
-Then, setup authentication with Supabase.
+### 환경 변수 설정
 
-### Setup Authentication
+`.env` 파일에 다음 변수들을 설정하세요:
 
-After creating a Supabase account, visit your [dashboard](https://supabase.com/dashboard/projects) and create a new project.
+```env
+# API URL (FastAPI 서버)
+API_URL=http://localhost:8000
+FASTAPI_API_URL=http://localhost:8000
 
-Next, navigate to the `Project Settings` page inside your project, and then to the `API` tag. Copy the `Project URL`, and `anon public` project API key. Paste them into the `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` environment variables in the `.env` file.
+# Supabase (인증용, 선택사항)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
 
-After this, navigate to the `Authentication` page, and the `Providers` tab. Make sure `Email` is enabled (also ensure you've enabled `Confirm Email`). You may also enable `GitHub`, and/or `Google` if you'd like to use those for authentication. (see these pages for documentation on how to setup each provider: [GitHub](https://supabase.com/docs/guides/auth/social-login/auth-github), [Google](https://supabase.com/docs/guides/auth/social-login/auth-google))
+# 웹 검색 (선택사항)
+TAVILY_API_KEY=your_tavily_key
 
-#### Test authentication
-
-To verify authentication works, run `yarn dev` and visit [localhost:3000](http://localhost:3000). This should redirect you to the [login page](http://localhost:3000/auth/login). From here, you can either login with Google or GitHub, or if you did not configure these providers, navigate to the [signup page](http://localhost:3000/auth/signup) and create a new account with an email and password. This should then redirect you to a conformation page, and after confirming your email you should be redirected to the [home page](http://localhost:3000).
-
-### Setup LangGraph Server
-
-Now we'll cover how to setup and run the LangGraph server locally.
-
-Follow the [`Installation` instructions in the LangGraph docs](https://langchain-ai.github.io/langgraph/cloud/reference/cli/#installation) to install the LangGraph CLI.
-
-Once installed, navigate to the root of the Open Canvas repo and run `yarn dev:server` (this runs `npx @langchain/langgraph-cli dev --port 54367`).
-
-Once it finishes pulling the docker image and installing dependencies, you should see it log:
-
-```
-Ready!
-- 🚀 API: http://localhost:54367
-- 🎨 Studio UI: https://smith.langchain.com/studio?baseUrl=http://localhost:54367
+# Firecrawl (선택사항)
+FIRECRAWL_API_KEY=your_firecrawl_key
 ```
 
-After your LangGraph server is running, execute the following command to start the Open Canvas app:
+### 개발 서버 실행
 
 ```bash
+# 개발 서버 시작
 yarn dev
 ```
 
-On initial load, compilation may take a little bit of time.
+브라우저에서 [http://localhost:3000](http://localhost:3000)을 열어 애플리케이션을 확인하세요.
 
-Then, open [localhost:3000](http://localhost:3000) with your browser and start interacting!
+## 프로젝트 구조
 
-## LLM Models
+```
+apps/web/
+├── src/
+│   ├── app/              # Next.js 앱 라우터
+│   │   ├── api/          # API 라우트
+│   │   └── auth/         # 인증 페이지
+│   ├── components/       # React 컴포넌트
+│   │   ├── artifacts/    # 아티팩트 렌더링 및 편집
+│   │   ├── assistant-select/  # 어시스턴트 선택 및 관리
+│   │   ├── chat-interface/    # 채팅 인터페이스
+│   │   ├── canvas/       # 메인 캔버스
+│   │   └── ui/           # 재사용 가능한 UI 컴포넌트
+│   ├── contexts/         # React Context
+│   ├── hooks/            # 커스텀 훅
+│   ├── lib/              # 유틸리티 함수
+│   └── shared/           # 공유 타입 및 상수
+├── public/               # 정적 파일
+└── package.json
+```
 
-Open Canvas is designed to be compatible with any LLM model. The current deployment has the following models configured:
+## 주요 컴포넌트
 
-- **Anthropic Claude 3 Haiku 👤**: Haiku is Anthropic's fastest model, great for quick tasks like making edits to your document. Sign up for an Anthropic account [here](https://console.anthropic.com/).
-- **Fireworks Llama 3 70B 🦙**: Llama 3 is a SOTA open source model from Meta, powered by [Fireworks AI](https://fireworks.ai/). You can sign up for an account [here](https://fireworks.ai/login).
-- **OpenAI GPT 4o Mini 💨**: GPT 4o Mini is OpenAI's newest, smallest model. You can sign up for an API key [here](https://platform.openai.com/signup/).
+### Canvas
+메인 캔버스 컴포넌트로 채팅 패널과 아티팩트 렌더러를 관리합니다.
 
-If you'd like to add a new model, follow these simple steps:
+### ArtifactRenderer
+코드와 마크다운 아티팩트를 렌더링하고 편집 기능을 제공합니다.
 
-1. Add to or update the model provider variables in `constants.ts`.
-2. Install the necessary package for the provider (e.g. `@langchain/anthropic`).
-3. Update the `getModelConfig` function in `src/agent/utils.ts` to include an `if` statement for your new model name and provider.
-4. Manually test by checking you can:
-   > - 4a. Generate a new artifact
-   > - 4b. Generate a followup message (happens automatically after generating an artifact)
-   > - 4c. Update an artifact via a message in chat
-   > - 4d. Update an artifact via a quick action
-   > - 4e. Repeat for text/code (ensure both work)
+### AssistantSelect
+어시스턴트를 선택하고 생성/편집/삭제할 수 있는 컴포넌트입니다.
 
-### Local Ollama models
+### ChatInterface
+메시지 표시, 입력, 스레드 관리 등의 채팅 기능을 제공합니다.
 
-Open Canvas supports calling local LLMs running on Ollama. This is not enabled in the hosted version of Open Canvas, but you can use this in your own local/deployed Open Canvas instance.
+## API 엔드포인트
 
-To use a local Ollama model, first ensure you have [Ollama](https://ollama.com) installed, and a model that supports tool calling pulled (the default model is `llama3.3`).
+애플리케이션은 FastAPI 백엔드와 통신하며, 다음 주요 엔드포인트를 사용합니다:
 
-Next, start the Ollama server by running `ollama run llama3.3`.
+- `/api/[..._path]` - LangGraph API 프록시
+- `/api/firecrawl/scrape` - 웹 스크래핑
+- `/api/whisper/audio` - 오디오 전사
+- `/api/store/*` - 스토어 관리 (Reflection, 커스텀 퀵 액션 등)
+- `/api/runs/feedback` - 실행 피드백
+- `/api/runs/share` - 실행 공유
 
-Then, set the `NEXT_PUBLIC_OLLAMA_ENABLED` environment variable to `true`, and the `OLLAMA_API_URL` environment variable to the URL of your Ollama server (defaults to `http://host.docker.internal:11434`. If you do not set a custom port when starting your Ollama server, you should not need to set this environment variable).
+## 개발 가이드
 
-> [!NOTE]
-> Open source LLMs are typically not as good at instruction following as proprietary models like GPT-4o or Claude Sonnet. Because of this, you may experience errors or unexpected behavior when using local LLMs.
+### 새 모델 추가
 
-## Troubleshooting
+1. `src/shared/models.ts`에 모델 정의 추가
+2. 백엔드에서 해당 모델 지원 확인
+3. 모델 설정 테스트
 
-Below are some common issues you may run into if running Open Canvas yourself:
+### 새 퀵 액션 추가
 
-- **I have the LangGraph server running successfully, and my client can make requests, but no text is being generated:** This can happen if you start & connect to multiple different LangGraph servers locally in the same browser. Try clearing the `oc_thread_id_v2` cookie and refreshing the page. This is because each unique LangGraph server has its own database where threads are stored, so a thread ID from one server will not be found in the database of another server.
+1. `src/components/artifacts/actions_toolbar/` 디렉토리에 새 컴포넌트 생성
+2. `index.tsx`에 퀵 액션 등록
+3. 백엔드에서 해당 액션 처리 로직 확인
 
-- **I'm getting 500 network errors when I try to make requests on the client:** Ensure you have the LangGraph server running, and you're making requests to the correct port. You can specify the port to use by passing the `--port <PORT>` flag to the `npx @langchain/langgraph-cli dev` command, and you can set the URL to make requests to by either setting the `LANGGRAPH_API_URL` environment variable, or by changing the fallback value of the `LANGGRAPH_API_URL` variable in `constants.ts`.
+### 스타일 커스터마이징
 
-- **I'm getting "thread ID not found" error toasts when I try to make requests on the client:** Ensure you have the LangGraph server running, and you're making requests to the correct port. You can specify the port to use by passing the `--port <PORT>` flag to the `npx @langchain/langgraph-cli dev` command, and you can set the URL to make requests to by either setting the `LANGGRAPH_API_URL` environment variable, or by changing the fallback value of the `LANGGRAPH_API_URL` variable in `constants.ts`.
+Tailwind CSS를 사용하므로 `tailwind.config.ts`에서 테마를 수정할 수 있습니다.
 
-- **`Model name is missing in config.` error is being thrown when I make requests:** This error occurs when the `customModelName` is not specified in the config. You can resolve this by setting the `customModelName` field inside `config.configurable` to the name of the model you want to use when invoking the graph. See [this doc](https://langchain-ai.github.io/langgraphjs/how-tos/configuration/) on how to use configurable fields in LangGraph.
+## 라이선스
 
-## Roadmap
+MIT License
 
-### Features
+## 기여하기
 
-Below is a list of features we'd like to add to Open Canvas in the near future:
-
-- **Render React in the editor**: Ideally, if you have Open Canvas generate React (or HTML) code, we should be able to render it live in the editor. **Edit**: This is in the planning stage now!
-- **Multiple assistants**: Users should be able to create multiple assistants, each having their own memory store.
-- **Give assistants custom 'tools'**: Once we've implemented `RemoteGraph` in LangGraph.js, users should be able to give assistants access to call their own graphs as tools. This means you could customize your assistant to have access to current events, your own personal knowledge graph, etc.
-
-Do you have a feature request? Please [open an issue](https://github.com/langchain-ai/open-canvas/issues/new)!
-
-### Contributing
-
-We'd like to continue developing and improving Open Canvas, and want your help!
-
-To start, there are a handful of GitHub issues with feature requests outlining improvements and additions to make the app's UX even better.
-There are three main labels:
-
-- `frontend`: This label is added to issues which are UI focused, and do not require much if any work on the agent(s).
-- `ai`: This label is added to issues which are focused on improving the LLM agent(s).
-- `fullstack`: This label is added to issues which require touching both the frontend and agent code.
-
-If you have questions about contributing, please reach out to me via email: `brace(at)langchain(dot)dev`. For general bugs/issues with the code, please [open an issue on GitHub](https://github.com/langchain-ai/open-canvas/issues/new).
+버그 리포트, 기능 제안, Pull Request를 환영합니다! 기여하기 전에 이슈를 먼저 생성해 주세요.
