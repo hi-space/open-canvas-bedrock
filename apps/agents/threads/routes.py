@@ -102,23 +102,25 @@ async def update_thread_state(thread_id: str, request: ThreadUpdateRequest):
         if not thread:
             raise HTTPException(status_code=404, detail=f"Thread {thread_id} not found")
         
-        # Update values if provided
+        # Prepare updates dictionary
+        updates = {}
+        
+        # Update values if provided - merge with existing values
         if request.values is not None:
-            if "values" not in thread:
-                thread["values"] = {}
-            thread["values"].update(request.values)
+            existing_values = thread.get("values", {})
+            # Merge request.values into existing_values
+            merged_values = {**existing_values, **request.values}
+            updates["values"] = merged_values
         
-        # Update metadata if provided
+        # Update metadata if provided - merge with existing metadata
         if request.metadata is not None:
-            if "metadata" not in thread:
-                thread["metadata"] = {}
-            thread["metadata"].update(request.metadata)
+            existing_metadata = thread.get("metadata", {})
+            # Merge request.metadata into existing_metadata
+            merged_metadata = {**existing_metadata, **request.metadata}
+            updates["metadata"] = merged_metadata
         
-        # Update the thread in store
-        updated_thread = thread_store.update(thread_id, {
-            "values": thread.get("values", {}),
-            "metadata": thread.get("metadata", {}),
-        })
+        # Update the thread in store (storage will handle deep merging)
+        updated_thread = thread_store.update(thread_id, updates)
         
         if not updated_thread:
             raise HTTPException(status_code=500, detail="Failed to update thread")

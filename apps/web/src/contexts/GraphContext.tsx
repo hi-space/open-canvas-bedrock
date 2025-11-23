@@ -86,7 +86,7 @@ interface GraphData {
   streamMessage: (params: GraphInput) => Promise<void>;
   setArtifactContent: (index: number, content: string) => void;
   clearState: () => void;
-  switchSelectedThread: (thread: Thread) => void;
+  switchSelectedThread: (thread: Thread) => Promise<void>;
   setUpdateRenderedArtifactRequired: Dispatch<SetStateAction<boolean>>;
 }
 
@@ -1353,10 +1353,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       if (currentThreadId && messagesToSave.length > 0) {
         try {
           // Convert messages to serializable format
+          // Use role field (standard format) instead of type
           const serializedMessages = messagesToSave.map((msg) => {
+            const role = msg.constructor.name === "HumanMessage" ? "user" : 
+                        msg.constructor.name === "AIMessage" ? "assistant" : "system";
             const baseMsg: any = {
-              type: msg.constructor.name === "HumanMessage" ? "human" : 
-                    msg.constructor.name === "AIMessage" ? "ai" : "system",
+              role: role,  // Use role (standard format: user/assistant/system)
               content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
               id: msg.id,
             };
@@ -1412,7 +1414,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
   const setSelectedArtifact = (index: number) => {
     setUpdateRenderedArtifactRequired(true);
-    setThreadSwitched(true);
+    // Don't set threadSwitched here - it prevents artifact updates
 
     setArtifact((prev) => {
       if (!prev) {
@@ -1461,7 +1463,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const switchSelectedThread = (thread: Thread) => {
+  const switchSelectedThread = async (thread: Thread) => {
     setUpdateRenderedArtifactRequired(true);
     setThreadSwitched(true);
     setChatStarted(true);
@@ -1470,14 +1472,21 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     // isn't created on page load if one already exists.
     threadData.setThreadId(thread.thread_id);
 
+    // Fetch full thread data including artifact and all messages
+    const fullThread = await threadData.getThread(thread.thread_id);
+    if (!fullThread) {
+      console.warn("Failed to fetch full thread data");
+      return;
+    }
+
     // Set the model name and config
-    if (thread.metadata?.customModelName) {
+    if (fullThread.metadata?.customModelName) {
       threadData.setModelName(
-        thread.metadata.customModelName as ALL_MODEL_NAMES
+        fullThread.metadata.customModelName as ALL_MODEL_NAMES
       );
       threadData.setModelConfig(
-        thread.metadata.customModelName as ALL_MODEL_NAMES,
-        thread.metadata.modelConfig as CustomModelConfig
+        fullThread.metadata.customModelName as ALL_MODEL_NAMES,
+        fullThread.metadata.modelConfig as CustomModelConfig
       );
     } else {
       threadData.setModelName(DEFAULT_MODEL_NAME);
@@ -1489,11 +1498,28 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       messages: Record<string, any>[] | undefined;
     } = {
       artifact: undefined,
-      messages: (thread.values as Record<string, any>)?.messages || undefined,
+      messages: (fullThread.values as Record<string, any>)?.messages || undefined,
     };
-    const castThreadValues = thread.values as Record<string, any>;
+    const castThreadValues = fullThread.values as Record<string, any>;
     if (castThreadValues?.artifact) {
-      castValues.artifact = castThreadValues.artifact as Artifact;
+      const artifact = castThreadValues.artifact as Artifact;
+      // Ensure currentIndex is valid - if not set or invalid, use the last version
+      if (artifact.contents && artifact.contents.length > 0) {
+        const maxIndex = Math.max(...artifact.contents.map((c: any) => c.index || 1));
+        const minIndex = Math.min(...artifact.contents.map((c: any) => c.index || 1));
+        // Validate currentIndex: if it's not in the contents array, use the last version
+        const hasValidIndex = artifact.contents.some((c: any) => c.index === artifact.currentIndex);
+        if (!hasValidIndex || !artifact.currentIndex) {
+          castValues.artifact = {
+            ...artifact,
+            currentIndex: maxIndex, // Use last version if currentIndex is invalid
+          };
+        } else {
+          castValues.artifact = artifact;
+        }
+      } else {
+        castValues.artifact = artifact;
+      }
     } else {
       castValues.artifact = undefined;
     }
@@ -1507,17 +1533,58 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     setArtifact(castValues?.artifact);
     setMessages(
       castValues.messages.map((msg: Record<string, any>) => {
+        // Convert plain object to BaseMessage instance
+        // Use role field (standard format: user/assistant/system)
+        const role = msg.role || "user";
+        const content = msg.content || "";
+        const id = msg.id || uuidv4();
+        const additional_kwargs = msg.additional_kwargs || {};
+        
+        let baseMessage: BaseMessage;
+        
+        if (role === "user" || role === "human") {
+          baseMessage = new HumanMessage({
+            content,
+            id,
+            additional_kwargs,
+          });
+        } else if (role === "assistant" || role === "ai") {
+          baseMessage = new AIMessage({
+            content,
+            id,
+            additional_kwargs,
+            tool_calls: msg.tool_calls || [],
+            response_metadata: msg.response_metadata || {},
+          });
+        } else if (role === "system") {
+          baseMessage = new HumanMessage({  // SystemMessage if available, otherwise HumanMessage
+            content,
+            id,
+            additional_kwargs,
+          });
+        } else {
+          // Default to HumanMessage for unknown roles
+          baseMessage = new HumanMessage({
+            content,
+            id,
+            additional_kwargs,
+          });
+        }
+        
+        // Handle langSmithRunURL
         if (msg.response_metadata?.langSmithRunURL) {
-          msg.tool_calls = msg.tool_calls ?? [];
-          msg.tool_calls.push({
+          const toolCalls = (baseMessage as AIMessage).tool_calls || [];
+          toolCalls.push({
             name: "langsmith_tool_ui",
             args: { sharedRunURL: msg.response_metadata.langSmithRunURL },
             id: msg.response_metadata.langSmithRunURL
               ?.split("https://smith.langchain.com/public/")[1]
               .split("/")[0],
           });
+          (baseMessage as AIMessage).tool_calls = toolCalls;
         }
-        return msg as BaseMessage;
+        
+        return baseMessage;
       })
     );
   };

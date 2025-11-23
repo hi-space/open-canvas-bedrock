@@ -24,8 +24,6 @@ if langchain_api_key:
     # Optional: Set project name if provided
     if os.getenv("LANGSMITH_PROJECT"):
         os.environ["LANGSMITH_PROJECT"] = os.getenv("LANGSMITH_PROJECT")
-    
-    print("LangSmith tracing enabled", flush=True)
 else:
     print("Warning: LANGCHAIN_API_KEY or LANGSMITH_API_KEY not set. LangSmith tracing will be disabled.", flush=True)
 

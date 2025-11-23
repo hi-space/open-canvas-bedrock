@@ -1,16 +1,24 @@
 """
-Simple in-memory assistant store.
-In production, this should be replaced with a database.
+Assistant store with support for persistent storage backends.
+Supports memory, SQLite, and DynamoDB via environment configuration.
 """
 from typing import Dict, Optional, List
 from datetime import datetime
 import uuid
+from store.factory import create_entity_storage
 
 class AssistantStore:
-    """In-memory assistant store."""
+    """Assistant store with persistent storage support."""
     
-    def __init__(self):
-        self._assistants: Dict[str, Dict] = {}
+    def __init__(self, entity_storage=None):
+        """Initialize assistant store with storage backend.
+        
+        Args:
+            entity_storage: Optional entity storage backend instance. If not provided,
+                          will be created based on environment configuration.
+        """
+        self._storage = entity_storage or create_entity_storage()
+        self._entity_type = "assistant"
     
     def create(self, graph_id: str, name: str, config: Optional[Dict] = None, metadata: Optional[Dict] = None, if_exists: str = "do_nothing") -> Dict:
         """Create a new assistant."""
@@ -21,66 +29,30 @@ class AssistantStore:
             "name": name,
             "config": config or {},
             "metadata": metadata or {},
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
         }
-        self._assistants[assistant_id] = assistant
-        return assistant
+        return self._storage.create(self._entity_type, assistant_id, assistant)
     
     def get(self, assistant_id: str) -> Optional[Dict]:
         """Get an assistant by ID."""
-        return self._assistants.get(assistant_id)
+        return self._storage.get(self._entity_type, assistant_id)
     
     def update(self, assistant_id: str, updates: Dict) -> Optional[Dict]:
         """Update an assistant."""
-        if assistant_id not in self._assistants:
-            return None
-        assistant = self._assistants[assistant_id]
-        # Merge updates
-        for key, value in updates.items():
-            if key == "config" and isinstance(value, dict) and isinstance(assistant.get("config"), dict):
-                # Deep merge config
-                assistant["config"] = {**assistant.get("config", {}), **value}
-            elif key == "metadata" and isinstance(value, dict) and isinstance(assistant.get("metadata"), dict):
-                # Deep merge metadata
-                assistant["metadata"] = {**assistant.get("metadata", {}), **value}
-            else:
-                assistant[key] = value
-        assistant["updated_at"] = datetime.utcnow().isoformat()
-        return assistant
+        return self._storage.update(self._entity_type, assistant_id, updates)
     
     def delete(self, assistant_id: str) -> bool:
         """Delete an assistant."""
-        if assistant_id in self._assistants:
-            del self._assistants[assistant_id]
-            return True
-        return False
+        return self._storage.delete(self._entity_type, assistant_id)
     
     def search(self, graph_id: Optional[str] = None, metadata: Optional[Dict] = None, limit: int = 100) -> List[Dict]:
         """Search assistants."""
-        assistants = list(self._assistants.values())
-        
-        # Filter by graph_id if provided
+        filters = {}
         if graph_id:
-            assistants = [a for a in assistants if a.get("graph_id") == graph_id]
-        
-        # Filter by metadata if provided
+            filters["graph_id"] = graph_id
         if metadata:
-            filtered_assistants = []
-            for assistant in assistants:
-                match = True
-                assistant_metadata = assistant.get("metadata", {})
-                for key, value in metadata.items():
-                    if key not in assistant_metadata or assistant_metadata[key] != value:
-                        match = False
-                        break
-                if match:
-                    filtered_assistants.append(assistant)
-            assistants = filtered_assistants
+            filters["metadata"] = metadata
         
-        # Sort by created_at descending
-        assistants.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        return assistants[:limit]
+        return self._storage.search(self._entity_type, filters if filters else None, limit)
 
 # Global assistant store instance
 assistant_store = AssistantStore()

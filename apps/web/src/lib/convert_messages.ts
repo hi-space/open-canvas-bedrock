@@ -29,10 +29,26 @@ export const getMessageType = (message: Record<string, any>): string => {
     return message._getType();
   } else if ("type" in message) {
     return message.type as string;
+  } else if ("role" in message) {
+    // Handle normalized message format from backend
+    const role = message.role as string;
+    if (role === "user" || role === "human") {
+      return "human";
+    } else if (role === "assistant" || role === "ai") {
+      return "ai";
+    } else if (role === "system") {
+      return "system";
+    } else if (role === "tool") {
+      return "tool";
+    }
   } else {
     console.error(message);
     throw new Error("Unsupported message type");
   }
+  
+  // Fallback (should not reach here)
+  console.error(message);
+  throw new Error("Unsupported message type");
 };
 
 function getMessageContentOrThrow(message: unknown): string {

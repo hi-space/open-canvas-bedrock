@@ -296,13 +296,18 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     return <div className="w-full h-full"></div>;
   }
 
+  // Get the min and max indices from contents array
+  const indices = artifact.contents.map((c) => c.index);
+  const minIndex = Math.min(...indices);
+  const maxIndex = Math.max(...indices);
+  
   const isBackwardsDisabled =
     artifact.contents.length === 1 ||
-    currentArtifactContent.index === 1 ||
+    currentArtifactContent.index === minIndex ||
     isStreaming;
   const isForwardDisabled =
     artifact.contents.length === 1 ||
-    currentArtifactContent.index === artifact.contents.length ||
+    currentArtifactContent.index === maxIndex ||
     isStreaming;
 
   return (

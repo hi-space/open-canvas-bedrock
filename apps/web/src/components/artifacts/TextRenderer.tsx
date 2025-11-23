@@ -77,8 +77,9 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
   const [isRawView, setIsRawView] = useState(false);
   const [manuallyUpdatingArtifact, setManuallyUpdatingArtifact] =
     useState(false);
-  // Track last rendered content to prevent infinite loops
+  // Track last rendered content and index to prevent infinite loops
   const lastRenderedContentRef = useRef<string>("");
+  const lastRenderedIndexRef = useRef<number>(-1);
   const isUpdatingRef = useRef<boolean>(false);
   const pendingContentRef = useRef<string | null>(null);
 
@@ -125,11 +126,41 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
     }
   }, [props.isInputVisible]);
 
+  // Track artifact ID to detect when a different artifact is loaded
+  const artifactIdRef = useRef<string | undefined>(undefined);
+  
   useEffect(() => {
     if (!artifact) {
       console.log("[TextRenderer] No artifact");
+      // Reset refs when artifact is cleared
+      lastRenderedContentRef.current = "";
+      lastRenderedIndexRef.current = -1;
+      artifactIdRef.current = undefined;
       return;
     }
+    
+    // Generate a unique ID for this artifact based on its contents
+    // This helps detect when we're loading a different artifact (e.g., from a different thread)
+    const artifactId = JSON.stringify(artifact.contents.map(c => ({ index: c.index, type: c.type })));
+    
+    // If this is a different artifact, reset the refs to force update
+    if (artifactIdRef.current !== artifactId) {
+      console.log("[TextRenderer] Different artifact detected, resetting refs");
+      lastRenderedContentRef.current = "";
+      lastRenderedIndexRef.current = -1;
+      artifactIdRef.current = artifactId;
+      // Also reset updating flags when switching artifacts
+      isUpdatingRef.current = false;
+      pendingContentRef.current = null;
+    }
+    
+    // If updateRenderedArtifactRequired is true, reset updating flags to allow update
+    if (updateRenderedArtifactRequired && isUpdatingRef.current) {
+      console.log("[TextRenderer] Force update requested, resetting update flags");
+      isUpdatingRef.current = false;
+      pendingContentRef.current = null;
+    }
+    
     // Always update when artifact changes, even during streaming
     // Only skip if manually updating to avoid conflicts
     if (manuallyUpdatingArtifact) {
@@ -148,27 +179,42 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
       }
 
       const fullMarkdown = currentContent.fullMarkdown || "";
+      
+      // If updateRenderedArtifactRequired is true, force update even if content/index match
+      // This handles cases where thread is switched and we need to refresh the display
+      const shouldForceUpdate = updateRenderedArtifactRequired;
             
-      // Skip if content hasn't changed
-      if (lastRenderedContentRef.current === fullMarkdown) {
+      // Skip if content and index haven't changed (unless forced update)
+      if (!shouldForceUpdate && 
+          lastRenderedContentRef.current === fullMarkdown && 
+          lastRenderedIndexRef.current === currentIndex) {
         return;
       }
       
-      // If already updating, save this content as pending
+      // If already updating and it's the same content/index, skip
       if (isUpdatingRef.current) {
-        console.log("[TextRenderer] Already updating, saving as pending");
-        pendingContentRef.current = fullMarkdown;
-        return;
+        // If we're trying to update to a different index, cancel current update and start new one
+        if (lastRenderedIndexRef.current !== currentIndex || 
+            (pendingContentRef.current && pendingContentRef.current !== fullMarkdown)) {
+          console.log("[TextRenderer] Cancelling current update, starting new one");
+          isUpdatingRef.current = false;
+          pendingContentRef.current = null;
+        } else {
+          console.log("[TextRenderer] Already updating same content, skipping");
+          return;
+        }
       }
       
       // Mark as updating before starting async operation
       isUpdatingRef.current = true;
+      pendingContentRef.current = null; // Clear any pending content
       
-      const performUpdate = async (content: string) => {
+      const performUpdate = async (content: string, index: number) => {
         try {
           const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(content);
           editor.replaceBlocks(editor.document, markdownAsBlocks);
           lastRenderedContentRef.current = content;
+          lastRenderedIndexRef.current = index;
           setUpdateRenderedArtifactRequired(false);
           setManuallyUpdatingArtifact(false);
         } catch (parseError) {
@@ -177,18 +223,16 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
           // Clear the updating flag
           isUpdatingRef.current = false;
           
-          // If there's pending content, update with it
-          if (pendingContentRef.current && pendingContentRef.current !== lastRenderedContentRef.current) {
-            console.log("[TextRenderer] Processing pending content");
-            const pending = pendingContentRef.current;
-            pendingContentRef.current = null;
-            isUpdatingRef.current = true;
-            performUpdate(pending);
+          // Check if artifact has changed while we were updating
+          // If so, trigger a new update
+          if (artifact && artifact.currentIndex !== index) {
+            console.log("[TextRenderer] Artifact index changed during update, will trigger new update");
+            // The useEffect will trigger again because artifact changed
           }
         }
       };
       
-      performUpdate(fullMarkdown);
+      performUpdate(fullMarkdown, currentIndex);
     } catch (e) {
       console.error("TextRenderer: Error updating:", e);
       isUpdatingRef.current = false;

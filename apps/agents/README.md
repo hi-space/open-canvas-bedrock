@@ -121,7 +121,60 @@ LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_PROJECT=your_project_name
 ```
 
-### 3. 서버 실행
+### 3. 저장소 설정
+
+어시스턴트 정보, 채팅 히스토리, 빠른 액션, 반성(reflection) 등의 데이터를 저장하는 저장소를 설정할 수 있습니다.
+
+#### 저장소 타입 선택
+
+환경 변수 `STORAGE_TYPE`을 통해 저장소 타입을 선택할 수 있습니다:
+
+- `memory` (기본값): 메모리 저장소 - 서버 재시작 시 데이터가 사라집니다
+- `sqlite`: SQLite 데이터베이스 - 로컬 파일 기반 영구 저장소
+- `dynamodb`: AWS DynamoDB - 클라우드 기반 영구 저장소
+
+#### SQLite 설정
+
+```bash
+STORAGE_TYPE=sqlite
+STORAGE_DB_PATH=store.db  # SQLite 데이터베이스 파일 경로 (기본값: store.db)
+```
+
+#### DynamoDB 설정
+
+```bash
+STORAGE_TYPE=dynamodb
+STORAGE_TABLE_NAME=open_canvas_store  # 키-값 저장소 테이블 이름 (기본값: open_canvas_store)
+STORAGE_ENTITY_TABLE_NAME=open_canvas_entities  # 엔티티 저장소 테이블 이름 (기본값: open_canvas_entities)
+AWS_DEFAULT_REGION=us-east-1  # AWS 리전 (기본값: us-east-1)
+AWS_ACCESS_KEY_ID=your_access_key  # AWS 자격 증명 (IAM 역할 사용 시 불필요)
+AWS_SECRET_ACCESS_KEY=your_secret_key  # AWS 자격 증명 (IAM 역할 사용 시 불필요)
+```
+
+**참고**: DynamoDB를 사용하는 경우, 테이블이 자동으로 생성됩니다. DynamoDB에 대한 적절한 권한이 필요합니다:
+- `dynamodb:CreateTable`
+- `dynamodb:DescribeTable`
+- `dynamodb:PutItem`
+- `dynamodb:GetItem`
+- `dynamodb:UpdateItem`
+- `dynamodb:DeleteItem`
+- `dynamodb:Query`
+
+#### 저장되는 데이터
+
+다음 데이터들이 선택한 저장소에 저장됩니다:
+
+- **어시스턴트 정보** (entities 테이블): 어시스턴트 ID, 그래프 ID, 설정, 메타데이터
+- **스레드 정보** (정규화된 구조):
+  - `threads` 테이블: 스레드 ID, 메타데이터
+  - `thread_messages` 테이블: 대화 메시지들 (독립적으로 저장)
+  - `thread_artifacts` 테이블: 아티팩트 데이터 (독립적으로 저장)
+- **스토어 데이터** (store_items 테이블): 
+  - 반성(reflection) 데이터: `namespace=["memories", assistantId]`, `key="reflection"`
+  - 빠른 액션(quick actions): `namespace=["custom_actions", userId]`, `key="actions"`
+  - 기타 LangGraph SDK 호환 스토어 데이터
+
+### 4. 서버 실행
 
 ```bash
 python main.py
