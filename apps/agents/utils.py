@@ -276,3 +276,151 @@ def get_formatted_reflections(config: RunnableConfig) -> str:
     
     return format_reflections(reflections_dict)
 
+
+def extract_urls(text: str) -> List[str]:
+    """Extract all URLs from a given string."""
+    import re
+    urls = set()
+    
+    # Match markdown links: [text](url)
+    markdown_link_pattern = r'\[([^\]]+)\]\((https?://[^\s)]+)\)'
+    for match in re.finditer(markdown_link_pattern, text):
+        urls.add(match.group(2))
+        # Replace with spaces to avoid double-matching
+        text = text.replace(match.group(0), " " * len(match.group(0)))
+    
+    # Match plain URLs
+    plain_url_pattern = r'https?://[^\s<\]]+(?:[^<.,:;"\'\]\s)]|(?=\s|$))'
+    for match in re.finditer(plain_url_pattern, text):
+        urls.add(match.group(0))
+    
+    return list(urls)
+
+
+def convert_pdf_to_text(base64_pdf: str) -> str:
+    """Convert base64-encoded PDF to text."""
+    try:
+        import PyPDF2
+        import io
+        
+        # Clean the base64 input
+        cleaned_base64 = clean_base64(base64_pdf)
+        
+        # Convert to bytes
+        pdf_bytes = base64.b64decode(cleaned_base64)
+        
+        # Parse PDF
+        pdf_file = io.BytesIO(pdf_bytes)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        
+        # Extract text from all pages
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        
+        return text.strip()
+    except Exception as e:
+        print(f"Error converting PDF to text: {e}", flush=True)
+        # Fallback: try pdf-parse if available
+        try:
+            import subprocess
+            import tempfile
+            import os
+            
+            cleaned_base64 = clean_base64(base64_pdf)
+            pdf_bytes = base64.b64decode(cleaned_base64)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                tmp_file.write(pdf_bytes)
+                tmp_path = tmp_file.name
+            
+            try:
+                # Try using pdf-parse via node if available
+                result = subprocess.run(
+                    ['node', '-e', 
+                     f'const pdfParse = require("pdf-parse"); const fs = require("fs"); '
+                     f'const dataBuffer = fs.readFileSync("{tmp_path}"); '
+                     f'pdfParse(dataBuffer).then(data => console.log(data.text));'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    return result.stdout.strip()
+            finally:
+                os.unlink(tmp_path)
+            
+            raise e
+        except:
+            raise e
+
+
+def create_context_document_messages(
+    config: RunnableConfig,
+    context_documents: Optional[List[Dict[str, Any]]] = None
+) -> List[Dict[str, Any]]:
+    """Create context document messages from documents.
+    
+    For Bedrock, we'll convert PDFs to text and include as text content.
+    """
+    from langchain_core.messages import HumanMessage
+    
+    # Get documents from config if not provided
+    if context_documents is None:
+        configurable = config.get("configurable", {}) if config else {}
+        context_documents = configurable.get("contextDocuments", [])
+    
+    if not context_documents:
+        return []
+    
+    messages = []
+    for doc in context_documents:
+        doc_type = doc.get("type", "")
+        doc_data = doc.get("data", "")
+        
+        if doc_type == "application/pdf":
+            # Convert PDF to text
+            try:
+                text = convert_pdf_to_text(doc_data)
+                messages.append({
+                    "type": "text",
+                    "text": text
+                })
+            except Exception as e:
+                print(f"Failed to convert PDF: {e}", flush=True)
+                # Skip this document
+                continue
+        elif doc_type.startswith("text/"):
+            # Decode base64 text
+            try:
+                cleaned = clean_base64(doc_data)
+                text = base64.b64decode(cleaned).decode('utf-8')
+                messages.append({
+                    "type": "text",
+                    "text": text
+                })
+            except Exception as e:
+                print(f"Failed to decode text document: {e}", flush=True)
+                continue
+        elif doc_type == "text":
+            # Plain text
+            messages.append({
+                "type": "text",
+                "text": doc_data
+            })
+    
+    if not messages:
+        return []
+    
+    # Return as a single user message with context
+    return [{
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": "Use the file(s) and/or text below as context when generating your response."
+            },
+            *messages
+        ]
+    }]
+

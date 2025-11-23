@@ -128,8 +128,8 @@ const BEDROCK_MODELS: ModelConfigurationParams[] = [
     category: "Amazon",
   },
   {
-    name: "us.amazon.nova-micro-v1:0",
-    label: "Nova Micro",
+    name: "us.amazon.nova-lite-v1:0",
+    label: "Nova Lite",
     config: {
       provider: "bedrock",
       temperatureRange: {
@@ -149,8 +149,8 @@ const BEDROCK_MODELS: ModelConfigurationParams[] = [
     category: "Amazon",
   },
   {
-    name: "us.amazon.nova-lite-v1:0",
-    label: "Nova Lite",
+    name: "us.amazon.nova-micro-v1:0",
+    label: "Nova Micro",
     config: {
       provider: "bedrock",
       temperatureRange: {

@@ -814,19 +814,32 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 newArtifactContent = fullNewArtifactContent;
               }
 
-              const artifactLanguage =
-                params.portLanguage ||
-                (isArtifactCodeContent(prevCurrentContent)
-                  ? prevCurrentContent.language
-                  : "other");
-
+              // Use dynamically determined meta if available, otherwise fallback to defaults
+              let artifactLanguage: ProgrammingLanguageOptions;
               let artifactType: ArtifactType;
-              if (langgraphNode === "rewriteCodeArtifactTheme") {
-                artifactType = "code";
-              } else if (langgraphNode === "rewriteArtifactTheme") {
-                artifactType = "text";
+              let artifactTitle: string;
+
+              if (rewriteArtifactMeta) {
+                // Use meta from backend (dynamically determined)
+                artifactType = rewriteArtifactMeta.type;
+                artifactTitle = rewriteArtifactMeta.title || prevCurrentContent.title;
+                artifactLanguage = rewriteArtifactMeta.language;
               } else {
-                artifactType = prevCurrentContent.type;
+                // Fallback to node-based determination
+                artifactLanguage =
+                  params.portLanguage ||
+                  (isArtifactCodeContent(prevCurrentContent)
+                    ? prevCurrentContent.language
+                    : "other");
+
+                if (langgraphNode === "rewriteCodeArtifactTheme") {
+                  artifactType = "code";
+                } else if (langgraphNode === "rewriteArtifactTheme") {
+                  artifactType = "text";
+                } else {
+                  artifactType = prevCurrentContent.type;
+                }
+                artifactTitle = prevCurrentContent.title;
               }
 
               const firstUpdateCopy = isFirstUpdate;
@@ -847,7 +860,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   newArtifactContent: content,
                   rewriteArtifactMeta: {
                     type: artifactType,
-                    title: prevCurrentContent.title,
+                    title: artifactTitle,
                     language: artifactLanguage,
                   },
                   prevCurrentContent,
@@ -898,12 +911,18 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     }
                     
                     // Ensure content has required fields based on type
+                    // Use dynamically determined values from backend if available
+                    const prevContent = artifact
+                      ? artifact.contents.find((c) => c.index === (content.index || idx + 1) - 1)
+                      : undefined;
+                    
                     if (contentType === "text") {
                       return {
                         ...content,
                         index: content.index || idx + 1,
                         type: "text" as const,
-                        title: content.title || "Generated Artifact",
+                        // Use title from content if available (may be dynamically determined)
+                        title: content.title || prevContent?.title || "Generated Artifact",
                         fullMarkdown: ("fullMarkdown" in content ? content.fullMarkdown : "") || "",
                       };
                     } else {
@@ -911,8 +930,13 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         ...content,
                         index: content.index || idx + 1,
                         type: "code" as const,
-                        title: content.title || "Generated Artifact",
-                        language: ("language" in content ? content.language : "typescript") as any,
+                        // Use title from content if available (may be dynamically determined)
+                        title: content.title || prevContent?.title || "Generated Artifact",
+                        // Use language from content if available (may be dynamically determined)
+                        language: ("language" in content ? content.language : 
+                          (prevContent && isArtifactCodeContent(prevContent)
+                            ? prevContent.language 
+                            : "typescript")) as any,
                         code: ("code" in content ? content.code : "") || "",
                       };
                     }
@@ -929,7 +953,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   setFirstTokenReceived(true);
                 }
                 
-                console.log(`[FINAL] Artifact set from open_canvas on_chain_end: ${artifactCopy.contents[0].fullMarkdown}`);
+                console.log(`[FINAL] Artifact set from open_canvas on_chain_end: ${artifactCopy.contents[artifactCopy.contents.length - 1].fullMarkdown}`);
               } else {
                 console.log(`[FINAL] No artifact in open_canvas output`);
               }
@@ -1084,19 +1108,38 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     
                     // Skip messages that are from generateArtifact node
                     if (artifactMessageIds.has(id)) {
+                      console.log("Skipping generateArtifact message (canvas only):", id);
                       continue;
                     }
                     
                     // Also check if content matches artifact (for messages without lc_run-- in ID)
+                    // This is important because artifact generation messages should not appear in chat
                     if (output.artifact && output.artifact.contents && output.artifact.contents.length > 0) {
-                      const artifactContent = output.artifact.contents[0];
-                      const artifactText = artifactContent.fullMarkdown || artifactContent.code || "";
-                      if (artifactText && content.trim().length > 50) {
-                        const compareLength = Math.min(200, artifactText.length, content.trim().length);
-                        const contentStart = content.trim().substring(0, compareLength);
-                        const artifactStart = artifactText.substring(0, compareLength);
-                        if (contentStart === artifactStart) {
-                          continue;
+                      // Check all artifact contents, not just the first one
+                      for (const artifactContent of output.artifact.contents) {
+                        const artifactText = artifactContent.fullMarkdown || artifactContent.code || "";
+                        if (artifactText && content.trim().length > 50) {
+                          // More lenient comparison - check if content is similar to artifact
+                          const compareLength = Math.min(300, artifactText.length, content.trim().length);
+                          const contentStart = content.trim().substring(0, compareLength).trim();
+                          const artifactStart = artifactText.substring(0, compareLength).trim();
+                          
+                          // If content matches artifact (or is very similar), skip it
+                          // This catches cases where artifact content appears as a message
+                          if (contentStart === artifactStart || 
+                              (contentStart.length > 100 && 
+                               artifactStart.length > 100 &&
+                               contentStart.substring(0, 100) === artifactStart.substring(0, 100))) {
+                            console.log("Skipping message with artifact content (canvas only):", id);
+                            continue;
+                          }
+                          
+                          // Also check if message content is a substring of artifact (artifact is longer)
+                          if (artifactText.length > content.trim().length * 0.8 && 
+                              artifactText.includes(content.trim().substring(0, Math.min(200, content.trim().length)))) {
+                            console.log("Skipping message that matches artifact substring (canvas only):", id);
+                            continue;
+                          }
                         }
                       }
                     }
@@ -1128,6 +1171,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     // Filter out messages that are already in the list (by ID)
                     const existingIds = new Set(prev.map(m => m.id));
                     // Also filter out user messages - they're already in the chat
+                    // And filter out any messages that match artifact content
                     const newMessages = parsedMessages.filter(m => {
                       // Skip if already exists
                       if (existingIds.has(m.id)) {
@@ -1137,6 +1181,28 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       if (m instanceof HumanMessage) {
                         return false;
                       }
+                      
+                      // Final safety check: if message content matches artifact, skip it
+                      if (finalArtifact && finalArtifact.contents && finalArtifact.contents.length > 0) {
+                        const msgContent = typeof m.content === "string" ? m.content : String(m.content || "");
+                        for (const artifactContent of finalArtifact.contents) {
+                          const artifactText = isArtifactMarkdownContent(artifactContent) 
+                            ? artifactContent.fullMarkdown 
+                            : isArtifactCodeContent(artifactContent)
+                            ? artifactContent.code
+                            : "";
+                          if (artifactText && msgContent.trim().length > 50) {
+                            const compareLength = Math.min(200, artifactText.length, msgContent.trim().length);
+                            const msgStart = msgContent.trim().substring(0, compareLength).trim();
+                            const artifactStart = artifactText.substring(0, compareLength).trim();
+                            if (msgStart === artifactStart) {
+                              console.log("Final filter: Skipping message with artifact content:", m.id);
+                              return false;
+                            }
+                          }
+                        }
+                      }
+                      
                       return true;
                     });
                     const updated = [...prev, ...newMessages];
@@ -1151,7 +1217,34 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               langgraphNode === "rewriteArtifact" &&
               data?.output
             ) {
-              rewriteArtifactMeta = data.output;
+              // Extract meta information from rewriteArtifact output
+              // The output may contain artifact meta (type, title, language)
+              const output = data.output;
+              
+              // Check if output has artifact with meta information
+              if (output.artifact?.contents && output.artifact.contents.length > 0) {
+                const latestContent = output.artifact.contents[output.artifact.contents.length - 1];
+                if (latestContent) {
+                  rewriteArtifactMeta = {
+                    type: latestContent.type as ArtifactType,
+                    title: latestContent.title || prevCurrentContent?.title || "Untitled",
+                    language: (latestContent.language || 
+                      (isArtifactCodeContent(prevCurrentContent) 
+                        ? prevCurrentContent.language 
+                        : "other")) as ProgrammingLanguageOptions,
+                  };
+                }
+              } else if (output.type || output.title || output.language) {
+                // Direct meta in output
+                rewriteArtifactMeta = {
+                  type: (output.type || prevCurrentContent?.type || "text") as ArtifactType,
+                  title: output.title || prevCurrentContent?.title || "Untitled",
+                  language: (output.language || 
+                    (isArtifactCodeContent(prevCurrentContent) 
+                      ? prevCurrentContent.language 
+                      : "other")) as ProgrammingLanguageOptions,
+                };
+              }
             }
 
             if (langgraphNode === "search" && webSearchMessageId) {

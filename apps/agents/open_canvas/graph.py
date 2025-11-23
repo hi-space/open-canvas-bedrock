@@ -11,7 +11,7 @@ from utils import (
     format_messages, format_reflections, get_model_config,
     get_artifact_content, is_artifact_code_content, is_artifact_markdown_content,
     get_formatted_reflections, format_artifact_content_with_template,
-    is_thinking_model, extract_thinking_and_response_tokens
+    is_thinking_model, extract_thinking_and_response_tokens, create_context_document_messages
 )
 from reflection.graph import graph as reflection_graph
 from web_search.graph import graph as web_search_graph
@@ -26,23 +26,9 @@ async def generate_path_node(
     state: OpenCanvasState,
     config: RunnableConfig
 ) -> Dict[str, Any]:
-    """Generate path/routing node."""
-    # Routing logic based on state
-    if state.get("highlightedCode"):
-        return {"next": "updateArtifact"}
-    if state.get("highlightedText"):
-        return {"next": "updateHighlightedText"}
-    if state.get("language") or state.get("artifactLength") or state.get("regenerateWithEmojis") or state.get("readingLevel"):
-        return {"next": "rewriteArtifactTheme"}
-    if state.get("addComments") or state.get("addLogs") or state.get("portLanguage") or state.get("fixBugs"):
-        return {"next": "rewriteCodeArtifactTheme"}
-    if state.get("customQuickActionId"):
-        return {"next": "customAction"}
-    if state.get("webSearchEnabled"):
-        return {"next": "webSearch"}
-    if state.get("artifact"):
-        return {"next": "rewriteArtifact"}
-    return {"next": "generateArtifact"}
+    """Generate path/routing node with URL handling, document processing, and dynamic routing."""
+    from open_canvas.generate_path import generate_path
+    return await generate_path(state, config)
 
 
 async def route_node(state: OpenCanvasState) -> str:
@@ -561,29 +547,25 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
     else:
         artifact_content = current_artifact_content.get("code", "")
     
-    # Optionally update artifact meta (simplified - skip tool calling for now)
-    # In full implementation, this would use tool calling to determine type/title
-    artifact_type = current_artifact_content.get("type", "text")
-    artifact_title = current_artifact_content.get("title", "Untitled")
+    # Optionally update artifact meta using LLM
+    from open_canvas.rewrite_artifact_utils import (
+        optionally_update_artifact_meta,
+        build_meta_prompt,
+        build_rewrite_prompt
+    )
     
-    # Build meta prompt (simplified)
-    meta_prompt = ""
-    if artifact_type == "code":
-        meta_prompt = OPTIONALLY_UPDATE_META_PROMPT.format(
-            artifactType=artifact_type,
-            artifactTitle=""
-        )
-    elif artifact_title:
-        meta_prompt = OPTIONALLY_UPDATE_META_PROMPT.format(
-            artifactType=artifact_type,
-            artifactTitle=f"And its title is (do NOT include this in your response):\n{artifact_title}"
-        )
+    artifact_meta = await optionally_update_artifact_meta(state, config)
+    artifact_type = artifact_meta.get("type", current_artifact_content.get("type", "text"))
+    is_new_type = artifact_type != current_artifact_content.get("type", "text")
     
-    # Build prompt
-    formatted_prompt = UPDATE_ENTIRE_ARTIFACT_PROMPT.format(
-        artifactContent=artifact_content,
-        reflections=reflections,
-        updateMetaPrompt=meta_prompt
+    # Build meta prompt
+    meta_prompt = build_meta_prompt(artifact_meta) if is_new_type else ""
+    
+    # Build full prompt
+    formatted_prompt = build_rewrite_prompt(
+        artifact_content,
+        reflections,
+        meta_prompt
     )
     
     # Get recent human message
@@ -629,29 +611,21 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
         artifact_content_text = extracted["response"]
     
     # Create new artifact content
+    from open_canvas.rewrite_artifact_utils import create_new_artifact_content
+    
+    new_artifact_content = create_new_artifact_content(
+        artifact_type,
+        state,
+        current_artifact_content,
+        artifact_meta,
+        artifact_content_text
+    )
+    
     contents = artifact.get("contents", [])
-    new_index = len(contents) + 1
-    
-    if artifact_type == "code":
-        new_artifact_content = {
-            "index": new_index,
-            "type": "code",
-            "title": artifact_title,
-            "language": current_artifact_content.get("language", "other"),
-            "code": artifact_content_text,
-        }
-    else:
-        new_artifact_content = {
-            "index": new_index,
-            "type": "text",
-            "title": artifact_title,
-            "fullMarkdown": artifact_content_text,
-        }
-    
     result = {
         "artifact": {
             **artifact,
-            "currentIndex": new_index,
+            "currentIndex": new_artifact_content["index"],
             "contents": contents + [new_artifact_content],
         },
     }
