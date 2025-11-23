@@ -99,6 +99,7 @@ export function NewCustomQuickActionDialog(
 
     try {
       let success = false;
+      const userId = user?.id || "anonymous";
       if (props.isEditing && props.customQuickAction) {
         success = await editCustomQuickAction(
           {
@@ -110,7 +111,7 @@ export function NewCustomQuickActionDialog(
             includeReflections,
           },
           props.allQuickActions,
-          user.id
+          userId
         );
       } else {
         success = await createCustomQuickAction(
@@ -123,7 +124,7 @@ export function NewCustomQuickActionDialog(
             includeReflections,
           },
           props.allQuickActions,
-          user.id
+          userId
         );
       }
 
@@ -134,7 +135,7 @@ export function NewCustomQuickActionDialog(
         handleClearState();
         props.onOpenChange(false);
         // Re-fetch after creating a new custom quick action to update the list
-        await props.getAndSetCustomQuickActions(user.id);
+        await props.getAndSetCustomQuickActions(userId);
       } else {
         toast({
           title: `Failed to ${props.isEditing ? "edit" : "create"} custom quick action`,

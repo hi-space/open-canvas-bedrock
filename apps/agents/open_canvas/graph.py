@@ -689,6 +689,7 @@ You also have the following reflections on style guidelines and general memories
 async def custom_action_node(state: OpenCanvasState, config: RunnableConfig) -> Dict[str, Any]:
     """Handle custom quick action."""
     from langchain_core.messages import HumanMessage
+    from store.store import store
     
     custom_quick_action_id = state.get("customQuickActionId")
     if not custom_quick_action_id:
@@ -696,17 +697,25 @@ async def custom_action_node(state: OpenCanvasState, config: RunnableConfig) -> 
     
     model = get_bedrock_model(config)
     
-    # Get store and custom actions (simplified - would need store implementation)
+    # Get user_id from config
     configurable = config.get("configurable", {}) if config else {}
-    # For now, assume custom actions are passed in config
-    custom_actions = configurable.get("customActions", {})
+    user_id = configurable.get("userId", "anonymous")
     
-    if not custom_actions:
-        raise ValueError("No custom actions found.")
+    # Get custom actions from store
+    namespace = ["custom_actions", user_id]
+    key = "actions"
+    store_item = store.get_item(namespace, key)
+    
+    if not store_item or not store_item.get("value"):
+        raise ValueError(f"No custom actions found for user {user_id}.")
+    
+    custom_actions = store_item["value"]
+    if not isinstance(custom_actions, dict):
+        raise ValueError(f"Invalid custom actions format for user {user_id}.")
     
     custom_quick_action = custom_actions.get(custom_quick_action_id)
     if not custom_quick_action:
-        raise ValueError(f"No custom quick action found from ID {custom_quick_action_id}")
+        raise ValueError(f"No custom quick action found from ID {custom_quick_action_id} for user {user_id}")
     
     # Get reflections if needed
     reflections = ""

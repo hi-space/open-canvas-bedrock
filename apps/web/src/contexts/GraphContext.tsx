@@ -475,6 +475,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         configurable: {
           customModelName: modelName,
           modelConfig: modelConfig,
+          userId: userData.user?.id || "anonymous",
         },
       };
 

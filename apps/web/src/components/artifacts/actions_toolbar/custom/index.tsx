@@ -136,7 +136,7 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
       const deletionSuccess = await deleteCustomQuickAction(
         id,
         customQuickActions || [],
-        user.id
+        user?.id || "anonymous"
       );
       if (deletionSuccess) {
         toast({
