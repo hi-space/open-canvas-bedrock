@@ -167,25 +167,11 @@ graph TD
 5. **반성 및 정리**: 모든 처리가 완료되면 반성하고 상태를 정리합니다.
 6. **조건부 종료**: 메시지 길이와 대화 상태에 따라 제목 생성, 요약, 또는 종료로 이동합니다.
 
-## 시각화 도구
+## 서브그래프 다이어그램
 
-### Mermaid 다이어그램
-이 파일의 Mermaid 다이어그램은 GitHub, GitLab, 또는 Mermaid를 지원하는 마크다운 뷰어에서 자동으로 렌더링됩니다.
+Open Canvas는 여러 서브그래프를 사용합니다. 각 서브그래프의 다이어그램은 해당 디렉토리의 README에서 확인할 수 있습니다:
 
-### PNG/SVG 이미지 생성 (선택사항)
-더 고품질의 이미지를 생성하려면 다음 명령을 실행하세요:
-
-```bash
-# 필요한 라이브러리 설치
-pip install matplotlib networkx
-
-# 시각화 스크립트 실행
-cd apps/agents
-python3 open_canvas/visualize_graph.py
-```
-
-이 명령은 `graph_diagram.png`와 `graph_diagram.svg` 파일을 생성합니다.
-
-### 텍스트 기반 다이어그램
-`graph_structure.txt` 파일에는 텍스트 기반의 그래프 구조가 포함되어 있습니다.
-
+- **[Reflection Graph](./../reflection/README.md)**: 대화와 아티팩트를 분석하여 스타일 규칙과 메모리 생성
+- **[Web Search Graph](./../web_search/README.md)**: 웹 검색 필요 여부 판단 및 검색 수행
+- **[Summarizer Graph](./../summarizer/README.md)**: 긴 대화 메시지 요약
+- **[Thread Title Graph](./../thread_title/README.md)**: 대화 제목 자동 생성
