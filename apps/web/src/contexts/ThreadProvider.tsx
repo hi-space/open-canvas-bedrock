@@ -6,11 +6,11 @@ import {
 } from "@/shared/models";
 import { CustomModelConfig } from "@/shared/types";
 import { Thread } from "@langchain/langgraph-sdk";
-import { createClient } from "../hooks/utils";
 import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 import { useUserContext } from "./UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryState } from "nuqs";
+import { API_URL } from "@/constants";
 
 type ThreadContentType = {
   threadId: string | null;
@@ -141,23 +141,33 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
   const createThread = async (): Promise<Thread | undefined> => {
     // Authentication disabled - allow thread creation without user
-    const client = createClient();
     setCreateThreadLoading(true);
 
     try {
-      const thread = await client.threads.create({
-        metadata: {
-          customModelName: modelName,
-          modelConfig: {
-            ...modelConfig,
-            // Ensure Azure config is included if needed
-            ...(modelConfig.provider === "azure_openai" && {
-              azureConfig: modelConfig.azureConfig,
-            }),
-          },
+      const response = await fetch(`${API_URL}/threads`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          metadata: {
+            customModelName: modelName,
+            modelConfig: {
+              ...modelConfig,
+              // Ensure Azure config is included if needed
+              ...(modelConfig.provider === "azure_openai" && {
+                azureConfig: modelConfig.azureConfig,
+              }),
+            },
+          },
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error(`Failed to create thread: ${response.statusText}`);
+      }
+
+      const thread = await response.json();
       setThreadId(thread.thread_id);
       // Fetch updated threads so the new thread is included.
       // Do not await since we do not want to block the UI.
@@ -184,16 +194,25 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
     // Authentication disabled - get all threads without user filter
     setIsUserThreadsLoading(true);
     try {
-      const client = createClient();
-
       // Search without user filter - get all threads
       // If search fails (e.g., no threads exist), return empty array
       try {
-        const userThreads = await client.threads.search({
-          limit: 100,
+        const response = await fetch(`${API_URL}/threads/search`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            limit: 100,
+          }),
         });
 
-        if (userThreads.length > 0) {
+        if (!response.ok) {
+          throw new Error(`Failed to search threads: ${response.statusText}`);
+        }
+
+        const userThreads = await response.json();
+        if (Array.isArray(userThreads) && userThreads.length > 0) {
           const lastInArray = userThreads[0];
           const allButLast = userThreads.slice(1, userThreads.length);
           const filteredThreads = allButLast.filter(
@@ -230,9 +249,13 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       // threads to update UI.
       void createThread();
     }
-    const client = createClient();
     try {
-      await client.threads.delete(id);
+      const response = await fetch(`${API_URL}/threads/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to delete thread: ${response.statusText}`);
+      }
     } catch (e) {
       console.error(`Failed to delete thread with ID ${id}`, e);
     }
@@ -240,8 +263,13 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
   const getThread = async (id: string): Promise<Thread | undefined> => {
     try {
-      const client = createClient();
-      return client.threads.get(id);
+      const response = await fetch(`${API_URL}/threads/${id}`, {
+        method: "GET",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to get thread: ${response.statusText}`);
+      }
+      return await response.json();
     } catch (e) {
       console.error("Failed to get thread by ID.", id, e);
       toast({

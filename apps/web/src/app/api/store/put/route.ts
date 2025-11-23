@@ -1,27 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@langchain/langgraph-sdk";
-import { LANGGRAPH_API_URL } from "@/constants";
+import { API_URL } from "@/constants";
 
 export async function POST(req: NextRequest) {
   // Authentication disabled - allow all requests
 
-  const { namespace, key, value } = await req.json();
-
-  const lgClient = new Client({
-    apiKey: process.env.LANGCHAIN_API_KEY,
-    apiUrl: LANGGRAPH_API_URL,
-  });
+  const body = await req.json();
 
   try {
-    await lgClient.store.putItem(namespace, key, value);
+    const response = await fetch(`${API_URL}/store/put`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-    return new NextResponse(JSON.stringify({ success: true }), {
+    if (!response.ok) {
+      const errorText = await response.text();
+      return new NextResponse(
+        JSON.stringify({ error: errorText || "Failed to put store item" }),
+        {
+          status: response.status,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const data = await response.json();
+    return new NextResponse(JSON.stringify(data), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
-  } catch (_) {
+  } catch (e: any) {
     return new NextResponse(
-      JSON.stringify({ error: "Failed to share run after multiple attempts." }),
+      JSON.stringify({ error: e.message || "Failed to put store item" }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },

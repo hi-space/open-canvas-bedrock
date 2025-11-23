@@ -19,7 +19,7 @@ import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useRuns } from "@/hooks/useRuns";
 import { streamAgent } from "@/lib/api-client";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
-import { createClient } from "@/hooks/utils";
+import { API_URL } from "@/constants";
 import {
   DEFAULT_INPUTS,
   OC_WEB_SEARCH_RESULTS_MESSAGE_KEY,
@@ -59,7 +59,6 @@ import {
 import { debounce } from "lodash";
 import { useThreadContext } from "./ThreadProvider";
 import { useAssistantContext } from "./AssistantContext";
-// import { StreamWorkerService } from "@/workers/graph-stream/streamWorker"; // Removed - streaming not supported
 import { useQueryState } from "nuqs";
 
 interface GraphData {
@@ -339,12 +338,28 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     let existingMessages: any[] = [];
     if (currentThreadId) {
       try {
-        const client = createClient();
-        const thread = await client.threads.get(currentThreadId);
-        const threadValues = thread?.values as Record<string, any> | undefined;
-        if (threadValues?.messages && Array.isArray(threadValues.messages)) {
-          // Use messages from thread if available
-          existingMessages = threadValues.messages;
+        const response = await fetch(`${API_URL}/threads/${currentThreadId}`, {
+          method: "GET",
+        });
+        if (response.ok) {
+          const thread = await response.json();
+          const threadValues = thread?.values as Record<string, any> | undefined;
+          if (threadValues?.messages && Array.isArray(threadValues.messages)) {
+            // Use messages from thread if available
+            existingMessages = threadValues.messages;
+          } else {
+            // Fallback to current state messages
+            existingMessages = messages.map((msg) => {
+              const msgType = msg.constructor.name === "HumanMessage" ? "user" :
+                              msg.constructor.name === "AIMessage" ? "assistant" : "system";
+              return {
+                role: msgType,
+                content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+                id: msg.id,
+                ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
+              };
+            });
+          }
         } else {
           // Fallback to current state messages
           existingMessages = messages.map((msg) => {
@@ -1335,7 +1350,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       // This matches the original implementation structure
       if (currentThreadId && messagesToSave.length > 0) {
         try {
-          const client = createClient();
           // Convert messages to serializable format
           const serializedMessages = messagesToSave.map((msg) => {
             const baseMsg: any = {
@@ -1356,12 +1370,22 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             return baseMsg;
           });
           
-          await client.threads.updateState(currentThreadId, {
-            values: {
-              messages: serializedMessages,
-              ...(artifactToSave && { artifact: artifactToSave }),
+          const response = await fetch(`${API_URL}/threads/${currentThreadId}/state`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
             },
+            body: JSON.stringify({
+              values: {
+                messages: serializedMessages,
+                ...(artifactToSave && { artifact: artifactToSave }),
+              },
+            }),
           });
+
+          if (!response.ok) {
+            throw new Error(`Failed to update thread state: ${response.statusText}`);
+          }
         } catch (saveError) {
           console.error("Failed to save messages and artifact to thread:", saveError);
           // Don't show error to user as this is a background operation

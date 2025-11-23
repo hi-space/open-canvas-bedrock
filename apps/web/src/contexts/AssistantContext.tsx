@@ -9,9 +9,8 @@ import {
   useContext,
   useState,
 } from "react";
-import { createClient } from "@/hooks/utils";
 import { getCookie, removeCookie } from "@/lib/cookies";
-import { ASSISTANT_ID_COOKIE } from "@/constants";
+import { ASSISTANT_ID_COOKIE, API_URL } from "@/constants";
 
 type AssistantContentType = {
   assistants: Assistant[];
@@ -116,16 +115,24 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
     setIsLoadingAllAssistants(true);
     try {
-      const client = createClient();
-      const response = await client.assistants.search({
-        metadata: {
-          user_id: userId,
+      const response = await fetch(`${API_URL}/assistants/search`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          metadata: {
+            user_id: userId,
+          },
+        }),
       });
 
-      setAssistants({
-        ...response,
-      });
+      if (!response.ok) {
+        throw new Error(`Failed to get assistants: ${response.statusText}`);
+      }
+
+      const assistantsArray = await response.json();
+      setAssistants(Array.isArray(assistantsArray) ? assistantsArray : []);
       setIsLoadingAllAssistants(false);
     } catch (e) {
       toast({
@@ -140,8 +147,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const deleteAssistant = async (assistantId: string): Promise<boolean> => {
     setIsDeletingAssistant(true);
     try {
-      const client = createClient();
-      await client.assistants.delete(assistantId);
+      const response = await fetch(`${API_URL}/assistants/${assistantId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete assistant: ${response.statusText}`);
+      }
 
       if (selectedAssistant?.assistant_id === assistantId) {
         // Get the first assistant in the list to set as
@@ -183,26 +195,36 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
     setIsCreatingAssistant(true);
     try {
-      const client = createClient();
       const { tools, systemPrompt, name, documents, ...metadata } =
         newAssistant;
-      const createdAssistant = await client.assistants.create({
-        graphId: "agent",
-        name,
-        metadata: {
-          user_id: userId,
-          ...metadata,
+      const response = await fetch(`${API_URL}/assistants`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        config: {
-          configurable: {
-            tools,
-            systemPrompt,
-            documents,
+        body: JSON.stringify({
+          graph_id: "agent",
+          name,
+          metadata: {
+            user_id: userId,
+            ...metadata,
           },
-        },
-        ifExists: "do_nothing",
+          config: {
+            configurable: {
+              tools,
+              systemPrompt,
+              documents,
+            },
+          },
+          if_exists: "do_nothing",
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error(`Failed to create assistant: ${response.statusText}`);
+      }
+
+      const createdAssistant = await response.json();
       setAssistants((prev) => [...prev, createdAssistant]);
       setSelectedAssistant(createdAssistant);
       successCallback?.(createdAssistant.assistant_id);
@@ -226,35 +248,45 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   }: EditCustomAssistantArgs): Promise<Assistant | undefined> => {
     setIsEditingAssistant(true);
     try {
-      const client = createClient();
       const { tools, systemPrompt, name, documents, ...metadata } =
         editedAssistant;
-      const response = await client.assistants.update(assistantId, {
-        name,
-        graphId: "agent",
-        metadata: {
-          user_id: userId,
-          ...metadata,
+      const response = await fetch(`${API_URL}/assistants/${assistantId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
         },
-        config: {
-          configurable: {
-            tools,
-            systemPrompt,
-            documents,
+        body: JSON.stringify({
+          name,
+          graph_id: "agent",
+          metadata: {
+            user_id: userId,
+            ...metadata,
           },
-        },
+          config: {
+            configurable: {
+              tools,
+              systemPrompt,
+              documents,
+            },
+          },
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error(`Failed to update assistant: ${response.statusText}`);
+      }
+
+      const updatedAssistant = await response.json();
       setAssistants((prev) =>
         prev.map((assistant) => {
           if (assistant.assistant_id === assistantId) {
-            return response;
+            return updatedAssistant;
           }
           return assistant;
         })
       );
       setIsEditingAssistant(false);
-      return response;
+      return updatedAssistant;
     } catch (e) {
       console.error("Failed to edit assistant", e);
       setIsEditingAssistant(false);
@@ -324,7 +356,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       return;
     }
     setIsLoadingAllAssistants(true);
-    const client = createClient();
     let userAssistants: Assistant[] = [];
 
     // Skip assistant creation for anonymous users
@@ -344,13 +375,26 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
     // No cookie found. First, search for all assistants under the user's ID
     try {
-      userAssistants = await client.assistants.search({
-        graphId: "agent",
-        metadata: {
-          user_id: userId,
+      const searchResponse = await fetch(`${API_URL}/assistants/search`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        limit: 100,
+        body: JSON.stringify({
+          graph_id: "agent",
+          metadata: {
+            user_id: userId,
+          },
+          limit: 100,
+        }),
       });
+
+      if (!searchResponse.ok) {
+        throw new Error(`Failed to search assistants: ${searchResponse.statusText}`);
+      }
+
+      const searchResult = await searchResponse.json();
+      userAssistants = Array.isArray(searchResult) ? searchResult : [];
     } catch (e) {
       console.error("Failed to get default assistant", e);
       // If search fails, don't try to create assistant

@@ -5,7 +5,11 @@ import {
 } from "@/shared/types";
 import { useState } from "react";
 import { useToast } from "./use-toast";
-import { Item } from "@langchain/langgraph-sdk";
+// Store item type matching backend API response
+type StoreItem = {
+  value: any;
+  updatedAt?: string;
+} | null;
 import { CONTEXT_DOCUMENTS_NAMESPACE } from "@/shared/constants";
 
 export function useStore() {
@@ -280,7 +284,7 @@ export function useStore() {
       return undefined;
     }
 
-    const { item }: { item: Item | null } = await res.json();
+    const { item }: { item: StoreItem } = await res.json();
     if (!item?.value?.documents) {
       return undefined;
     }
