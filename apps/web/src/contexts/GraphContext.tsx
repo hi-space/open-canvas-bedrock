@@ -882,6 +882,19 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           }
 
           if (eventType === "on_chain_end") {
+            // Log messages from on_chain_end event
+            if (data?.output) {
+              const output = data.output;
+              
+              // Log messages if present
+              if (output.messages && Array.isArray(output.messages)) {
+                console.log(`[on_chain_end] ${langgraphNode} - Messages:`, output.messages);
+              }
+              
+              // Log output data for debugging
+              console.log(`[on_chain_end] ${langgraphNode} - Output:`, output);
+            }
+            
             // Handle final output from open_canvas graph
             if (langgraphNode === "open_canvas" && data?.output) {
               const output = data.output;

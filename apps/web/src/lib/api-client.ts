@@ -4,6 +4,20 @@ import { GraphInput } from "@/shared/types";
 export interface ApiRequest {
   messages: any[];
   artifact?: any;
+  language?: string;
+  artifactLength?: string;
+  regenerateWithEmojis?: boolean;
+  readingLevel?: string;
+  highlightedCode?: any;
+  highlightedText?: any;
+  addComments?: boolean;
+  addLogs?: boolean;
+  portLanguage?: string;
+  fixBugs?: boolean;
+  customQuickActionId?: string;
+  webSearchEnabled?: boolean;
+  webSearchResults?: any[];
+  next?: string;
   config?: {
     configurable?: Record<string, any>;
   };
@@ -182,10 +196,43 @@ export async function* streamAgent(
   const requestBody: ApiRequest = {
     messages: input.messages || [],
     artifact: input.artifact,
+    // Include all rewrite-related fields
+    language: input.language,
+    artifactLength: input.artifactLength,
+    regenerateWithEmojis: input.regenerateWithEmojis,
+    readingLevel: input.readingLevel,
+    highlightedCode: input.highlightedCode,
+    highlightedText: input.highlightedText,
+    addComments: input.addComments,
+    addLogs: input.addLogs,
+    portLanguage: input.portLanguage,
+    fixBugs: input.fixBugs,
+    customQuickActionId: input.customQuickActionId,
+    webSearchEnabled: input.webSearchEnabled,
+    webSearchResults: input.webSearchResults,
+    next: input.next,
     config: {
       configurable: configurable,
     },
   };
+
+  // Debug logging for rewrite-related fields
+  console.log("[streamAgent] Request body fields:", {
+    language: requestBody.language,
+    artifactLength: requestBody.artifactLength,
+    regenerateWithEmojis: requestBody.regenerateWithEmojis,
+    readingLevel: requestBody.readingLevel,
+    highlightedCode: requestBody.highlightedCode ? "present" : undefined,
+    highlightedText: requestBody.highlightedText ? "present" : undefined,
+    addComments: requestBody.addComments,
+    addLogs: requestBody.addLogs,
+    portLanguage: requestBody.portLanguage,
+    fixBugs: requestBody.fixBugs,
+    customQuickActionId: requestBody.customQuickActionId,
+    webSearchEnabled: requestBody.webSearchEnabled,
+    hasMessages: (requestBody.messages?.length || 0) > 0,
+    hasArtifact: !!requestBody.artifact,
+  });
 
   const response = await fetch(`${API_URL}/api/agent/stream`, {
     method: "POST",

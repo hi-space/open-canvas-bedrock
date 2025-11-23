@@ -16,6 +16,20 @@ class OpenCanvasRequest(BaseModel):
     """Request model for Open Canvas agent."""
     messages: List[Dict[str, Any]]
     artifact: Optional[Dict[str, Any]] = None
+    language: Optional[str] = None
+    artifactLength: Optional[str] = None
+    regenerateWithEmojis: Optional[bool] = None
+    readingLevel: Optional[str] = None
+    highlightedCode: Optional[Dict[str, Any]] = None
+    highlightedText: Optional[Dict[str, Any]] = None
+    addComments: Optional[bool] = None
+    addLogs: Optional[bool] = None
+    portLanguage: Optional[str] = None
+    fixBugs: Optional[bool] = None
+    customQuickActionId: Optional[str] = None
+    webSearchEnabled: Optional[bool] = None
+    webSearchResults: Optional[List[Dict[str, Any]]] = None
+    next: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
 
 
@@ -72,30 +86,130 @@ def convert_messages_to_langchain(messages: List[Dict[str, Any]]) -> List[BaseMe
     return langchain_messages
 
 
+def format_event_log(event_type: str, event_name: str, event: Dict[str, Any]) -> Optional[str]:
+    """Format event log with type-specific information.
+    Returns None if the event should not be logged (e.g., empty chunks)."""
+    base_info = f"{event_type} {event_name}"
+
+    if event_type == "on_chat_model_stream":
+        # Skip logging for streaming events
+        return None
+
+    elif event_type == "on_chain_start":
+        # Show input for chain start
+        data = event.get("data", {})
+        input_data = data.get("input")
+        if input_data:
+            input_str = str(input_data)
+            if len(input_str) > 150:
+                input_str = input_str[:150] + "..."
+            return f"{base_info} | input: {input_str}"
+    
+    elif event_type == "on_chain_end":
+        # Show output for chain end
+        data = event.get("data", {})
+        output = data.get("output")
+        if output:
+            output_str = str(output)
+            if len(output_str) > 150:
+                output_str = output_str[:150] + "..."
+            return f"{base_info} | output: {output_str}"
+    
+    elif event_type == "on_tool_start":
+        # Show tool input
+        data = event.get("data", {})
+        input_data = data.get("input")
+        if input_data:
+            input_str = str(input_data)
+            if len(input_str) > 150:
+                input_str = input_str[:150] + "..."
+            return f"{base_info} | input: {input_str}"
+    
+    elif event_type == "on_tool_end":
+        # Show tool output
+        data = event.get("data", {})
+        output = data.get("output")
+        if output:
+            output_str = str(output)
+            if len(output_str) > 150:
+                output_str = output_str[:150] + "..."
+            return f"{base_info} | output: {output_str}"
+    
+    elif event_type == "on_llm_start":
+        # Show prompts for LLM start
+        data = event.get("data", {})
+        prompts = data.get("prompts", [])
+        if prompts:
+            prompt_preview = str(prompts[0])[:100] if prompts else ""
+            if len(prompt_preview) > 100:
+                prompt_preview = prompt_preview[:100] + "..."
+            return f"{base_info} | prompt: {prompt_preview}"
+    
+    elif event_type == "on_llm_end":
+        # Show response for LLM end
+        data = event.get("data", {})
+        response = data.get("response")
+        if response:
+            response_str = str(response)
+            if len(response_str) > 150:
+                response_str = response_str[:150] + "..."
+            return f"{base_info} | response: {response_str}"
+    
+    # Default: just return base info
+    return base_info
+
+
 def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
     """Prepare state from request."""
+    import sys
+    # Debug logging for rewrite-related fields
+    print("=== prepare_state: Received rewrite fields ===", file=sys.stderr, flush=True)
+    print(f"  language: {request.language}", file=sys.stderr, flush=True)
+    print(f"  artifactLength: {request.artifactLength}", file=sys.stderr, flush=True)
+    print(f"  regenerateWithEmojis: {request.regenerateWithEmojis}", file=sys.stderr, flush=True)
+    print(f"  readingLevel: {request.readingLevel}", file=sys.stderr, flush=True)
+    print(f"  highlightedCode: {'present' if request.highlightedCode else None}", file=sys.stderr, flush=True)
+    print(f"  highlightedText: {'present' if request.highlightedText else None}", file=sys.stderr, flush=True)
+    print(f"  addComments: {request.addComments}", file=sys.stderr, flush=True)
+    print(f"  addLogs: {request.addLogs}", file=sys.stderr, flush=True)
+    print(f"  portLanguage: {request.portLanguage}", file=sys.stderr, flush=True)
+    print(f"  fixBugs: {request.fixBugs}", file=sys.stderr, flush=True)
+    print(f"  customQuickActionId: {request.customQuickActionId}", file=sys.stderr, flush=True)
+    print(f"  webSearchEnabled: {request.webSearchEnabled}", file=sys.stderr, flush=True)
+    print("=============================================", file=sys.stderr, flush=True)
+    
     # Convert message dicts to LangChain message objects
     langchain_messages = convert_messages_to_langchain(request.messages)
     
-    return {
+    state = {
         "messages": langchain_messages,
         "_messages": langchain_messages,
         "artifact": request.artifact,
-        "next": None,
-        "highlightedCode": None,
-        "highlightedText": None,
-        "language": None,
-        "artifactLength": None,
-        "regenerateWithEmojis": None,
-        "readingLevel": None,
-        "addComments": None,
-        "addLogs": None,
-        "portLanguage": None,
-        "fixBugs": None,
-        "customQuickActionId": None,
-        "webSearchEnabled": None,
-        "webSearchResults": None,
+        "next": request.next,
+        "highlightedCode": request.highlightedCode,
+        "highlightedText": request.highlightedText,
+        "language": request.language,
+        "artifactLength": request.artifactLength,
+        "regenerateWithEmojis": request.regenerateWithEmojis,
+        "readingLevel": request.readingLevel,
+        "addComments": request.addComments,
+        "addLogs": request.addLogs,
+        "portLanguage": request.portLanguage,
+        "fixBugs": request.fixBugs,
+        "customQuickActionId": request.customQuickActionId,
+        "webSearchEnabled": request.webSearchEnabled,
+        "webSearchResults": request.webSearchResults,
     }
+    
+    # Log the state values that will be used for routing
+    print("=== prepare_state: State values for routing ===", file=sys.stderr, flush=True)
+    print(f"  state['language']: {state['language']}", file=sys.stderr, flush=True)
+    print(f"  state['artifactLength']: {state['artifactLength']}", file=sys.stderr, flush=True)
+    print(f"  state['regenerateWithEmojis']: {state['regenerateWithEmojis']}", file=sys.stderr, flush=True)
+    print(f"  state['readingLevel']: {state['readingLevel']}", file=sys.stderr, flush=True)
+    print("=============================================", file=sys.stderr, flush=True)
+    
+    return state
 
 
 @router.post("/stream")
@@ -193,7 +307,12 @@ async def stream_agent(request: OpenCanvasRequest):
                 event_json = json.dumps(converted_event, default=str)
                 event_type = event.get("event", "unknown")
                 event_name = event.get("name", "unknown")
-                print(f"#{event_count}: {event_type} {event_name}", file=sys.stderr, flush=True)
+                
+                # Log event with type-specific information
+                log_info = format_event_log(event_type, event_name, event)
+                if log_info is not None:
+                    print(f"#{event_count}: {log_info}", file=sys.stderr, flush=True)
+                
                 yield f"data: {event_json}\n\n"
             
             # Send completion signal
