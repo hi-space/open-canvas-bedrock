@@ -210,28 +210,7 @@ const BEDROCK_MODELS: ModelConfigurationParams[] = [
     },
     isNew: false,
     category: "DeepSeek",
-  },
-  {
-    name: "deepseek.v3-v1:0",
-    label: "DeepSeek V3",
-    config: {
-      provider: "bedrock",
-      temperatureRange: {
-        min: 0,
-        max: 1,
-        default: 0.5,
-        current: 0.5,
-      },
-      maxTokens: {
-        min: 1,
-        max: 8_192,
-        default: 4_096,
-        current: 4_096,
-      },
-    },
-    isNew: false,
-    category: "DeepSeek",
-  },
+  }
 ];
 
 export const LANGCHAIN_USER_ONLY_MODELS: string[] = [];

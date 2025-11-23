@@ -144,6 +144,9 @@ export const UserMessage: FC = () => {
   const msg = useMessage(getExternalStoreMessage<HumanMessage>);
   const humanMessage = Array.isArray(msg) ? msg[0] : msg;
 
+  // Return null if message is not available yet (prevents rendering issues on first message)
+  if (!humanMessage) return null;
+
   if (humanMessage?.additional_kwargs?.[OC_HIDE_FROM_UI_KEY]) return null;
 
   return (

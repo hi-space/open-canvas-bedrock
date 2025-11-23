@@ -1,6 +1,6 @@
 """
 Thread store with normalized storage backends.
-Supports memory, SQLite, and DynamoDB via environment configuration.
+Supports memory and DynamoDB via environment configuration.
 Uses normalized structure: threads, messages, and artifacts are stored separately.
 """
 from typing import Dict, Optional, List

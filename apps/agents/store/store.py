@@ -1,6 +1,6 @@
 """
 Store for LangGraph SDK compatibility.
-Supports memory, SQLite, and DynamoDB backends via environment configuration.
+Supports memory and DynamoDB backends via environment configuration.
 """
 from typing import Dict, Any, Optional, List
 from store.factory import create_storage
@@ -8,7 +8,7 @@ from store.factory import create_storage
 class Store:
     """Store compatible with LangGraph SDK.
     
-    Uses persistent storage (SQLite or DynamoDB) or in-memory storage
+    Uses persistent storage (DynamoDB) or in-memory storage
     based on STORAGE_TYPE environment variable.
     """
     

@@ -1,6 +1,6 @@
 """
 Assistant store with support for persistent storage backends.
-Supports memory, SQLite, and DynamoDB via environment configuration.
+Supports memory and DynamoDB via environment configuration.
 """
 from typing import Dict, Optional, List
 from datetime import datetime

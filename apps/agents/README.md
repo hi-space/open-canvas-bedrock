@@ -130,15 +130,7 @@ LANGSMITH_PROJECT=your_project_name
 환경 변수 `STORAGE_TYPE`을 통해 저장소 타입을 선택할 수 있습니다:
 
 - `memory` (기본값): 메모리 저장소 - 서버 재시작 시 데이터가 사라집니다
-- `sqlite`: SQLite 데이터베이스 - 로컬 파일 기반 영구 저장소
 - `dynamodb`: AWS DynamoDB - 클라우드 기반 영구 저장소
-
-#### SQLite 설정
-
-```bash
-STORAGE_TYPE=sqlite
-STORAGE_DB_PATH=store.db  # SQLite 데이터베이스 파일 경로 (기본값: store.db)
-```
 
 #### DynamoDB 설정
 
@@ -146,6 +138,9 @@ STORAGE_DB_PATH=store.db  # SQLite 데이터베이스 파일 경로 (기본값: 
 STORAGE_TYPE=dynamodb
 STORAGE_TABLE_NAME=open_canvas_store  # 키-값 저장소 테이블 이름 (기본값: open_canvas_store)
 STORAGE_ENTITY_TABLE_NAME=open_canvas_entities  # 엔티티 저장소 테이블 이름 (기본값: open_canvas_entities)
+STORAGE_THREADS_TABLE_NAME=open_canvas_threads  # 스레드 테이블 이름 (기본값: open_canvas_threads)
+STORAGE_MESSAGES_TABLE_NAME=open_canvas_thread_messages  # 메시지 테이블 이름 (기본값: open_canvas_thread_messages)
+STORAGE_ARTIFACTS_TABLE_NAME=open_canvas_thread_artifacts  # 아티팩트 테이블 이름 (기본값: open_canvas_thread_artifacts)
 AWS_DEFAULT_REGION=us-east-1  # AWS 리전 (기본값: us-east-1)
 AWS_ACCESS_KEY_ID=your_access_key  # AWS 자격 증명 (IAM 역할 사용 시 불필요)
 AWS_SECRET_ACCESS_KEY=your_secret_key  # AWS 자격 증명 (IAM 역할 사용 시 불필요)

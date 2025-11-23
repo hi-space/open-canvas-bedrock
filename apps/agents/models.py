@@ -233,27 +233,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
         },
         "isNew": False,
-    },
-    {
-        "name": "deepseek.v3-v1:0",
-        "label": "DeepSeek V3",
-        "config": {
-            "provider": "bedrock",
-            "temperatureRange": {
-                "min": 0,
-                "max": 1,
-                "default": 0.5,
-                "current": 0.5,
-            },
-            "maxTokens": {
-                "min": 1,
-                "max": 8192,
-                "default": 4096,
-                "current": 4096,
-            },
-        },
-        "isNew": False,
-    },
+    }
 ]
 
 ALL_MODELS: List[ModelConfigurationParams] = BEDROCK_MODELS
