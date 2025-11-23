@@ -108,13 +108,7 @@ async def query_generator_node(
         "{conversation}",
         formatted_messages
     ).replace("{additional_context}", additional_context)
-    
-    # Log the prompt and input
-    print(f"[QUERY_GENERATOR] Number of messages: {len(messages)}", flush=True)
-    print(f"[QUERY_GENERATOR] Additional context: {additional_context}", flush=True)
-    print(f"[QUERY_GENERATOR] Formatted prompt (first 500 chars):\n{formatted_prompt[:500]}...", flush=True)
-    print(f"[QUERY_GENERATOR] Full prompt:\n{formatted_prompt}", flush=True)
-    
+        
     # Get query from LLM
     response = await model.ainvoke([
         HumanMessage(content=formatted_prompt)
@@ -130,7 +124,6 @@ async def query_generator_node(
     query = query.strip()
     
     # Log the result
-    print(f"[QUERY_GENERATOR] LLM raw response: {response}", flush=True)
     print(f"[QUERY_GENERATOR] Generated query: {query}", flush=True)
     
     return {"query": query}
