@@ -8,9 +8,10 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 from web_search.state import WebSearchState
 from bedrock_client import get_bedrock_model
-from utils import get_string_from_content
+from utils import get_string_from_content, format_messages
 import os
 from tavily import TavilyClient
+from datetime import datetime
 
 CLASSIFIER_PROMPT = """You're a helpful AI assistant tasked with classifying the user's latest message.
 The user has enabled web search for their conversation, however not all messages should be searched.
@@ -20,6 +21,24 @@ Analyze their latest message in isolation and determine if it warrants a web sea
 <message>
 {message}
 </message>"""
+
+QUERY_GENERATOR_PROMPT = """You're a helpful AI assistant tasked with writing a query to search the web.
+You're provided with a list of messages between a user and an AI assistant.
+The most recent message from the user is the one you should update to be a more search engine friendly query.
+
+Try to keep the new query as similar to the message as possible, while still being search engine friendly.
+
+Here is the conversation between the user and the assistant, in order of oldest to newest:
+
+<conversation>
+{conversation}
+</conversation>
+
+<additional_context>
+{additional_context}
+</additional_context>
+
+Respond ONLY with the search query, and nothing else."""
 
 
 class ClassificationSchema(BaseModel):
@@ -68,15 +87,51 @@ async def query_generator_node(
     state: WebSearchState,
     config: RunnableConfig
 ) -> Dict[str, Any]:
-    """Generate search query from user message."""
+    """Generate search query from user message using LLM."""
+    model = get_bedrock_model(config, temperature=0)
+    
     messages = state.get("messages", [])
     if not messages:
+        print("[QUERY_GENERATOR] No messages found, returning empty query", flush=True)
         return {"query": ""}
     
-    latest_message = messages[-1]
-    query = (
-        latest_message.content if isinstance(latest_message.content, str) else str(latest_message.content)
-    )
+    # Format current date similar to date-fns format(new Date(), "PPpp")
+    # "PPpp" format: "January 1, 2024 at 12:00 PM"
+    current_date = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+    additional_context = f"The current date is {current_date}"
+    
+    # Format messages for the prompt
+    formatted_messages = format_messages(messages)
+    
+    # Format the prompt
+    formatted_prompt = QUERY_GENERATOR_PROMPT.replace(
+        "{conversation}",
+        formatted_messages
+    ).replace("{additional_context}", additional_context)
+    
+    # Log the prompt and input
+    print(f"[QUERY_GENERATOR] Number of messages: {len(messages)}", flush=True)
+    print(f"[QUERY_GENERATOR] Additional context: {additional_context}", flush=True)
+    print(f"[QUERY_GENERATOR] Formatted prompt (first 500 chars):\n{formatted_prompt[:500]}...", flush=True)
+    print(f"[QUERY_GENERATOR] Full prompt:\n{formatted_prompt}", flush=True)
+    
+    # Get query from LLM
+    response = await model.ainvoke([
+        HumanMessage(content=formatted_prompt)
+    ])
+    
+    # Extract query from response
+    if hasattr(response, "content"):
+        query = get_string_from_content(response.content)
+    else:
+        query = str(response)
+    
+    # Clean up the query (remove any extra whitespace)
+    query = query.strip()
+    
+    # Log the result
+    print(f"[QUERY_GENERATOR] LLM raw response: {response}", flush=True)
+    print(f"[QUERY_GENERATOR] Generated query: {query}", flush=True)
     
     return {"query": query}
 
