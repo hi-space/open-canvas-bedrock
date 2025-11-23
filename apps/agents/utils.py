@@ -144,8 +144,22 @@ def get_string_from_content(content: Any) -> str:
 
 
 def clean_base64(base64_string: str) -> str:
-    """Clean base64 string by removing data URL prefix."""
-    return base64_string.replace("data:.*?;base64,", "")
+    """Clean base64 string by removing data URL prefix and fixing padding."""
+    import re
+    
+    # Remove data URL prefix if present (e.g., "data:application/pdf;base64,")
+    cleaned = re.sub(r'^data:[^;]+;base64,', '', base64_string)
+    
+    # Remove whitespace
+    cleaned = cleaned.replace('\n', '').replace('\r', '').replace(' ', '')
+    
+    # Fix padding: base64 strings must be a multiple of 4
+    # Add padding if necessary
+    missing_padding = len(cleaned) % 4
+    if missing_padding:
+        cleaned += '=' * (4 - missing_padding)
+    
+    return cleaned
 
 
 # Artifact utility functions
@@ -386,20 +400,33 @@ def create_context_document_messages(
         context_documents = configurable.get("contextDocuments", [])
     
     if not context_documents:
+        print("create_context_document_messages: No documents provided", flush=True)
         return []
+    
+    print(f"create_context_document_messages: Processing {len(context_documents)} documents", flush=True)
     
     messages = []
     for doc in context_documents:
         doc_type = doc.get("type", "")
         doc_data = doc.get("data", "")
+        doc_name = doc.get("name", "Unknown document")
+        
+        # Debug logging
+        print(f"Processing document: name={doc_name}, type={doc_type}, data_length={len(doc_data) if doc_data else 0}", flush=True)
+        
+        if not doc_data:
+            print(f"Warning: Document '{doc_name}' has no data, skipping", flush=True)
+            continue
         
         if doc_type == "application/pdf":
             # Convert PDF to text
             try:
                 text = convert_pdf_to_text(doc_data)
+                # Include document name so LLM knows which document it is
+                formatted_text = f"File: {doc_name}\n\n{text}"
                 messages.append({
                     "type": "text",
-                    "text": text
+                    "text": formatted_text
                 })
             except Exception as e:
                 print(f"Failed to convert PDF: {e}", flush=True)
@@ -410,18 +437,22 @@ def create_context_document_messages(
             try:
                 cleaned = clean_base64(doc_data)
                 text = base64.b64decode(cleaned).decode('utf-8')
+                # Include document name so LLM knows which document it is
+                formatted_text = f"File: {doc_name}\n\n{text}"
                 messages.append({
                     "type": "text",
-                    "text": text
+                    "text": formatted_text
                 })
             except Exception as e:
                 print(f"Failed to decode text document: {e}", flush=True)
                 continue
         elif doc_type == "text":
             # Plain text
+            # Include document name so LLM knows which document it is
+            formatted_text = f"File: {doc_name}\n\n{doc_data}"
             messages.append({
                 "type": "text",
-                "text": doc_data
+                "text": formatted_text
             })
     
     if not messages:

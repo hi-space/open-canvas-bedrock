@@ -141,6 +141,15 @@ async def convert_context_document_to_human_message(
     additional_kwargs = getattr(last_message, 'additional_kwargs', {})
     documents = additional_kwargs.get("documents", [])
     
+    # Debug logging
+    print(f"convert_context_document_to_human_message: found {len(documents) if documents else 0} documents", flush=True)
+    if documents:
+        for i, doc in enumerate(documents):
+            doc_name = doc.get("name", "Unknown") if isinstance(doc, dict) else "Invalid"
+            doc_type = doc.get("type", "Unknown") if isinstance(doc, dict) else "Invalid"
+            has_data = bool(doc.get("data", "")) if isinstance(doc, dict) else False
+            print(f"  Document {i}: name={doc_name}, type={doc_type}, has_data={has_data}", flush=True)
+    
     if not documents:
         return None
     

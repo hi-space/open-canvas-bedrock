@@ -1363,7 +1363,18 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               id: msg.id,
             };
             if ((msg as any).additional_kwargs) {
-              baseMsg.additional_kwargs = (msg as any).additional_kwargs;
+              // Remove large document data from additional_kwargs before saving
+              // Documents are already converted to context messages, so we only need metadata
+              const additionalKwargs = { ...(msg as any).additional_kwargs };
+              if (additionalKwargs.documents && Array.isArray(additionalKwargs.documents)) {
+                // Keep only document metadata (name, type) without the large base64 data
+                additionalKwargs.documents = additionalKwargs.documents.map((doc: any) => ({
+                  name: doc.name,
+                  type: doc.type,
+                  // Don't include the large 'data' field to avoid storage issues
+                }));
+              }
+              baseMsg.additional_kwargs = additionalKwargs;
             }
             if ((msg as any).response_metadata) {
               baseMsg.response_metadata = (msg as any).response_metadata;
