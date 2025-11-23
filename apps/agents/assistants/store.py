@@ -21,7 +21,25 @@ class AssistantStore:
         self._entity_type = "assistant"
     
     def create(self, graph_id: str, name: str, config: Optional[Dict] = None, metadata: Optional[Dict] = None, if_exists: str = "do_nothing") -> Dict:
-        """Create a new assistant."""
+        """Create a new assistant.
+        
+        If if_exists is "return_existing", checks if an assistant with the same
+        name and user_id already exists and returns it instead of creating a duplicate.
+        """
+        # Check for existing assistant with same name and user_id if requested
+        if if_exists == "return_existing":
+            user_id = metadata.get("user_id") if metadata else None
+            if user_id:
+                existing = self.search(
+                    graph_id=graph_id,
+                    metadata={"user_id": user_id} if user_id else None,
+                    limit=100
+                )
+                # Find assistant with matching name
+                for assistant in existing:
+                    if assistant.get("name") == name:
+                        return assistant
+        
         assistant_id = str(uuid.uuid4())
         assistant = {
             "assistant_id": assistant_id,

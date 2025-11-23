@@ -2,6 +2,7 @@
 FastAPI routes for assistant management.
 Implements LangGraph SDK compatible assistant endpoints.
 """
+import sys
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
@@ -123,12 +124,15 @@ async def search_assistants(request: AssistantSearchRequest):
     """Search assistants."""
     try:
         limit = request.limit or 100
+        print(f"Assistant search request: graph_id={request.graph_id}, metadata={request.metadata}, limit={limit}", file=sys.stderr, flush=True)
         assistants = assistant_store.search(
             graph_id=request.graph_id,
             metadata=request.metadata,
             limit=limit
         )
+        print(f"Assistant search result: found {len(assistants)} assistants", file=sys.stderr, flush=True)
         return assistants
     except Exception as e:
+        print(f"Assistant search error: {str(e)}", file=sys.stderr, flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 

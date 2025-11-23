@@ -3,6 +3,7 @@ DynamoDB storage backend for persistent storage.
 """
 import json
 import os
+import sys
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from store.base import BaseStorage, BaseEntityStorage
@@ -330,53 +331,92 @@ class DynamoDBEntityStorage(BaseEntityStorage):
     def search(self, entity_type: str, filters: Optional[Dict] = None, limit: int = 100) -> List[Dict]:
         """Search entities with optional filters."""
         try:
-            # Query all entities of this type
-            response = self.table.query(
-                KeyConditionExpression=Key("entity_type").eq(entity_type),
-                Limit=limit,
-            )
-            
+            # Query all entities of this type with pagination
             entities = []
-            for item in response.get("Items", []):
-                data_str = item.get("data")
-                data = json.loads(data_str) if isinstance(data_str, str) else data_str
-                data["created_at"] = item.get("created_at")
-                data["updated_at"] = item.get("updated_at")
+            last_evaluated_key = None
+            
+            # Fetch all items (with pagination) before filtering
+            # This ensures we get all matching items even after filtering
+            while True:
+                query_params = {
+                    "KeyConditionExpression": Key("entity_type").eq(entity_type),
+                }
                 
-                # Apply filters if provided
-                if filters:
-                    match = True
-                    for key, value in filters.items():
-                        if key == "graph_id" and data.get("graph_id") != value:
-                            match = False
-                            break
-                        elif key == "metadata":
-                            if not isinstance(value, dict):
+                if last_evaluated_key:
+                    query_params["ExclusiveStartKey"] = last_evaluated_key
+                
+                response = self.table.query(**query_params)
+                
+                items_count = len(response.get("Items", []))
+                print(f"DynamoDB search: entity_type={entity_type}, fetched {items_count} items", file=sys.stderr, flush=True)
+                
+                for item in response.get("Items", []):
+                    data_str = item.get("data")
+                    data = json.loads(data_str) if isinstance(data_str, str) else data_str
+                    data["created_at"] = item.get("created_at")
+                    data["updated_at"] = item.get("updated_at")
+                    
+                    # Apply filters if provided
+                    if filters:
+                        match = True
+                        for key, value in filters.items():
+                            if key == "graph_id" and data.get("graph_id") != value:
+                                print(f"  Filter mismatch: graph_id - expected {value}, got {data.get('graph_id')}", file=sys.stderr, flush=True)
                                 match = False
                                 break
-                            entity_metadata = data.get("metadata", {})
-                            for meta_key, meta_value in value.items():
-                                if entity_metadata.get(meta_key) != meta_value:
+                            elif key == "metadata":
+                                if not isinstance(value, dict):
                                     match = False
                                     break
-                            if not match:
-                                break
+                                entity_metadata = data.get("metadata", {})
+                                print(f"  Checking metadata filter: filter={value}, entity_metadata={entity_metadata}", file=sys.stderr, flush=True)
+                                for meta_key, meta_value in value.items():
+                                    entity_meta_value = entity_metadata.get(meta_key)
+                                    # If metadata key doesn't exist in entity, treat as match (for backward compatibility)
+                                    # This allows existing data without user_id to be matched
+                                    if meta_key not in entity_metadata:
+                                        print(f"  Metadata key '{meta_key}' not found in entity, treating as match (backward compatibility)", file=sys.stderr, flush=True)
+                                        continue
+                                    if entity_meta_value != meta_value:
+                                        print(f"  Filter mismatch: metadata.{meta_key} - expected {meta_value}, got {entity_meta_value}", file=sys.stderr, flush=True)
+                                        match = False
+                                        break
+                                if not match:
+                                    break
+                            else:
+                                if data.get(key) != value:
+                                    print(f"  Filter mismatch: {key} - expected {value}, got {data.get(key)}", file=sys.stderr, flush=True)
+                                    match = False
+                                    break
+                        
+                        if not match:
+                            continue
                         else:
-                            if data.get(key) != value:
-                                match = False
-                                break
+                            print(f"  Entity passed filters: assistant_id={data.get('assistant_id')}, name={data.get('name')}", file=sys.stderr, flush=True)
                     
-                    if not match:
-                        continue
+                    entities.append(data)
                 
-                entities.append(data)
+                # Check if there are more items to fetch
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if not last_evaluated_key:
+                    break
+                
+                # Stop if we have enough items (after filtering)
+                if len(entities) >= limit:
+                    break
             
             # Sort by updated_at descending
             entities.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
             
+            print(f"DynamoDB search: entity_type={entity_type}, filters={filters}, returning {len(entities)} entities", file=sys.stderr, flush=True)
+            
             return entities[:limit]
         except ClientError as e:
+            print(f"DynamoDB search error: {str(e)}", file=sys.stderr, flush=True)
             raise Exception(f"DynamoDB error: {str(e)}")
+        except Exception as e:
+            print(f"DynamoDB search unexpected error: {str(e)}", file=sys.stderr, flush=True)
+            raise
 
 
 class DynamoDBThreadStorage:
