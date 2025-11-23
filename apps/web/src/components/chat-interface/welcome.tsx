@@ -8,33 +8,33 @@ import { ProgrammingLanguagesDropdown } from "../ui/programming-lang-dropdown";
 import { Button } from "../ui/button";
 
 const QUICK_START_PROMPTS_SEARCH = [
-  "Write a market analysis of AI chip manufacturers in 2025",
-  "Create a blog post about the latest climate change policies and their impact",
-  "Draft an investor update on renewable energy trends this quarter",
-  "Write a report on current cybersecurity threats in cloud computing",
-  "Analyze the latest developments in quantum computing for a tech newsletter",
-  "Create a summary of emerging medical breakthroughs in cancer treatment",
-  "Write about the impact of current interest rates on the housing market",
-  "Draft an article about breakthroughs in battery technology this year",
-  "Analyze current supply chain disruptions in semiconductor manufacturing",
-  "Write about how recent AI regulations affect business innovation",
+  "Analyze the current state of agentic AI systems and their real-world applications",
+  "Write a market analysis of physical AI companies in robotics and embodied intelligence",
+  "Research how AI agents are transforming software development workflows",
+  "Draft a report on autonomous robots in manufacturing and logistics",
+  "Analyze the convergence of agentic AI and physical robotics in 2025",
+  "Write about multi-agent systems and their use in enterprise automation",
+  "Create a summary of humanoid robotics advancements and commercial viability",
+  "Research the role of foundation models in enabling physical AI",
+  "Draft an analysis of AI agent frameworks like LangGraph and AutoGPT",
+  "Write about the challenges of sim-to-real transfer in physical AI systems",
 ];
 
 const QUICK_START_PROMPTS = [
-  "Write a bedtime story about a brave little robot",
-  "Create a function to calculate Fibonacci numbers in TypeScript",
-  "Draft a resignation letter for a position I've had for 2 years",
-  "Build a simple weather dashboard using React and Tailwind",
-  "Write a poem about artificial intelligence",
-  "Create a basic Express.js REST API with two endpoints",
-  "Draft a congratulatory speech for my sister's graduation",
-  "Build a command-line calculator in Python",
-  "Write instructions for making perfect scrambled eggs",
-  "Create a simple snake game using HTML canvas",
-  "Write me a TODO app in React",
-  "Explain why the sky is blue in a short essay",
-  "Help me draft an email to my professor Craig",
-  "Write a web scraping program in Python",
+  "Write a short story about a cat who becomes a detective",
+  "Create a calculator app in Python",
+  "Draft a friendly invitation for my weekend BBQ party",
+  "Build a simple To-Do list in React",
+  "Explain AWS Lambda and when to use it",
+  "Create a countdown timer with HTML and JavaScript",
+  "Explain how photosynthesis works in simple terms",
+  "Build a random quote generator",
+  "Write a travel blog post about my favorite city",
+  "Create a tip calculator for restaurants",
+  "Build me a simple stopwatch with start and stop buttons",
+  "Help me write a thank you note to my neighbor",
+  "Write a guide to setting up an AWS S3 bucket",
+  "Write about the best ways to learn a new language",
 ];
 
 function getRandomPrompts(prompts: string[], count: number = 4): string[] {
@@ -139,7 +139,7 @@ export const ThreadWelcome: FC<ThreadWelcomeProps> = (
       <div className="flex items-center justify-center mt-16 w-full">
         <div className="text-center max-w-3xl w-full">
           <Avatar className="mx-auto">
-            <AvatarImage src="/lc_logo.jpg" alt="LangChain Logo" />
+            <AvatarImage src="/logo.png" alt="Logo" />
             <AvatarFallback>LC</AvatarFallback>
           </Avatar>
           <TighterText className="mt-4 text-lg font-medium">

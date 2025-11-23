@@ -1,0 +1,2 @@
+"""Firecrawl web scraping module."""
+

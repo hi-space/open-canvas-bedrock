@@ -170,8 +170,7 @@ async def convert_context_document_to_human_message(
     
     return HumanMessage(
         id=str(uuid.uuid4()),
-        content=content_parts,
-        additional_kwargs={"OC_HIDE_FROM_UI": True}
+        content=content_parts
     )
 
 

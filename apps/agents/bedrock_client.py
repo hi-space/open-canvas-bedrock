@@ -20,7 +20,6 @@ def get_bedrock_model(
     
     model_config = get_model_config(config, is_tool_calling=is_tool_calling)
     model_name = model_config["modelName"]
-    model_provider = model_config["modelProvider"]
     config_dict = model_config.get("modelConfig", {})
     region = model_config.get("region", "us-east-1")
     credentials = model_config.get("credentials", {})

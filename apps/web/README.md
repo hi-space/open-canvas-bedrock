@@ -92,9 +92,6 @@ Open Canvas는 AI 에이전트와 협업하여 문서와 코드를 작성하는 
 - **에이전트 UI**: @assistant-ui/react
 - **에디터**: CodeMirror (코드), BlockNote (마크다운)
 - **상태 관리**: Zustand, React Context
-- **인증**: Supabase
-- **백엔드 통신**: LangGraph SDK, FastAPI
-- **LLM**: AWS Bedrock
 
 ## 시작하기
 
@@ -102,42 +99,6 @@ Open Canvas는 AI 에이전트와 협업하여 문서와 코드를 작성하는 
 
 - Node.js 18+
 - Yarn 패키지 매니저
-- AWS Bedrock 접근 권한
-- (선택사항) Supabase 계정 (인증용)
-
-### 설치
-
-```bash
-# 저장소 클론
-git clone https://github.com/langchain-ai/open-canvas.git
-cd open-canvas
-
-# 의존성 설치
-yarn install
-
-# 환경 변수 설정
-cp .env.example .env
-```
-
-### 환경 변수 설정
-
-`.env` 파일에 다음 변수들을 설정하세요:
-
-```env
-# API URL (FastAPI 서버)
-API_URL=http://localhost:8000
-FASTAPI_API_URL=http://localhost:8000
-
-# Supabase (인증용, 선택사항)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
-
-# 웹 검색 (선택사항)
-TAVILY_API_KEY=your_tavily_key
-
-# Firecrawl (선택사항)
-FIRECRAWL_API_KEY=your_firecrawl_key
-```
 
 ### 개발 서버 실행
 
@@ -183,40 +144,3 @@ apps/web/
 
 ### ChatInterface
 메시지 표시, 입력, 스레드 관리 등의 채팅 기능을 제공합니다.
-
-## API 엔드포인트
-
-애플리케이션은 FastAPI 백엔드와 통신하며, 다음 주요 엔드포인트를 사용합니다:
-
-- `/api/[..._path]` - LangGraph API 프록시
-- `/api/firecrawl/scrape` - 웹 스크래핑
-- `/api/whisper/audio` - 오디오 전사
-- `/api/store/*` - 스토어 관리 (Reflection, 커스텀 퀵 액션 등)
-- `/api/runs/feedback` - 실행 피드백
-- `/api/runs/share` - 실행 공유
-
-## 개발 가이드
-
-### 새 모델 추가
-
-1. `src/shared/models.ts`에 모델 정의 추가
-2. 백엔드에서 해당 모델 지원 확인
-3. 모델 설정 테스트
-
-### 새 퀵 액션 추가
-
-1. `src/components/artifacts/actions_toolbar/` 디렉토리에 새 컴포넌트 생성
-2. `index.tsx`에 퀵 액션 등록
-3. 백엔드에서 해당 액션 처리 로직 확인
-
-### 스타일 커스터마이징
-
-Tailwind CSS를 사용하므로 `tailwind.config.ts`에서 테마를 수정할 수 있습니다.
-
-## 라이선스
-
-MIT License
-
-## 기여하기
-
-버그 리포트, 기능 제안, Pull Request를 환영합니다! 기여하기 전에 이슈를 먼저 생성해 주세요.

@@ -22,7 +22,6 @@ import { TighterText } from "../ui/header";
 import { useFeedback } from "@/hooks/useFeedback";
 import { ContextDocumentsUI } from "../tool-hooks/AttachmentsToolUI";
 import { HumanMessage } from "@langchain/core/messages";
-import { OC_HIDE_FROM_UI_KEY } from "@/shared/constants";
 import { Button } from "../ui/button";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
 import { Globe } from "lucide-react";
@@ -146,8 +145,6 @@ export const UserMessage: FC = () => {
 
   // Return null if message is not available yet (prevents rendering issues on first message)
   if (!humanMessage) return null;
-
-  if (humanMessage?.additional_kwargs?.[OC_HIDE_FROM_UI_KEY]) return null;
 
   return (
     <MessagePrimitive.Root className="grid w-full max-w-2xl auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] gap-y-2 py-4">
