@@ -39,7 +39,7 @@ Open Canvas requires the following API keys and external services:
 - (optional) [Fireworks AI API key](https://fireworks.ai/login)
 - (optional) [Groq AI API key](https://groq.com) - audio/video transcription
 - (optional) [FireCrawl API key](https://firecrawl.dev) - web scraping
-- (optional) [ExaSearch API key](https://exa.ai) - web search
+- (optional) [Tavily API key](https://tavily.com) - web search
 
 
 #### Authentication

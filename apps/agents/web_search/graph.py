@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 from web_search.state import WebSearchState
 from bedrock_client import get_bedrock_model
+from utils import get_string_from_content
+import os
+from tavily import TavilyClient
 
 CLASSIFIER_PROMPT = """You're a helpful AI assistant tasked with classifying the user's latest message.
 The user has enabled web search for their conversation, however not all messages should be searched.
@@ -47,9 +50,14 @@ async def classify_message_node(
         HumanMessage(content=formatted_prompt)
     ])
     
-    # Parse response (simplified - in real implementation, use structured output)
-    content = response.content if hasattr(response, "content") else str(response)
-    should_search = "yes" in content.lower() or "true" in content.lower() or "search" in content.lower()
+    # Parse response - handle both string and list content (Bedrock returns list of dicts)
+    if hasattr(response, "content"):
+        content = get_string_from_content(response.content)
+    else:
+        content = str(response)
+    
+    content_lower = content.lower()
+    should_search = "yes" in content_lower or "true" in content_lower or "search" in content_lower
     
     return {
         "shouldSearch": should_search
@@ -77,23 +85,56 @@ async def search_node(
     state: WebSearchState,
     config: RunnableConfig
 ) -> Dict[str, Any]:
-    """Perform web search."""
+    """Perform web search using Tavily API."""
     query = state.get("query", "")
     
-    # Simplified web search implementation
-    # In real implementation, you would use a web search API like Exa, Tavily, etc.
-    # For now, return empty results
-    web_search_results = []
+    if not query:
+        return {"webSearchResults": []}
     
-    # Example: If you have Exa or another search service
-    # import exa_py
-    # exa = exa_py.Exa(api_key=os.getenv("EXA_API_KEY"))
-    # results = exa.search(query, num_results=5)
-    # web_search_results = [{"pageContent": r.text, "metadata": {"url": r.url, "title": r.title}} for r in results]
+    # Get Tavily API key from environment variable
+    tavily_api_key = os.getenv("TAVILY_API_KEY")
     
-    return {
-        "webSearchResults": web_search_results
-    }
+    if not tavily_api_key:
+        print("WARNING: TAVILY_API_KEY not found in environment variables. Returning empty search results.", flush=True)
+        return {"webSearchResults": []}
+    
+    try:
+        # Initialize Tavily client with latest API
+        tavily_client = TavilyClient(api_key=tavily_api_key)
+        
+        # Perform search using latest Tavily API
+        # The search method returns a dictionary with 'results' key
+        response = tavily_client.search(
+            query=query,
+            max_results=5,
+            search_depth="basic"  # Can be "basic" or "advanced"
+        )
+        
+        # Transform Tavily results to match expected format
+        # Latest Tavily API returns results in response['results']
+        web_search_results = []
+        results = response.get("results", []) if isinstance(response, dict) else []
+        
+        for result in results:
+            web_search_results.append({
+                "pageContent": result.get("content", ""),
+                "metadata": {
+                    "url": result.get("url", ""),
+                    "title": result.get("title", ""),
+                    "publishedDate": result.get("published_date", ""),
+                    "author": result.get("author", ""),
+                }
+            })
+        
+        return {
+            "webSearchResults": web_search_results
+        }
+    except Exception as e:
+        print(f"Error performing web search with Tavily: {e}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        # Return empty results on error
+        return {"webSearchResults": []}
 
 
 def search_or_end_conditional(state: WebSearchState) -> Literal["queryGenerator", "END"]:

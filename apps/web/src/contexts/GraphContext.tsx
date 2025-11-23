@@ -965,8 +965,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
-                
-                console.log(`[FINAL] Artifact set from open_canvas on_chain_end: ${artifactCopy.contents[artifactCopy.contents.length - 1].fullMarkdown}`);
               } else {
                 console.log(`[FINAL] No artifact in open_canvas output`);
               }

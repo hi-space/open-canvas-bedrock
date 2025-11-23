@@ -14,6 +14,15 @@ pip install -r requirements.txt
 export AWS_REGION=us-east-1
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
+export TAVILY_API_KEY=your_tavily_api_key  # Optional: for web search functionality
+```
+
+Alternatively, create a `.env` file in the `apps/agents` directory:
+```
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+TAVILY_API_KEY=your_tavily_api_key
 ```
 
 3. Run the FastAPI server:

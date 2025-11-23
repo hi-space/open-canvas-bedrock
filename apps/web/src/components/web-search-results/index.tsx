@@ -107,10 +107,24 @@ export function WebSearchResults({ open, setOpen }: WebSearchResultsProps) {
     const status = (webResultsMessage.additional_kwargs?.webSearchStatus ||
       "searching") as "searching" | "done";
 
-    setOpen(true);
-    setSearchResults(searchResults || []);
-    setStatus(status);
-  }, [webSearchResultsId, messages]);
+    const hasResults = searchResults && searchResults.length > 0;
+    
+    // Only open if there are results or still searching
+    // If search is done and no results, keep it closed
+    if (status === "done" && !hasResults) {
+      setOpen(false);
+      setSearchResults([]);
+      setStatus(status);
+      return;
+    }
+    
+    // Open if searching or has results
+    if (status === "searching" || hasResults) {
+      setOpen(true);
+      setSearchResults(searchResults || []);
+      setStatus(status);
+    }
+  }, [webSearchResultsId, messages, open, setOpen, setWebSearchResultsId]);
 
   const handleClose = () => {
     setOpen(false);
