@@ -108,10 +108,11 @@ pip install -r requirements.txt
 환경 변수를 직접 설정하거나 `.env` 파일을 생성할 수 있습니다:
 
 ```
-AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 TAVILY_API_KEY=your_tavily_api_key
+FIRECRAWL_API_KEY=your_firecrawl_api_key
 PORT=8000
 
 # LangSmith 트레이싱 (선택사항)
@@ -141,9 +142,6 @@ STORAGE_ENTITY_TABLE_NAME=open_canvas_entities  # 엔티티 저장소 테이블 
 STORAGE_THREADS_TABLE_NAME=open_canvas_threads  # 스레드 테이블 이름 (기본값: open_canvas_threads)
 STORAGE_MESSAGES_TABLE_NAME=open_canvas_thread_messages  # 메시지 테이블 이름 (기본값: open_canvas_thread_messages)
 STORAGE_ARTIFACTS_TABLE_NAME=open_canvas_thread_artifacts  # 아티팩트 테이블 이름 (기본값: open_canvas_thread_artifacts)
-AWS_DEFAULT_REGION=us-east-1  # AWS 리전 (기본값: us-east-1)
-AWS_ACCESS_KEY_ID=your_access_key  # AWS 자격 증명 (IAM 역할 사용 시 불필요)
-AWS_SECRET_ACCESS_KEY=your_secret_key  # AWS 자격 증명 (IAM 역할 사용 시 불필요)
 ```
 
 **참고**: DynamoDB를 사용하는 경우, 테이블이 자동으로 생성됩니다. DynamoDB에 대한 적절한 권한이 필요합니다:
@@ -224,6 +222,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 - **POST** `/api/web-search/search` - 웹 검색 수행
   - 사용자 메시지를 분석하여 웹 검색 필요 여부 판단
   - 필요시 검색 쿼리 생성 및 Tavily API를 통한 웹 검색 수행
+  - `TAVILY_API_KEY` 환경 변수 필요
+
+### Firecrawl Web Scraping
+
+- **POST** `/api/firecrawl/scrape` - 웹 스크래핑 수행
+  - URL 목록을 받아 Firecrawl을 사용하여 웹페이지 콘텐츠 스크래핑
+  - 마크다운 형식으로 변환된 콘텐츠 반환
+  - `FIRECRAWL_API_KEY` 환경 변수 필요
 
 ### Threads Management
 

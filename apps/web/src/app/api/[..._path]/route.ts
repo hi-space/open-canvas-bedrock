@@ -12,7 +12,9 @@ function getCorsHeaders() {
 async function handleRequest(req: NextRequest, method: string) {
   // Authentication disabled - allow all requests
   try {
-    const path = req.nextUrl.pathname.replace(/^\/?api\//, "");
+    // Keep /api/ prefix - pass pathname as-is to backend
+    // pathname is like /api/agent/stream, we send /api/agent/stream to backend
+    const path = req.nextUrl.pathname;
     const url = new URL(req.url);
     const searchParams = new URLSearchParams(url.search);
     searchParams.delete("_path");
@@ -48,7 +50,7 @@ async function handleRequest(req: NextRequest, method: string) {
     }
 
     const res = await fetch(
-      `${API_URL}/${path}${queryString}`,
+      `${API_URL}${path}${queryString}`,
       options
     );
 

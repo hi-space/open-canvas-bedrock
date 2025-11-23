@@ -338,7 +338,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     let existingMessages: any[] = [];
     if (currentThreadId) {
       try {
-        const response = await fetch(`${API_URL}/threads/${currentThreadId}`, {
+        const response = await fetch(`${API_URL}/api/threads/${currentThreadId}`, {
           method: "GET",
         });
         if (response.ok) {
@@ -1385,7 +1385,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             return baseMsg;
           });
           
-          const response = await fetch(`${API_URL}/threads/${currentThreadId}/state`, {
+          const response = await fetch(`${API_URL}/api/threads/${currentThreadId}/state`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

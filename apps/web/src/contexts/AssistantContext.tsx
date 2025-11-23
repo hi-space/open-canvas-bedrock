@@ -120,7 +120,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     try {
       // Use fixed user_id for now (will be used for multi-user support later)
       const fixedUserId = "default";
-      const response = await fetch(`${API_URL}/assistants/search`, {
+      const response = await fetch(`${API_URL}/api/assistants/search`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -154,7 +154,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const deleteAssistant = async (assistantId: string): Promise<boolean> => {
     setIsDeletingAssistant(true);
     try {
-      const response = await fetch(`${API_URL}/assistants/${assistantId}`, {
+      const response = await fetch(`${API_URL}/api/assistants/${assistantId}`, {
         method: "DELETE",
       });
 
@@ -206,7 +206,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         newAssistant;
       // Use fixed user_id for now (will be used for multi-user support later)
       const fixedUserId = "default";
-      const response = await fetch(`${API_URL}/assistants`, {
+      const response = await fetch(`${API_URL}/api/assistants`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -261,7 +261,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         editedAssistant;
       // Use fixed user_id for now (will be used for multi-user support later)
       const fixedUserId = "default";
-      const response = await fetch(`${API_URL}/assistants/${assistantId}`, {
+      const response = await fetch(`${API_URL}/api/assistants/${assistantId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -323,7 +323,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       const fixedUserId = "default";
 
       // Search for existing assistants
-      const searchResponse = await fetch(`${API_URL}/assistants/search`, {
+      const searchResponse = await fetch(`${API_URL}/api/assistants/search`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -364,8 +364,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           userAssistants = [createdAssistant];
         } else {
           // If creation failed, search again in case another request created it
-          const retryResponse = await fetch(`${API_URL}/assistants/search`, {
-            method: "POST",
+          const retryResponse = await fetch(`${API_URL}/api/assistants/search`, {
+        method: "POST",
             headers: {
               "Content-Type": "application/json",
             },

@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   try {
-    const response = await fetch(`${API_URL}/store/delete`, {
+    const response = await fetch(`${API_URL}/api/store/delete`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

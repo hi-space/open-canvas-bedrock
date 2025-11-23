@@ -144,7 +144,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
     setCreateThreadLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/threads`, {
+      const response = await fetch(`${API_URL}/api/threads`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -197,7 +197,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       // Search without user filter - get all threads
       // If search fails (e.g., no threads exist), return empty array
       try {
-        const response = await fetch(`${API_URL}/threads/search`, {
+        const response = await fetch(`${API_URL}/api/threads/search`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -250,7 +250,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       void createThread();
     }
     try {
-      const response = await fetch(`${API_URL}/threads/${id}`, {
+      const response = await fetch(`${API_URL}/api/threads/${id}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -263,7 +263,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
   const getThread = async (id: string): Promise<Thread | undefined> => {
     try {
-      const response = await fetch(`${API_URL}/threads/${id}`, {
+      const response = await fetch(`${API_URL}/api/threads/${id}`, {
         method: "GET",
       });
       if (!response.ok) {

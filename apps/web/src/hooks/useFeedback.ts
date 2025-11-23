@@ -46,7 +46,7 @@ export function useFeedback(): UseFeedbackResult {
       setError(null);
 
       try {
-        const res = await fetch(`${API_URL}/runs/feedback`, {
+        const res = await fetch(`${API_URL}/api/runs/feedback`, {
           method: "POST",
           body: JSON.stringify({ runId, feedbackKey, score, comment }),
           headers: {
@@ -81,7 +81,7 @@ export function useFeedback(): UseFeedbackResult {
       setError(null);
       try {
         const res = await fetch(
-          `${API_URL}/runs/feedback?runId=${encodeURIComponent(runId)}&feedbackKey=${encodeURIComponent(feedbackKey)}`
+          `${API_URL}/api/runs/feedback?runId=${encodeURIComponent(runId)}&feedbackKey=${encodeURIComponent(feedbackKey)}`
         );
 
         if (!res.ok) {

@@ -5,7 +5,7 @@ export function useRuns() {
    * Generates a public shared run ID for the given run ID.
    */
   const shareRun = async (runId: string): Promise<string | undefined> => {
-    const res = await fetch(`${API_URL}/runs/share`, {
+    const res = await fetch(`${API_URL}/api/runs/share`, {
       method: "POST",
       body: JSON.stringify({ runId }),
       headers: {
