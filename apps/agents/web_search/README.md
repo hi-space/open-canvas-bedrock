@@ -1,8 +1,8 @@
 # Web Search Graph
 
-Web Search 그래프는 사용자 메시지를 분석하여 웹 검색이 필요한지 판단하고, 필요시 검색 쿼리를 생성하여 웹 검색을 수행하는 서브그래프입니다.
+The Web Search graph is a subgraph that analyzes user messages to determine if web search is needed, and if so, generates search queries and performs web search.
 
-## 그래프 구조
+## Graph Structure
 
 ```mermaid
 ---
@@ -26,24 +26,24 @@ graph TD;
 	classDef last fill:#bfb6fc
 ```
 
-## 노드 설명
+## Node Descriptions
 
-- **classifyMessage**: 사용자의 최신 메시지를 분석하여 웹 검색이 필요한지 판단합니다.
-- **queryGenerator**: 웹 검색이 필요한 경우, 검색 엔진에 최적화된 쿼리를 생성합니다.
-- **search**: Tavily API를 사용하여 실제 웹 검색을 수행하고 결과를 반환합니다.
+- **classifyMessage**: Analyzes the user's latest message to determine if web search is needed.
+- **queryGenerator**: When web search is needed, generates search engine-optimized queries.
+- **search**: Performs actual web search using Tavily API and returns results.
 
-## 플로우
+## Flow
 
-1. **시작**: `__start__` → `classifyMessage`
-2. **분류**: 메시지가 웹 검색을 필요로 하는지 판단
-3. **조건부 라우팅**:
-   - 검색 불필요: `classifyMessage` → `__end__`
-   - 검색 필요: `classifyMessage` → `queryGenerator`
-4. **쿼리 생성**: LLM을 사용하여 검색 쿼리 생성
-5. **검색 수행**: Tavily API로 웹 검색 실행
-6. **종료**: `search` → `__end__`
+1. **Start**: `__start__` → `classifyMessage`
+2. **Classification**: Determine if the message requires web search
+3. **Conditional Routing**:
+   - Search not needed: `classifyMessage` → `__end__`
+   - Search needed: `classifyMessage` → `queryGenerator`
+4. **Query Generation**: Use LLM to generate search query
+5. **Search Execution**: Execute web search using Tavily API
+6. **End**: `search` → `__end__`
 
-## 사용 위치
+## Usage Location
 
-이 그래프는 `open_canvas` 메인 그래프의 `webSearch` 노드에서 호출됩니다.
+This graph is called from the `webSearch` node in the `open_canvas` main graph.
 

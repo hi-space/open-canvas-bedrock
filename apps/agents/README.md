@@ -1,79 +1,78 @@
 # Open Canvas Agents - FastAPI with AWS Bedrock
 
-Open Canvas 에이전트의 Python FastAPI 구현체로, AWS Bedrock을 사용한 LLM 통합을 제공합니다.
+A Python FastAPI implementation of Open Canvas agents that provides LLM integration using AWS Bedrock.
 
-## 개요
+## Overview
 
-이 프로젝트는 LangGraph를 사용하여 구현된 여러 AI 에이전트들을 FastAPI로 제공하는 서버입니다. 주요 기능은 다음과 같습니다:
+This project is a server that provides multiple AI agents implemented using LangGraph through FastAPI. The main features include:
 
-- **Open Canvas Agent**: 대화 기반 아티팩트 생성 및 수정을 위한 메인 에이전트
-- **Reflection Agent**: 대화와 아티팩트에 대한 반성 및 피드백 생성
-- **Thread Title Agent**: 대화 스레드의 제목 자동 생성
-- **Summarizer Agent**: 긴 대화 내용 요약
-- **Web Search Agent**: 웹 검색 기능 통합
-- **Threads Management**: LangGraph SDK 호환 스레드 관리
-- **Assistants Management**: LangGraph SDK 호환 어시스턴트 관리
-- **Store Management**: LangGraph SDK 호환 스토어 관리
+- **Open Canvas Agent**: Main agent for conversation-based artifact generation and modification
+- **Reflection Agent**: Reflection and feedback generation for conversations and artifacts
+- **Thread Title Agent**: Automatic title generation for conversation threads
+- **Summarizer Agent**: Summarization of long conversation content
+- **Web Search Agent**: Web search functionality integration
+- **Threads Management**: LangGraph SDK-compatible thread management
+- **Assistants Management**: LangGraph SDK-compatible assistant management
+- **Store Management**: LangGraph SDK-compatible store management
 
-## 모델 설정
+## Model Configuration
 
-### 지원 모델
+### Supported Models
 
-AWS Bedrock 모델만 지원됩니다. 주요 지원 모델:
+Only AWS Bedrock models are supported. Main supported models:
 
 - Claude Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1
 - Amazon Nova Premier, Pro, Micro, Lite
 - Llama 3.3 70B Instruct
 - DeepSeek R1, V3
 
-전체 모델 목록은 [models.py](./models.py)를 참조하세요.
+See [models.py](./models.py) for the complete model list.
 
+## Tech Stack
 
-## 기술 스택
+- **FastAPI**: Web framework
+- **LangGraph**: State machine and agent orchestration
+- **LangChain**: LLM integration and message processing
+- **AWS Bedrock**: LLM provider
+- **Tavily**: Web search (optional)
+- **Pydantic**: Data validation
+- **Uvicorn**: ASGI server
 
-- **FastAPI**: 웹 프레임워크
-- **LangGraph**: 상태 머신 및 에이전트 오케스트레이션
-- **LangChain**: LLM 통합 및 메시지 처리
-- **AWS Bedrock**: LLM 제공자
-- **Tavily**: 웹 검색 (선택사항)
-- **Pydantic**: 데이터 검증
-- **Uvicorn**: ASGI 서버
+## Installation and Execution
 
-## 설치 및 실행
-
-### 1. 의존성 설치
+### 1. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 환경 변수 설정
+### 2. Environment Variable Configuration
 
-환경 변수를 직접 설정하거나 `.env` 파일을 생성할 수 있습니다:
+You can set environment variables directly or create a `.env` file:
 
-### 3. 저장소 설정
+### 3. Storage Configuration
 
-어시스턴트 정보, 채팅 히스토리, 빠른 액션, 반성(reflection) 등의 데이터를 저장하는 저장소를 설정할 수 있습니다.
+You can configure storage for data such as assistant information, chat history, quick actions, and reflections.
 
-#### 저장소 타입 선택
+#### Storage Type Selection
 
-환경 변수 `STORAGE_TYPE`을 통해 저장소 타입을 선택할 수 있습니다:
+You can select the storage type through the `STORAGE_TYPE` environment variable:
 
-- `memory` (기본값): 메모리 저장소 - 서버 재시작 시 데이터가 사라집니다
-- `dynamodb`: AWS DynamoDB - 클라우드 기반 영구 저장소
+- `memory` (default): Memory storage - data is lost on server restart
+- `dynamodb`: AWS DynamoDB - cloud-based persistent storage
 
-| 특징 | Memory | DynamoDB |
-|------|--------|----------|
-| 영속성 | ❌ 재시작 시 소실 | ✅ 영구 저장 |
-| 설정 난이도 | 쉬움 | 보통 (AWS 설정 필요) |
-| 비용 | 무료 | AWS 요금 발생 |
-| 성능 | 매우 빠름 | 빠름 |
-| 확장성 | 제한적 | 무제한 |
-| 권장 용도 | 개발, 테스트 | 프로덕션 |
+| Feature | Memory | DynamoDB |
+|---------|--------|----------|
+| Persistence | ❌ Lost on restart | ✅ Persistent storage |
+| Setup Difficulty | Easy | Moderate (AWS setup required) |
+| Cost | Free | AWS charges apply |
+| Performance | Very fast | Fast |
+| Scalability | Limited | Unlimited |
+| Recommended Use | Development, Testing | Production |
 
-#### DynamoDB 설정
+#### DynamoDB Configuration
 
-**참고**: DynamoDB를 사용하는 경우, 테이블이 자동으로 생성됩니다. DynamoDB에 대한 적절한 권한이 필요합니다:
+**Note**: When using DynamoDB, tables are automatically created. Appropriate permissions for DynamoDB are required:
 - `dynamodb:CreateTable`
 - `dynamodb:DescribeTable`
 - `dynamodb:PutItem`
@@ -82,34 +81,36 @@ pip install -r requirements.txt
 - `dynamodb:DeleteItem`
 - `dynamodb:Query`
 
-#### 데이터 저장 구조
-다음 데이터들이 선택한 저장소에 저장됩니다:
+#### Data Storage Structure
 
-- **어시스턴트 정보** (entities 테이블): 어시스턴트 ID, 그래프 ID, 설정, 메타데이터
-- **스레드 정보** (정규화된 구조):
-  - `threads` 테이블: 스레드 ID, 메타데이터
-  - `thread_messages` 테이블: 대화 메시지들 (독립적으로 저장)
-  - `thread_artifacts` 테이블: 아티팩트 데이터 (독립적으로 저장)
-- **스토어 데이터** (store_items 테이블): 
-  - 반성(reflection) 데이터: `namespace=["memories", assistantId]`, `key="reflection"`
-  - 빠른 액션(quick actions): `namespace=["custom_actions", userId]`, `key="actions"`
-  - 기타 LangGraph SDK 호환 스토어 데이터
+The following data is stored in the selected storage:
+
+- **Assistant Information** (entities table): Assistant ID, graph ID, configuration, metadata
+- **Thread Information** (normalized structure):
+  - `threads` table: Thread ID, metadata
+  - `thread_messages` table: Conversation messages (stored independently)
+  - `thread_artifacts` table: Artifact data (stored independently)
+- **Store Data** (store_items table): 
+  - Reflection data: `namespace=["memories", assistantId]`, `key="reflection"`
+  - Quick actions: `namespace=["custom_actions", userId]`, `key="actions"`
+  - Other LangGraph SDK-compatible store data
 
 ```
 ┌──────────────────────────────────────────────────┐
-│  Entity Store (어시스턴트 관리)                    │
-│  - assistants: 어시스턴트 메타데이터               │
+│  Entity Store (Assistant Management)             │
+│  - assistants: Assistant metadata                │
 │    ├─ assistant_id (PK)                          │
 │    ├─ graph_id                                   │
-│    ├─ config (이름, 아이콘, 색상)                 │
-│    ├─ context_documents (첨부 파일)              │
+│    ├─ config (name, icon, color)                 │
+│    ├─ context_documents (attached files)        │
 │    └─ metadata                                   │
 └──────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────┐
-│  Thread Store (대화 관리) - 정규화된 구조          │
+│  Thread Store (Conversation Management)          │
+│  - Normalized Structure                          │
 │                                                  │
-│  threads (스레드 메타데이터)                       │
+│  threads (Thread metadata)                       │
 │  ├─ thread_id (PK)                               │
 │  ├─ user_id                                      │
 │  ├─ assistant_id                                 │
@@ -117,7 +118,7 @@ pip install -r requirements.txt
 │  ├─ created_at                                   │
 │  └─ metadata                                     │
 │                                                  │
-│  thread_messages (메시지)                         │
+│  thread_messages (Messages)                      │
 │  ├─ thread_id (PK)                               │
 │  ├─ message_id (SK)                              │
 │  ├─ role (human/assistant)                       │
@@ -125,29 +126,29 @@ pip install -r requirements.txt
 │  ├─ attachments                                  │
 │  └─ timestamp                                    │
 │                                                  │
-│  thread_artifacts (아티팩트)                      │
+│  thread_artifacts (Artifacts)                     │
 │  ├─ thread_id (PK)                               │
 │  ├─ artifact_id (SK)                             │
-│  ├─ current_index (현재 버전)                     │
-│  └─ contents (버전별 내용 배열)                    │
+│  ├─ current_index (current version)              │
+│  └─ contents (versioned content array)          │
 │      ├─ [0] { type, content, language, ... }    │
 │      ├─ [1] { type, content, language, ... }    │
 │      └─ ...                                      │
 └──────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────┐
-│  Key-Value Store (앱 데이터)                      │
+│  Key-Value Store (App Data)                      │
 │                                                  │
-│  Reflections (학습된 메모리)                       │
+│  Reflections (Learned Memory)                    │
 │  - namespace: ["memories", assistant_id]         │
 │  - key: "reflection"                             │
 │  - value: {                                      │
-│      style_rules: ["규칙1", "규칙2", ...],        │
-│      user_memories: ["정보1", "정보2", ...]       │
+│      style_rules: ["rule1", "rule2", ...],       │
+│      user_memories: ["info1", "info2", ...]      │
 │    }                                             │
 │                                                  │
-│  Custom Quick Actions (커스텀 퀵 액션)             │
-│  - namespace: ["custom_actions", user_id]        │
+│  Custom Quick Actions                            │
+│  - namespace: ["custom_actions", user_id]         │
 │  - key: "actions"                                │
 │  - value: [                                      │
 │      { id, name, prompt, options, ... },         │
@@ -156,163 +157,163 @@ pip install -r requirements.txt
 └──────────────────────────────────────────────────┘
 ```
 
-### 4. 서버 실행
+### 4. Run Server
 
 ```bash
 python main.py
 ```
 
-또는 uvicorn을 직접 사용:
+Or use uvicorn directly:
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-## API 엔드포인트
+## API Endpoints
 
-### API 문서
+### API Documentation
 
-서버 실행 후 다음 URL에서 자동 생성된 API 문서를 확인할 수 있습니다:
+After starting the server, you can view the auto-generated API documentation at the following URLs:
 
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
-## 에이전트 동작 구조
+## Agent Operation Structure
 
 ### Open Canvas Agent
 
-Open Canvas Agent는 LangGraph를 사용하여 구현된 복잡한 상태 머신입니다. 사용자 요청을 분석하여 적절한 작업을 수행합니다.
+The Open Canvas Agent is a complex state machine implemented using LangGraph. It analyzes user requests and performs appropriate tasks.
 
-#### 그래프 흐름
+#### Graph Flow
 
 ```
 START
   ↓
-[generatePath] 경로 결정 노드
-  ├─→ generateArtifact (새 아티팩트 생성)
-  ├─→ rewriteArtifact (전체 재작성)
-  ├─→ updateArtifact (코드 부분 수정)
-  ├─→ updateHighlightedText (텍스트 부분 수정)
-  ├─→ rewriteArtifactTheme (텍스트 테마: 번역, 길이, 이모지 등)
-  ├─→ rewriteCodeArtifactTheme (코드 테마: 주석, 로그, 포팅, 버그수정)
-  ├─→ webSearch → [routePostWebSearch] → (아티팩트 작업)
-  ├─→ customAction (커스텀 퀵 액션)
-  └─→ replyToGeneralInput (일반 대화)
+[generatePath] Path decision node
+  ├─→ generateArtifact (create new artifact)
+  ├─→ rewriteArtifact (full rewrite)
+  ├─→ updateArtifact (code partial modification)
+  ├─→ updateHighlightedText (text partial modification)
+  ├─→ rewriteArtifactTheme (text theme: translation, length, emoji, etc.)
+  ├─→ rewriteCodeArtifactTheme (code theme: comments, logs, porting, bug fixes)
+  ├─→ webSearch → [routePostWebSearch] → (artifact operations)
+  ├─→ customAction (custom quick action)
+  └─→ replyToGeneralInput (general conversation)
   ↓
-[generateFollowup] 후속 메시지 생성
+[generateFollowup] Generate follow-up message
   ↓
-[reflect] Reflection 수행 (스타일 학습)
+[reflect] Perform Reflection (style learning)
   ↓
-[cleanState] 상태 정리
+[cleanState] Clean state
   ↓
-[shouldContinue] 조건 확인
-  ├─→ generateTitle (메시지 ≤ 2개)
-  ├─→ summarizer (총 300K자 초과)
+[shouldContinue] Condition check
+  ├─→ generateTitle (messages ≤ 2)
+  ├─→ summarizer (total > 300K characters)
   └─→ END
 ```
 
-#### 노드별 상세 설명
+#### Detailed Node Descriptions
 
-**1. generatePath (경로 결정)**
-- 사용자 입력, 현재 아티팩트 상태, 하이라이트 정보를 분석
-- LLM을 사용하여 가장 적절한 다음 작업 결정
-- 출력: 다음 노드 이름 (예: "generateArtifact")
+**1. generatePath (Path Decision)**
+- Analyzes user input, current artifact state, and highlight information
+- Uses LLM to determine the most appropriate next task
+- Output: Next node name (e.g., "generateArtifact")
 
-**2. 아티팩트 작업 노드들**
-- `generateArtifact`: 사용자 요청으로부터 새 아티팩트 생성
-- `rewriteArtifact`: 기존 아티팩트를 전면 재작성
-- `updateArtifact`: 하이라이트된 코드 부분만 수정
-- `updateHighlightedText`: 하이라이트된 텍스트 부분만 수정
-- `rewriteArtifactTheme`: 번역, 길이 조정, 읽기 수준 변경, 이모지 추가
-- `rewriteCodeArtifactTheme`: 주석 추가, 로그 추가, 언어 포팅, 버그 수정
-- `customAction`: 사용자 정의 프롬프트로 작업 수행
+**2. Artifact Operation Nodes**
+- `generateArtifact`: Create new artifact from user request
+- `rewriteArtifact`: Fully rewrite existing artifact
+- `updateArtifact`: Modify only highlighted code sections
+- `updateHighlightedText`: Modify only highlighted text sections
+- `rewriteArtifactTheme`: Translation, length adjustment, reading level changes, emoji addition
+- `rewriteCodeArtifactTheme`: Comment addition, log addition, language porting, bug fixes
+- `customAction`: Perform tasks with user-defined prompts
 
-**3. webSearch (웹 검색 경로)**
-- Web Search Agent를 호출하여 웹 검색 수행
-- `routePostWebSearch`: 검색 결과를 활용하여 다음 작업 결정
-- 검색 결과는 아티팩트 생성/수정 시 컨텍스트로 활용
+**3. webSearch (Web Search Path)**
+- Calls Web Search Agent to perform web search
+- `routePostWebSearch`: Determines next task using search results
+- Search results are used as context when generating/modifying artifacts
 
-**4. 후처리 노드들**
-- `generateFollowup`: 아티팩트 작업 후 적절한 후속 메시지 생성
-- `reflect`: Reflection Agent 호출하여 사용자 스타일 학습
-- `cleanState`: 다음 실행을 위해 임시 상태 정리
+**4. Post-Processing Nodes**
+- `generateFollowup`: Generate appropriate follow-up messages after artifact operations
+- `reflect`: Call Reflection Agent to learn user style
+- `cleanState`: Clean temporary state for next execution
 
-**5. 조건부 종료**
-- `shouldContinue`: 대화 상태를 확인하여 추가 작업 필요 여부 판단
-  - 메시지 2개 이하 → `generateTitle` (제목 생성)
-  - 총 300,000자 초과 → `summarizer` (대화 요약)
-  - 그 외 → END (종료)
+**5. Conditional Termination**
+- `shouldContinue`: Checks conversation state to determine if additional tasks are needed
+  - Messages ≤ 2 → `generateTitle` (title generation)
+  - Total > 300,000 characters → `summarizer` (conversation summarization)
+  - Otherwise → END (termination)
 
-자세한 그래프 구조와 시각화는 [open_canvas/README.md](./open_canvas/README.md)를 참조하세요.
+See [open_canvas/README.md](./open_canvas/README.md) for detailed graph structure and visualization.
 
 ### Reflection Agent
 
-Reflection Agent는 단일 노드로 구성된 간단한 그래프입니다.
+The Reflection Agent is a simple graph consisting of a single node.
 
-#### 동작 방식
+#### Operation Method
 
-1. 대화 메시지와 아티팩트를 분석
-2. 기존 반성 결과(스타일 규칙, 사용자 메모리)를 스토어에서 조회
-3. LLM을 사용하여 새로운 스타일 규칙과 사용자 메모리 생성
-4. 생성된 반성 결과를 스토어에 저장하여 향후 대화에 활용
+1. Analyze conversation messages and artifacts
+2. Retrieve existing reflection results (style rules, user memory) from store
+3. Generate new style rules and user memory using LLM
+4. Store generated reflection results in store for use in future conversations
 
-#### 주요 기능
+#### Key Features
 
-- **스타일 규칙 추출**: 대화에서 사용자의 선호 스타일과 가이드라인 추출
-- **사용자 메모리 생성**: 사용자에 대한 사실과 정보 저장
-- **지속적 학습**: 반성 결과를 저장하여 일관된 응답 제공
+- **Style Rule Extraction**: Extract user's preferred styles and guidelines from conversations
+- **User Memory Creation**: Store facts and information about the user
+- **Continuous Learning**: Store reflection results to provide consistent responses
 
 ### Thread Title Agent
 
-Thread Title Agent는 단일 노드로 구성된 그래프입니다.
+The Thread Title Agent is a graph consisting of a single node.
 
-#### 동작 방식
+#### Operation Method
 
-1. 대화 메시지와 아티팩트를 분석
-2. LLM을 사용하여 적절한 제목 생성
-3. 스레드 메타데이터 업데이트 (선택사항)
+1. Analyze conversation messages and artifacts
+2. Generate appropriate title using LLM
+3. Update thread metadata (optional)
 
-#### 주요 기능
+#### Key Features
 
-- **자동 제목 생성**: 대화 내용을 기반으로 의미 있는 제목 생성
-- **아티팩트 고려**: 생성된 아티팩트를 고려하여 더 정확한 제목 생성
+- **Automatic Title Generation**: Generate meaningful titles based on conversation content
+- **Artifact Consideration**: Generate more accurate titles by considering generated artifacts
 
 ### Summarizer Agent
 
-Summarizer Agent는 단일 노드로 구성된 그래프입니다.
+The Summarizer Agent is a graph consisting of a single node.
 
-#### 동작 방식
+#### Operation Method
 
-1. 대화 메시지 전체를 요약
-2. 요약된 내용을 새로운 메시지로 변환
-3. 요약 메시지에 특별한 플래그 추가하여 원본 메시지 대체
+1. Summarize all conversation messages
+2. Convert summarized content to a new message
+3. Add special flag to summarized message to replace original messages
 
-#### 주요 기능
+#### Key Features
 
-- **대화 압축**: 긴 대화 내용을 요약하여 토큰 사용량 최적화
-- **컨텍스트 유지**: 요약 과정에서 중요한 정보 보존
-- **투명한 요약**: 요약된 메시지임을 표시하여 모델이 적절히 처리
+- **Conversation Compression**: Summarize long conversation content to optimize token usage
+- **Context Preservation**: Preserve important information during summarization
+- **Transparent Summarization**: Indicate summarized messages so models can process appropriately
 
 ### Web Search Agent
 
-Web Search Agent는 3단계 노드로 구성된 그래프입니다.
+The Web Search Agent is a graph consisting of 3-stage nodes.
 
-#### 동작 방식
+#### Operation Method
 
-1. **메시지 분류 (classifyMessage)**
-   - 사용자의 최신 메시지를 분석하여 웹 검색 필요 여부 판단
-   - 검색이 필요하지 않으면 바로 종료
+1. **Message Classification (classifyMessage)**
+   - Analyzes user's latest message to determine if web search is needed
+   - Terminates immediately if search is not needed
 
-2. **쿼리 생성 (queryGenerator)**
-   - 대화 내용을 분석하여 검색 엔진 친화적인 쿼리 생성
-   - 현재 날짜 등 추가 컨텍스트 포함
+2. **Query Generation (queryGenerator)**
+   - Analyzes conversation content to generate search engine-friendly queries
+   - Includes additional context such as current date
 
-3. **웹 검색 (search)**
-   - Tavily API를 사용하여 웹 검색 수행
-   - 검색 결과를 구조화된 형식으로 반환
+3. **Web Search (search)**
+   - Performs web search using Tavily API
+   - Returns search results in structured format
 
-#### 주요 기능
+#### Key Features
 
-- **지능형 검색 판단**: 모든 메시지에 대해 검색하지 않고 필요시에만 검색
-- **컨텍스트 기반 쿼리**: 대화 맥락을 고려한 검색 쿼리 생성
-- **구조화된 결과**: 검색 결과를 일관된 형식으로 제공
+- **Intelligent Search Decision**: Search only when needed, not for every message
+- **Context-Based Query**: Generate search queries considering conversation context
+- **Structured Results**: Provide search results in consistent format

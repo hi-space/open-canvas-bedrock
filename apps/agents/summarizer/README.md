@@ -1,8 +1,8 @@
 # Summarizer Graph
 
-Summarizer 그래프는 대화 메시지가 너무 길어질 때 메시지를 요약하여 컨텍스트를 압축하는 서브그래프입니다.
+The Summarizer graph is a subgraph that compresses context by summarizing conversation messages when they become too long.
 
-## 그래프 구조
+## Graph Structure
 
 ```mermaid
 ---
@@ -21,18 +21,18 @@ graph TD;
 	classDef last fill:#bfb6fc
 ```
 
-## 노드 설명
+## Node Description
 
-- **summarize**: 모든 대화 메시지를 요약하여 하나의 요약 메시지로 압축합니다. 요약 메시지는 사용자에게 보이지 않으며, 이후 대화에서 컨텍스트로 사용됩니다.
+- **summarize**: Summarizes all conversation messages into a single summary message. The summary message is not visible to users and is used as context in subsequent conversations.
 
-## 플로우
+## Flow
 
-1. **시작**: `__start__` → `summarize`
-2. **요약**: LLM을 사용하여 모든 메시지를 요약
-3. **생성**: 요약된 메시지를 `_messages`에 추가 (사용자에게는 보이지 않음)
-4. **종료**: `summarize` → `__end__`
+1. **Start**: `__start__` → `summarize`
+2. **Summarize**: Use LLM to summarize all messages
+3. **Generate**: Add summarized message to `_messages` (not visible to users)
+4. **End**: `summarize` → `__end__`
 
-## 사용 위치
+## Usage Location
 
-이 그래프는 `open_canvas` 메인 그래프의 `summarizer` 노드에서 호출됩니다. 메시지 총 길이가 300,000자를 초과할 때 자동으로 호출됩니다.
+This graph is called from the `summarizer` node in the `open_canvas` main graph. It is automatically called when the total message length exceeds 300,000 characters.
 

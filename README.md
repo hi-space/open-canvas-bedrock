@@ -1,31 +1,31 @@
 # Open Canvas - Apps
 
-> **참고**: 이 프로젝트는 [langchain-ai/open-canvas](https://github.com/langchain-ai/open-canvas) 코드를 기반으로 수정되었습니다.
+> **Note**: This project is based on modified code from [langchain-ai/open-canvas](https://github.com/langchain-ai/open-canvas).
 
-Open Canvas는 AI 에이전트와의 협업을 통해 문서와 코드를 생성하고 개선하는 플랫폼입니다. 백엔드(Agents)와 프론트엔드(Web)가 긴밀하게 통합되어 다음과 같은 핵심 기능을 제공합니다.
+Open Canvas is a platform for generating and improving documents and code through collaboration with AI agents. The backend (Agents) and frontend (Web) are tightly integrated to provide the following core features.
 
 ![screenshot](./static/screenshot.png)
 
-## 🔄 시스템 아키텍처 및 데이터 흐름
+## 🔄 System Architecture and Data Flow
 
-### 전체 흐름
+### Overall Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  사용자 (브라우저)                                              │
-│  - 대화 입력, 파일 첨부, 아티팩트 편집                              │
+│  User (Browser)                                             │
+│  - Conversation input, file attachments, artifact editing    │
 └─────────────────────┬───────────────────────────────────────┘
                       ↓ HTTP / SSE
 ┌─────────────────────────────────────────────────────────────┐
 │  Web App (Next.js)                                          │
-│  - UI 렌더링, 사용자 인터렉션 처리                                 │
-│  - 인증 (Supabase), 상태 관리 (Zustand)                        │
+│  - UI rendering, user interaction handling                   │
+│  - Authentication (Supabase), state management (Zustand)     │
 └─────────────────────┬───────────────────────────────────────┘
                       ↓ HTTP / SSE
 ┌─────────────────────────────────────────────────────────────┐
 │  Agents API (FastAPI)                                       │
-│  - 라우팅, 요청 검증                                            │
-│  - 파일 처리 (Whisper, Firecrawl, PDF-parse)                  │
+│  - Routing, request validation                              │
+│  - File processing (Whisper, Firecrawl, PDF-parse)           │
 └─────────────────────┬───────────────────────────────────────┘
                       ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -47,260 +47,260 @@ Open Canvas는 AI 에이전트와의 협업을 통해 문서와 코드를 생성
                       ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Storage                                                    │
-│  - Memory (개발용) 또는 DynamoDB (프로덕션)                      │
+│  - Memory (for development) or DynamoDB (for production)    │
 │  - Threads, Messages, Artifacts, Assistants, Store          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🎯 핵심 기능
+## 🎯 Core Features
 
-### 1. 🤖 AI 에이전트 시스템
+### 1. 🤖 AI Agent System
 
 ![agent-graph](./static/agent_graph.png)
 
-#### Open Canvas Agent (메인 에이전트)
-대화를 통해 아티팩트(문서/코드)를 생성하고 수정하는 핵심 에이전트입니다.
+#### Open Canvas Agent (Main Agent)
+The core agent that generates and modifies artifacts (documents/code) through conversation.
 
-**주요 기능:**
-- **아티팩트 생성**: 사용자 요청에 따라 코드 또는 마크다운 문서를 새로 생성
-- **전체 재작성**: 기존 아티팩트를 전면적으로 재작성
-- **부분 수정**: 
-  - 하이라이트된 코드 부분만 선택적으로 업데이트
-  - 하이라이트된 텍스트만 선택적으로 수정
-- **테마 변경**:
-  - 텍스트: 언어 번역, 길이 조정, 읽기 수준 변경, 이모지 추가
-  - 코드: 주석 추가, 로그 추가, 언어 포팅, 버그 수정
-- **웹 검색 통합**: 최신 정보가 필요한 경우 자동으로 웹 검색 수행
-- **커스텀 액션**: 사용자 정의 프롬프트를 통한 맞춤형 작업
+**Key Features:**
+- **Artifact Generation**: Create new code or markdown documents based on user requests
+- **Full Rewrite**: Completely rewrite existing artifacts
+- **Partial Modification**: 
+  - Selectively update only highlighted code sections
+  - Selectively modify only highlighted text sections
+- **Theme Changes**:
+  - Text: Language translation, length adjustment, reading level changes, emoji addition
+  - Code: Comment addition, log addition, language porting, bug fixes
+- **Web Search Integration**: Automatically perform web searches when latest information is needed
+- **Custom Actions**: Customized tasks through user-defined prompts
 
-**동작 방식:**
-1. 사용자 입력 분석 → 적절한 작업 경로 결정
-2. 필요시 웹 검색 수행 → 검색 결과 활용
-3. 아티팩트 생성/수정 실행
-4. 후속 메시지 생성
-5. Reflection 수행 (사용자 스타일 학습)
+**How It Works:**
+1. Analyze user input → Determine appropriate task path
+2. Perform web search if needed → Utilize search results
+3. Execute artifact generation/modification
+4. Generate follow-up messages
+5. Perform Reflection (learn user style)
 
-#### Reflection Agent (메모리 에이전트)
-대화 내용과 아티팩트를 분석하여 사용자의 선호도와 스타일을 학습합니다.
+#### Reflection Agent (Memory Agent)
+Analyzes conversation content and artifacts to learn user preferences and styles.
 
-**주요 기능:**
-- **스타일 규칙 추출**: 사용자의 작성 스타일, 톤, 포맷 선호도 파악
-- **사용자 메모리 생성**: 사용자에 대한 사실과 정보 저장
-- **지속적 학습**: 세션을 넘어 일관된 응답 제공
-- **컨텍스트 활용**: 향후 대화에 학습한 내용 자동 반영
+**Key Features:**
+- **Style Rule Extraction**: Understand user's writing style, tone, and format preferences
+- **User Memory Creation**: Store facts and information about the user
+- **Continuous Learning**: Provide consistent responses across sessions
+- **Context Utilization**: Automatically apply learned content to future conversations
 
-**저장되는 정보:**
-- 선호하는 작성 스타일 (간결함, 상세함 등)
-- 자주 사용하는 프로그래밍 패턴
-- 특정 용어나 표현 선호도
-- 사용자의 배경 정보 (직업, 관심사 등)
+**Stored Information:**
+- Preferred writing styles (concise, detailed, etc.)
+- Frequently used programming patterns
+- Preferences for specific terms or expressions
+- User background information (occupation, interests, etc.)
 
-#### Web Search Agent (검색 에이전트)
-대화 컨텍스트를 분석하여 웹 검색이 필요한지 판단하고 실행합니다.
+#### Web Search Agent (Search Agent)
+Analyzes conversation context to determine if web search is needed and executes it.
 
-**주요 기능:**
-- **지능형 검색 판단**: 모든 메시지가 아닌 필요시에만 검색
-- **컨텍스트 기반 쿼리 생성**: 대화 맥락을 고려한 최적화된 검색 쿼리
-- **구조화된 결과**: 검색 결과를 일관된 형식으로 제공
-- **실시간 정보**: Tavily API를 통한 최신 웹 정보 제공
+**Key Features:**
+- **Intelligent Search Decision**: Search only when needed, not for every message
+- **Context-Based Query Generation**: Optimized search queries considering conversation context
+- **Structured Results**: Provide search results in a consistent format
+- **Real-Time Information**: Provide latest web information through Tavily API
 
-#### Thread Title Agent (제목 생성 에이전트)
-대화 내용을 분석하여 자동으로 적절한 제목을 생성합니다.
+#### Thread Title Agent (Title Generation Agent)
+Analyzes conversation content to automatically generate appropriate titles.
 
-**주요 기능:**
-- **자동 제목 생성**: 대화 초기 2-3개 메시지 후 자동 실행
-- **의미 있는 제목**: 대화와 아티팩트를 모두 고려한 정확한 제목
-- **다국어 지원**: 대화 언어에 맞춰 제목 생성
+**Key Features:**
+- **Automatic Title Generation**: Automatically executed after initial 2-3 messages
+- **Meaningful Titles**: Accurate titles considering both conversation and artifacts
+- **Multi-Language Support**: Generate titles matching the conversation language
 
-#### Summarizer Agent (요약 에이전트)
-긴 대화 내용을 요약하여 토큰 사용량을 최적화합니다.
+#### Summarizer Agent (Summarization Agent)
+Summarizes long conversation content to optimize token usage.
 
-**주요 기능:**
-- **대화 압축**: 대화가 300,000자를 초과할 때 자동 실행
-- **컨텍스트 유지**: 요약 과정에서 중요한 정보 보존
-- **투명한 요약**: 요약된 메시지임을 명시하여 적절한 처리
+**Key Features:**
+- **Conversation Compression**: Automatically executed when conversation exceeds 300,000 characters
+- **Context Preservation**: Preserve important information during summarization
+- **Transparent Summarization**: Clearly indicate summarized messages for appropriate processing
 
-### 2. 📝 아티팩트 관리
+### 2. 📝 Artifact Management
 
-#### 지원 포맷
-- **코드**: Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure 등
-- **문서**: Markdown, 일반 텍스트
+#### Supported Formats
+- **Code**: Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure, etc.
+- **Documents**: Markdown, plain text
 
-#### 편집 기능
-- **실시간 편집**: 코드와 마크다운을 실시간으로 편집
-- **라이브 마크다운 렌더링**: 편집하면서 동시에 렌더링된 결과 확인
-- **구문 강조**: 프로그래밍 언어별 구문 강조 지원
-- **텍스트 선택 편집**: 특정 부분만 선택하여 AI에게 수정 요청
+#### Editing Features
+- **Real-Time Editing**: Edit code and markdown in real-time
+- **Live Markdown Rendering**: View rendered results while editing
+- **Syntax Highlighting**: Support syntax highlighting for various programming languages
+- **Text Selection Editing**: Select specific parts to request AI modifications
 
-#### 버전 관리
-- **자동 버전 생성**: 모든 수정마다 새 버전 자동 생성
-- **버전 히스토리**: 이전 버전들을 시간순으로 확인
-- **버전 복원**: 이전 버전으로 언제든지 되돌리기 가능
-- **버전 비교**: 버전 간 변경사항 확인
+#### Version Control
+- **Automatic Version Creation**: Automatically create new versions for every modification
+- **Version History**: View previous versions in chronological order
+- **Version Restoration**: Restore to previous versions at any time
+- **Version Comparison**: Check changes between versions
 
-### 3. ⚡ 퀵 액션 시스템
+### 3. ⚡ Quick Action System
 
-#### 텍스트 아티팩트용 기본 퀵 액션
-- **번역**: 20개 이상의 언어로 번역 (한국어, 영어, 일본어, 중국어 등)
-- **읽기 수준 조정**: 초등학생부터 전문가 수준까지 난이도 조정
-- **길이 조정**: 텍스트를 더 짧게 또는 더 길게 재작성
-- **이모지 추가**: 텍스트에 적절한 이모지 자동 추가
+#### Default Quick Actions for Text Artifacts
+- **Translation**: Translate to 20+ languages (Korean, English, Japanese, Chinese, etc.)
+- **Reading Level Adjustment**: Adjust difficulty from elementary to expert level
+- **Length Adjustment**: Rewrite text to be shorter or longer
+- **Emoji Addition**: Automatically add appropriate emojis to text
 
-#### 코드 아티팩트용 기본 퀵 액션
-- **주석 추가**: 코드에 설명 주석 자동 생성
-- **로그 추가**: 디버깅을 위한 로그 문 자동 삽입
-- **언어 포팅**: 다른 프로그래밍 언어로 코드 변환
-- **버그 수정**: 코드의 잠재적 버그 감지 및 수정
+#### Default Quick Actions for Code Artifacts
+- **Comment Addition**: Automatically generate explanatory comments for code
+- **Log Addition**: Automatically insert log statements for debugging
+- **Language Porting**: Convert code to other programming languages
+- **Bug Fixing**: Detect and fix potential bugs in code
 
-#### 커스텀 퀵 액션
-사용자가 직접 만드는 맞춤형 퀵 액션입니다.
+#### Custom Quick Actions
+User-created customized quick actions.
 
-**기능:**
-- **프롬프트 정의**: 원하는 작업을 자연어로 설명
-- **옵션 설정**:
-  - Reflection 포함 여부: 학습한 스타일 규칙 적용
-  - 최근 대화 포함: 대화 컨텍스트 활용
-  - 프리픽스 메시지: 추가 지시사항 포함
-- **세션 간 지속**: 한 번 생성하면 모든 세션에서 사용 가능
-- **어시스턴트별 관리**: 각 어시스턴트마다 다른 커스텀 액션 설정 가능
+**Features:**
+- **Prompt Definition**: Describe desired tasks in natural language
+- **Option Settings**:
+  - Include Reflection: Apply learned style rules
+  - Include Recent Conversation: Utilize conversation context
+  - Prefix Message: Include additional instructions
+- **Persistence Across Sessions**: Once created, available in all sessions
+- **Per-Assistant Management**: Different custom actions can be set for each assistant
 
-### 4. 👥 멀티 어시스턴트 관리
+### 4. 👥 Multi-Assistant Management
 
-#### 어시스턴트 생성 및 설정
-- **커스터마이징**: 이름, 아이콘, 색상 등 개성 있는 어시스턴트 생성
-- **개별 메모리**: 각 어시스턴트마다 독립적인 Reflection 메모리
-- **용도별 분리**: 코딩 전용, 문서 작성 전용 등 목적별 어시스턴트 관리
+#### Assistant Creation and Configuration
+- **Customization**: Create distinctive assistants with names, icons, colors, etc.
+- **Individual Memory**: Each assistant has independent Reflection memory
+- **Purpose-Based Separation**: Manage assistants by purpose (coding-only, document-writing-only, etc.)
 
-#### 컨텍스트 문서 첨부
-각 어시스턴트에 영구적인 컨텍스트 문서를 첨부할 수 있습니다.
+#### Context Document Attachment
+You can attach permanent context documents to each assistant.
 
-**지원 파일:**
-- 문서: TXT, PDF (최대 10MB)
-- 웹페이지: URL 입력 - Firecrawl 스크래핑
-- 최대 20개 파일 동시 첨부
+**Supported Files:**
+- Documents: TXT, PDF (max 10MB)
+- Web Pages: URL input - Firecrawl scraping
+- Maximum 20 files can be attached simultaneously
 
-#### 어시스턴트 전환
-- **대화 중 전환**: 대화 도중 언제든지 다른 어시스턴트로 전환
-- **컨텍스트 유지**: 이전 대화 내용은 그대로 유지
-- **다른 관점**: 같은 문제에 대해 다른 어시스턴트의 접근 방식 확인
+#### Assistant Switching
+- **Switch During Conversation**: Switch to a different assistant at any time during conversation
+- **Context Preservation**: Previous conversation content remains intact
+- **Different Perspectives**: Check different assistants' approaches to the same problem
 
-### 5. 💬 대화 및 스레드 관리
+### 5. 💬 Conversation and Thread Management
 
-#### 스레드 시스템
-- **자동 스레드 생성**: 새 대화마다 고유한 스레드 생성
-- **스레드 히스토리**: 날짜별 그룹화 (오늘, 어제, 최근 7일, 그 이전)
-- **자동 제목 생성**: 대화 내용 기반 제목 자동 생성
-- **스레드 검색**: 이전 대화 빠르게 찾기
-- **스레드 삭제**: 불필요한 대화 삭제
+#### Thread System
+- **Automatic Thread Creation**: Create unique threads for each new conversation
+- **Thread History**: Grouped by date (today, yesterday, last 7 days, earlier)
+- **Automatic Title Generation**: Automatically generate titles based on conversation content
+- **Thread Search**: Quickly find previous conversations
+- **Thread Deletion**: Delete unnecessary conversations
 
-#### 메시지 처리
-- **스트리밍 응답**: Server-Sent Events(SSE)를 통한 실시간 응답
-- **다중 메시지 타입**:
-  - 일반 대화 메시지
-  - 아티팩트 생성/수정 메시지
-  - 웹 검색 결과 메시지
-  - 시스템 메시지 (요약, 제목 생성 등)
-- **파일 첨부**: 대화에 파일 첨부하여 컨텍스트 제공
-- **피드백 시스템**: 각 응답에 대해 긍정/부정 피드백 제공
+#### Message Processing
+- **Streaming Response**: Real-time responses through Server-Sent Events (SSE)
+- **Multiple Message Types**:
+  - General conversation messages
+  - Artifact generation/modification messages
+  - Web search result messages
+  - System messages (summarization, title generation, etc.)
+- **File Attachments**: Attach files to conversations to provide context
+- **Feedback System**: Provide positive/negative feedback for each response
 
-### 6. 🧠 메모리 및 학습 시스템
+### 6. 🧠 Memory and Learning System
 
-#### Reflection (반성) 시스템
-대화와 아티팩트를 분석하여 지속적으로 학습합니다.
+#### Reflection System
+Continuously learns by analyzing conversations and artifacts.
 
-**작동 방식:**
-1. **자동 분석**: 아티팩트 생성 후 자동으로 Reflection 수행
-2. **정보 추출**:
-   - 스타일 규칙: 작성 스타일, 톤, 구조 선호도
-   - 사용자 메모리: 사용자에 대한 사실과 배경 정보
-3. **저장 및 활용**: 추출된 정보를 스토어에 저장하고 향후 대화에 활용
-4. **누적 학습**: 대화가 거듭될수록 더 정확한 사용자 이해
+**How It Works:**
+1. **Automatic Analysis**: Automatically perform Reflection after artifact generation
+2. **Information Extraction**:
+   - Style Rules: Writing style, tone, structure preferences
+   - User Memory: Facts and background information about the user
+3. **Storage and Utilization**: Store extracted information in store and utilize in future conversations
+4. **Cumulative Learning**: More accurate user understanding as conversations continue
 
-### 7. 🔍 웹 검색 및 스크래핑
+### 7. 🔍 Web Search and Scraping
 
-#### 자동 웹 검색
-- **지능형 트리거**: 최신 정보가 필요한 경우 자동으로 웹 검색
-- **Tavily API 통합**: 고품질 검색 결과 제공
-- **결과 표시**: 사이드 패널에 검색 결과 카드 형태로 표시
-- **소스 링크**: 각 결과에 원본 URL 제공
+#### Automatic Web Search
+- **Intelligent Trigger**: Automatically perform web search when latest information is needed
+- **Tavily API Integration**: Provide high-quality search results
+- **Result Display**: Display search results as cards in the side panel
+- **Source Links**: Provide original URLs for each result
 
-#### 웹 스크래핑
-- **Firecrawl 통합**: URL에서 콘텐츠 추출
-- **마크다운 변환**: 스크래핑한 내용을 마크다운으로 변환
-- **컨텍스트 활용**: 스크래핑한 내용을 어시스턴트 컨텍스트 또는 메시지로 활용
+#### Web Scraping
+- **Firecrawl Integration**: Extract content from URLs
+- **Markdown Conversion**: Convert scraped content to markdown
+- **Context Utilization**: Use scraped content as assistant context or messages
 
-### 8. 🎨 사용자 인터페이스
+### 8. 🎨 User Interface
 
-#### 레이아웃
-- **리사이저블 패널**: 채팅과 캔버스 패널 크기를 드래그로 조정
-- **채팅 패널 토글**: 채팅 패널을 접어서 캔버스에 집중
-- **반응형 디자인**: 다양한 화면 크기에 최적화
-- **다크 모드**: 눈의 피로를 줄이는 다크 모드 지원
+#### Layout
+- **Resizable Panels**: Adjust chat and canvas panel sizes by dragging
+- **Chat Panel Toggle**: Collapse chat panel to focus on canvas
+- **Responsive Design**: Optimized for various screen sizes
+- **Dark Mode**: Dark mode support to reduce eye strain
 
-#### 에디터
-- **CodeMirror**: 강력한 코드 에디터
-  - 구문 강조
-  - 자동 완성
-  - 다중 커서
-  - 코드 접기
-- **BlockNote**: 리치 마크다운 에디터
-  - 실시간 렌더링
-  - 블록 기반 편집
-  - 이미지, 테이블 등 지원
+#### Editor
+- **CodeMirror**: Powerful code editor
+  - Syntax highlighting
+  - Auto-completion
+  - Multiple cursors
+  - Code folding
+- **BlockNote**: Rich markdown editor
+  - Real-time rendering
+  - Block-based editing
+  - Support for images, tables, etc.
 
-#### 모델 선택
-- **모델 셀렉터**: 대화마다 사용할 모델 선택
-- **모델 설정**:
-  - Temperature: 창의성 조절 (0.0 ~ 1.0)
-  - Max Tokens: 최대 응답 길이 설정
-- **지원 모델**:
+#### Model Selection
+- **Model Selector**: Select model to use for each conversation
+- **Model Settings**:
+  - Temperature: Control creativity (0.0 ~ 1.0)
+  - Max Tokens: Set maximum response length
+- **Supported Models**:
   - Anthropic Claude (Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1)
   - Amazon Nova (Premier, Pro, Lite, Micro)
   - Meta Llama 3.3 70B
   - DeepSeek (R1, V3)
 
-### 9. 🔗 통합 기능
+### 9. 🔗 Integration Features
 
-#### LangSmith 통합
-- **실행 추적**: 모든 에이전트 실행을 LangSmith에서 추적
-- **피드백 수집**: 각 응답에 대한 피드백을 LangSmith에 전송
-- **실행 공유**: 특정 실행을 공유 가능한 URL로 생성
-- **디버깅**: 에이전트 동작을 상세히 분석
+#### LangSmith Integration
+- **Execution Tracking**: Track all agent executions in LangSmith
+- **Feedback Collection**: Send feedback for each response to LangSmith
+- **Execution Sharing**: Create shareable URLs for specific executions
+- **Debugging**: Analyze agent behavior in detail
 
-#### 파일 및 미디어 처리
-- **이미지**: JPEG, PNG, GIF 등 - 직접 컨텍스트로 제공
-- **PDF**: pdf-parse로 텍스트 추출
-- **코드 파일**: 텍스트로 읽어 컨텍스트 제공
+#### File and Media Processing
+- **Images**: JPEG, PNG, GIF, etc. - Provided directly as context
+- **PDF**: Text extraction using pdf-parse
+- **Code Files**: Read as text and provide as context
 
-## 🔧 기술 스택 상세
+## 🔧 Detailed Tech Stack
 
 ### Backend (Agents)
-- **FastAPI**: 고성능 비동기 웹 프레임워크
-- **LangGraph**: 상태 머신 기반 에이전트 오케스트레이션
-- **LangChain**: LLM 통합 및 메시지 처리
-- **AWS Bedrock**: 엔터프라이즈급 LLM 서비스
-- **Pydantic**: 데이터 검증 및 직렬화
-- **Uvicorn**: ASGI 서버
+- **FastAPI**: High-performance asynchronous web framework
+- **LangGraph**: State machine-based agent orchestration
+- **LangChain**: LLM integration and message processing
+- **AWS Bedrock**: Enterprise-grade LLM service
+- **Pydantic**: Data validation and serialization
+- **Uvicorn**: ASGI server
 - **Boto3**: AWS SDK for Python
 - **3rd Party API:**
-  - Tavily: 웹 검색
-  - Firecrawl: 웹 스크래핑
-  - LangSmith: 트레이싱 및 관찰성
+  - Tavily: Web search
+  - Firecrawl: Web scraping
+  - LangSmith: Tracing and observability
 
 ### Frontend (Web)
-- **Next.js 14**: React 기반 풀스택 프레임워크
-- **React 18**: UI 라이브러리
-- **TypeScript**: 타입 안전성
-- **@assistant-ui/react**: 채팅 UI 컴포넌트
-- **Radix UI**: 접근성 높은 UI 프리미티브
-- **Tailwind CSS**: 유틸리티 우선 CSS 프레임워크
-- **CodeMirror**: 코드 에디터
-- **BlockNote**: 마크다운 에디터
-- **Zustand**: 경량 상태 관리
-- **React Resizable Panels**: 리사이저블 레이아웃
-- **Framer Motion**: 애니메이션
+- **Next.js 14**: React-based full-stack framework
+- **React 18**: UI library
+- **TypeScript**: Type safety
+- **@assistant-ui/react**: Chat UI components
+- **Radix UI**: Accessible UI primitives
+- **Tailwind CSS**: Utility-first CSS framework
+- **CodeMirror**: Code editor
+- **BlockNote**: Markdown editor
+- **Zustand**: Lightweight state management
+- **React Resizable Panels**: Resizable layout
+- **Framer Motion**: Animation
 
-## 📚 관련 문서
+## 📚 Related Documentation
 
-- [Agents 상세 문서](./apps/agents/README.md): 백엔드 아키텍처 및 API
-- [Web 상세 문서](./apps/web/README.md): 프론트엔드 구조 및 컴포넌트
+- [Agents Detailed Documentation](./apps/agents/README.md): Backend architecture and API
+- [Web Detailed Documentation](./apps/web/README.md): Frontend structure and components

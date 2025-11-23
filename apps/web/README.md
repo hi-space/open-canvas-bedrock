@@ -1,146 +1,147 @@
 # Open Canvas Web
 
-Open Canvas는 AI 에이전트와 협업하여 문서와 코드를 작성하는 오픈소스 웹 애플리케이션입니다. OpenAI의 "Canvas"에서 영감을 받았으며, 오픈소스로 제공되며 메모리 시스템과 기존 문서에서 시작할 수 있는 기능을 제공합니다.
+Open Canvas is an open-source web application for collaborating with AI agents to write documents and code. Inspired by OpenAI's "Canvas", it is open-source and provides a memory system and the ability to start from existing documents.
 
-## 주요 기능
+## Key Features
 
-### 1. 멀티 어시스턴트 관리
+### 1. Multi-Assistant Management
 
-- **커스텀 어시스턴트 생성**: 이름, 아이콘, 색상을 설정하여 여러 어시스턴트를 생성하고 관리할 수 있습니다
-- **컨텍스트 문서**: 각 어시스턴트에 텍스트, PDF, 오디오, 비디오 파일 또는 URL을 첨부하여 모든 대화에 컨텍스트로 제공할 수 있습니다
-  - 최대 20개 파일 지원
-  - 문서: 10MB, 오디오: 25MB, 비디오: 1GB 제한
-- **어시스턴트 전환**: 대화 중 언제든지 다른 어시스턴트로 전환 가능
+- **Custom Assistant Creation**: Create and manage multiple assistants by setting names, icons, and colors
+- **Context Documents**: Attach text, PDF, audio, video files, or URLs to each assistant to provide context for all conversations
+  - Supports up to 20 files
+  - Document: 10MB, Audio: 25MB, Video: 1GB limits
+- **Assistant Switching**: Switch to a different assistant at any time during conversation
 
-### 2. 아티팩트 관리
+### 2. Artifact Management
 
-- **코드 및 마크다운 지원**: 코드와 마크다운 텍스트 모두 생성 및 편집 가능
-- **다중 프로그래밍 언어**: Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure 등 다양한 언어 지원
-- **버전 관리**: 모든 아티팩트는 버전 히스토리를 가지며 이전 버전으로 되돌아갈 수 있습니다
-- **실시간 마크다운 렌더링**: 마크다운을 편집하면서 동시에 렌더링된 결과를 확인할 수 있습니다
-- **텍스트 선택 편집**: 아티팩트에서 텍스트를 선택하여 특정 부분만 수정할 수 있습니다
+- **Code and Markdown Support**: Generate and edit both code and markdown text
+- **Multiple Programming Languages**: Support for various languages including Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure, etc.
+- **Version Control**: All artifacts have version history and can be reverted to previous versions
+- **Real-Time Markdown Rendering**: View rendered results while editing markdown
+- **Text Selection Editing**: Select text in artifacts to modify specific parts
 
-### 3. 퀵 액션 (Quick Actions)
+### 3. Quick Actions
 
-#### 텍스트 아티팩트용 퀵 액션
-- **번역**: 다양한 언어로 번역
-- **읽기 수준 조정**: 텍스트의 읽기 난이도 조정
-- **길이 조정**: 텍스트를 더 짧게 또는 길게 만들기
-- **이모지 추가**: 텍스트에 이모지 자동 추가
+#### Quick Actions for Text Artifacts
+- **Translation**: Translate to various languages
+- **Reading Level Adjustment**: Adjust text reading difficulty
+- **Length Adjustment**: Make text shorter or longer
+- **Emoji Addition**: Automatically add emojis to text
 
-#### 코드 아티팩트용 퀵 액션
-- **주석 추가**: 코드에 설명 주석 자동 추가
-- **로그 추가**: 디버깅을 위한 로그 문 추가
-- **언어 포팅**: 다른 프로그래밍 언어로 코드 변환
-- **버그 수정**: 코드의 버그 자동 감지 및 수정
+#### Quick Actions for Code Artifacts
+- **Comment Addition**: Automatically add explanatory comments to code
+- **Log Addition**: Add log statements for debugging
+- **Language Porting**: Convert code to other programming languages
+- **Bug Fixing**: Automatically detect and fix bugs in code
 
-#### 커스텀 퀵 액션
-- **사용자 정의 액션 생성**: 자신만의 프롬프트를 작성하여 퀵 액션으로 저장
-- **세션 간 지속**: 생성한 커스텀 퀵 액션은 모든 세션에서 사용 가능
-- **컨텍스트 포함 옵션**: Reflection(Reflections), 최근 대화 기록, 프리픽스 포함 여부 설정 가능
+#### Custom Quick Actions
+- **User-Defined Action Creation**: Write your own prompts and save them as quick actions
+- **Persistence Across Sessions**: Custom quick actions created are available in all sessions
+- **Context Inclusion Options**: Configure whether to include Reflection (Reflections), recent conversation history, and prefix
 
-### 4. 메모리 및 Reflection 시스템
+### 4. Memory and Reflection System
 
-- **자동 Reflection 생성**: 대화 내용을 분석하여 사용자의 스타일 규칙과 선호도를 자동으로 추출
-- **스타일 규칙 저장**: 작성 스타일, 톤, 포맷 선호도 등을 학습하여 일관된 응답 제공
-- **사용자 메모리**: 사용자에 대한 사실과 정보를 저장하여 개인화된 경험 제공
-- **Reflection 확인**: Reflection 다이얼로그에서 생성된 스타일 규칙과 컨텐츠 Reflection을 확인하고 삭제할 수 있습니다
+- **Automatic Reflection Generation**: Automatically extract user's style rules and preferences by analyzing conversation content
+- **Style Rule Storage**: Learn and store writing styles, tones, and format preferences to provide consistent responses
+- **User Memory**: Store facts and information about users to provide personalized experiences
+- **Reflection Review**: View and delete generated style rules and content reflections in the Reflection dialog
 
-### 5. 웹 검색 통합
+### 5. Web Search Integration
 
-- **자동 웹 검색**: 대화 내용을 분석하여 필요한 경우 자동으로 웹 검색 수행
-- **검색 결과 표시**: 검색 결과를 사이드 패널에 카드 형태로 표시
-- **실시간 정보**: 최신 정보를 포함한 콘텐츠 생성 지원
+- **Automatic Web Search**: Automatically perform web searches when needed by analyzing conversation content
+- **Search Result Display**: Display search results as cards in the side panel
+- **Real-Time Information**: Support content generation with latest information
 
-### 6. 대화 관리
+### 6. Conversation Management
 
-- **스레드 히스토리**: 모든 대화를 스레드로 관리하며 날짜별로 그룹화 (오늘, 어제, 최근 7일, 그 이전)
-- **스레드 제목 자동 생성**: 대화 내용을 기반으로 스레드 제목 자동 생성
-- **스레드 검색 및 삭제**: 이전 대화를 검색하고 삭제할 수 있습니다
+- **Thread History**: Manage all conversations as threads, grouped by date (today, yesterday, last 7 days, earlier)
+- **Automatic Thread Title Generation**: Automatically generate thread titles based on conversation content
+- **Thread Search and Deletion**: Search and delete previous conversations
 
-### 7. 모델 선택 및 설정
+### 7. Model Selection and Configuration
 
-- **다양한 AWS Bedrock 모델 지원**:
+- **Various AWS Bedrock Model Support**:
   - Anthropic: Claude Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1
   - Amazon: Nova Premier, Pro, Lite, Micro
   - Meta: Llama 3.3 70B Instruct
   - DeepSeek: R1, V3
-- **모델 설정**: 온도(Temperature)와 최대 토큰 수(Max Tokens)를 조정할 수 있습니다
-- **대화별 모델 선택**: 각 대화에서 사용할 모델을 선택할 수 있습니다
+- **Model Settings**: Adjust temperature and max tokens
+- **Per-Conversation Model Selection**: Select the model to use for each conversation
 
-### 8. 파일 첨부 및 미디어 지원
+### 8. File Attachments and Media Support
 
-- **파일 첨부**: 대화에 텍스트, PDF, 이미지, 오디오, 비디오 파일 첨부 가능
-- **오디오 전사**: Whisper를 통한 오디오 파일 자동 전사
-- **웹 스크래핑**: Firecrawl을 통한 웹페이지 스크래핑 및 콘텐츠 추출
+- **File Attachments**: Attach text, PDF, image, audio, video files to conversations
+- **Audio Transcription**: Automatic transcription of audio files via Whisper
+- **Web Scraping**: Web page scraping and content extraction via Firecrawl
 
-### 9. 사용자 인터페이스
+### 9. User Interface
 
-- **리사이저블 패널**: 채팅과 캔버스 패널을 드래그하여 크기 조정 가능
-- **채팅 패널 접기/펼치기**: 채팅 패널을 접어서 캔버스에 더 많은 공간 확보
-- **반응형 디자인**: 다양한 화면 크기에 최적화된 레이아웃
+- **Resizable Panels**: Adjust chat and canvas panel sizes by dragging
+- **Chat Panel Collapse/Expand**: Collapse chat panel to get more space for canvas
+- **Responsive Design**: Layout optimized for various screen sizes
 
-### 10. 피드백 및 공유
+### 10. Feedback and Sharing
 
-- **실행 피드백**: 각 AI 응답에 대해 피드백 제공 가능
-- **실행 공유**: LangSmith를 통한 실행 추적 및 공유
+- **Execution Feedback**: Provide feedback for each AI response
+- **Execution Sharing**: Execution tracking and sharing via LangSmith
 
-## 기술 스택
+## Tech Stack
 
-- **프레임워크**: Next.js 14
-- **UI 라이브러리**: React, Radix UI, Tailwind CSS
-- **에이전트 UI**: @assistant-ui/react
-- **에디터**: CodeMirror (코드), BlockNote (마크다운)
-- **상태 관리**: Zustand, React Context
+- **Framework**: Next.js 14
+- **UI Library**: React, Radix UI, Tailwind CSS
+- **Agent UI**: @assistant-ui/react
+- **Editor**: CodeMirror (code), BlockNote (markdown)
+- **State Management**: Zustand, React Context
 
-## 시작하기
+## Getting Started
 
-### 필수 요구사항
+### Prerequisites
 
 - Node.js 18+
-- Yarn 패키지 매니저
+- Yarn package manager
 
-### 개발 서버 실행
+### Running Development Server
 
 ```bash
-# 개발 서버 시작
+# Start development server
 yarn dev
 ```
 
-브라우저에서 [http://localhost:3000](http://localhost:3000)을 열어 애플리케이션을 확인하세요.
+Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 apps/web/
 ├── src/
-│   ├── app/              # Next.js 앱 라우터
-│   │   ├── api/          # API 라우트
-│   │   └── auth/         # 인증 페이지
-│   ├── components/       # React 컴포넌트
-│   │   ├── artifacts/    # 아티팩트 렌더링 및 편집
-│   │   ├── assistant-select/  # 어시스턴트 선택 및 관리
-│   │   ├── chat-interface/    # 채팅 인터페이스
-│   │   ├── canvas/       # 메인 캔버스
-│   │   └── ui/           # 재사용 가능한 UI 컴포넌트
+│   ├── app/              # Next.js app router
+│   │   ├── api/          # API routes
+│   │   └── auth/         # Authentication pages
+│   ├── components/       # React components
+│   │   ├── artifacts/    # Artifact rendering and editing
+│   │   ├── assistant-select/  # Assistant selection and management
+│   │   ├── chat-interface/    # Chat interface
+│   │   ├── canvas/       # Main canvas
+│   │   └── ui/           # Reusable UI components
 │   ├── contexts/         # React Context
-│   ├── hooks/            # 커스텀 훅
-│   ├── lib/              # 유틸리티 함수
-│   └── shared/           # 공유 타입 및 상수
-├── public/               # 정적 파일
+│   ├── hooks/            # Custom hooks
+│   ├── lib/              # Utility functions
+│   └── shared/           # Shared types and constants
+├── public/               # Static files
 └── package.json
 ```
 
-## 주요 컴포넌트
+## Key Components
 
 ### Canvas
-메인 캔버스 컴포넌트로 채팅 패널과 아티팩트 렌더러를 관리합니다.
+The main canvas component that manages the chat panel and artifact renderer.
 
 ### ArtifactRenderer
-코드와 마크다운 아티팩트를 렌더링하고 편집 기능을 제공합니다.
+Renders code and markdown artifacts and provides editing functionality.
 
 ### AssistantSelect
-어시스턴트를 선택하고 생성/편집/삭제할 수 있는 컴포넌트입니다.
+Component for selecting, creating, editing, and deleting assistants.
 
 ### ChatInterface
-메시지 표시, 입력, 스레드 관리 등의 채팅 기능을 제공합니다.
+Provides chat functionality including message display, input, and thread management.
+
