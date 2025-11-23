@@ -303,6 +303,10 @@ async def stream_agent(request: OpenCanvasRequest):
                 # Convert LangChain message objects to dicts for JSON serialization
                 converted_event = convert_messages_in_dict(event)
                 
+                # Ensure runId is available (LangGraph uses run_id, but frontend expects runId)
+                if "run_id" in converted_event and "runId" not in converted_event:
+                    converted_event["runId"] = converted_event["run_id"]
+                
                 # Convert event to JSON and send as Server-Sent Events format
                 event_json = json.dumps(converted_event, default=str)
                 event_type = event.get("event", "unknown")
