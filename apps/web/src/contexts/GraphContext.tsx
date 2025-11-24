@@ -8,6 +8,8 @@ import { reverseCleanContent } from "@/lib/normalize_string";
 import {
   Artifact,
   ArtifactType,
+  ArtifactMarkdown,
+  ArtifactCode,
   CustomModelConfig,
   GraphInput,
   ProgrammingLanguageOptions,
@@ -951,8 +953,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         ...content,
                         index: content.index || idx + 1,
                         type: "text" as const,
-                        // Use title from content if available (may be dynamically determined)
-                        title: content.title || prevContent?.title || "Generated Artifact",
+                        // Use title from content if available, otherwise "Untitled" (will be updated when thread is loaded)
+                        title: content.title || prevContent?.title || "Untitled",
                         fullMarkdown: ("fullMarkdown" in content ? content.fullMarkdown : "") || "",
                       };
                     } else {
@@ -960,8 +962,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         ...content,
                         index: content.index || idx + 1,
                         type: "code" as const,
-                        // Use title from content if available (may be dynamically determined)
-                        title: content.title || prevContent?.title || "Generated Artifact",
+                        // Use title from content if available, otherwise "Untitled" (will be updated when thread is loaded)
+                        title: content.title || prevContent?.title || "Untitled",
                         // Use language from content if available (may be dynamically determined)
                         language: ("language" in content ? content.language : 
                           (prevContent && isArtifactCodeContent(prevContent)
@@ -1530,6 +1532,21 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         }
       } else {
         castValues.artifact = artifact;
+      }
+      
+      // Update artifact title with thread title if available and artifact title is "Untitled"
+      const threadTitle = fullThread.metadata?.thread_title;
+      if (threadTitle && castValues.artifact) {
+        const currentTitle = castValues.artifact.contents?.[0]?.title;
+        if (!currentTitle || currentTitle === "Untitled" || currentTitle === "Generated Artifact") {
+          castValues.artifact = {
+            ...castValues.artifact,
+            contents: castValues.artifact.contents?.map((content: any) => ({
+              ...content,
+              title: threadTitle,
+            })) || [],
+          };
+        }
       }
     } else {
       castValues.artifact = undefined;
