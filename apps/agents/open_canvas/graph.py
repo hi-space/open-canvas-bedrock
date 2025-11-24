@@ -568,12 +568,16 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
     
     # Optionally update artifact meta using LLM
     from open_canvas.rewrite_artifact_utils import (
-        optionally_update_artifact_meta,
         build_meta_prompt,
         build_rewrite_prompt
     )
     
-    artifact_meta = await optionally_update_artifact_meta(state, config)
+    # Use current artifact content as fallback
+    artifact_meta = {
+        "type": current_artifact_content.get("type", "text"),
+        "title": current_artifact_content.get("title", "Untitled"),
+        "language": current_artifact_content.get("language", "other") if is_artifact_code_content(current_artifact_content) else "other"
+    }
     artifact_type = artifact_meta.get("type", current_artifact_content.get("type", "text"))
     is_new_type = artifact_type != current_artifact_content.get("type", "text")
     
