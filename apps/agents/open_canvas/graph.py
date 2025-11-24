@@ -11,7 +11,8 @@ from utils import (
     format_messages, format_reflections, get_model_config,
     get_artifact_content, is_artifact_code_content, is_artifact_markdown_content,
     get_formatted_reflections, format_artifact_content_with_template,
-    is_thinking_model, extract_thinking_and_response_tokens, create_context_document_messages
+    is_thinking_model, extract_thinking_and_response_tokens, create_context_document_messages,
+    get_string_from_content
 )
 from reflection.graph import graph as reflection_graph
 from web_search.graph import graph as web_search_graph
@@ -101,14 +102,35 @@ Generate the artifact based on the user's request."""
     from langchain_core.messages import AIMessage
     response = AIMessage(content=full_content)
     
-    # Create artifact (simplified structure)
-    artifact = {
-        "type": "text",  # Could be determined by model
-        "title": "Generated Artifact",
-        "contents": [{
-            "fullMarkdown": full_content
-        }]
-    }
+    # Determine if content is code by checking for common code patterns
+    # This is a simple heuristic - could be improved
+    code_indicators = [
+        "def ", "function ", "class ", "import ", "from ", "const ", "let ", "var ",
+        "public ", "private ", "protected ", "#include", "package ", "using ",
+        "<?php", "<script", "SELECT ", "CREATE ", "INSERT ", "UPDATE "
+    ]
+    is_code = any(indicator in full_content[:500] for indicator in code_indicators)
+    
+    # Create artifact without title (title will be set by frontend using thread title)
+    if is_code:
+        artifact = {
+            "type": "code",
+            "contents": [{
+                "type": "code",
+                "index": 1,
+                "language": "other",
+                "code": full_content
+            }]
+        }
+    else:
+        artifact = {
+            "type": "text",
+            "contents": [{
+                "type": "text",
+                "index": 1,
+                "fullMarkdown": full_content
+            }]
+        }
     
     return {
         "artifact": artifact,

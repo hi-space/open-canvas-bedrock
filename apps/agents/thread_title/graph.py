@@ -32,13 +32,8 @@ async def generate_title_node(
     configurable = config.get("configurable", {}) if config else {}
     thread_id = configurable.get("open_canvas_thread_id")
     
-    # If thread_id is not available, we can still generate the title
-    # but won't be able to update thread metadata
-    # This allows the graph to continue even if thread_id is missing
     if not thread_id:
-        # Generate title anyway, but log a warning
-        import sys
-        print("WARNING: open_canvas_thread_id not found in configurable, generating title without thread update", file=sys.stderr, flush=True)
+        raise ValueError("open_canvas_thread_id not found in configurable")
     
     # Get artifact content
     artifact = state.get("artifact")
@@ -91,16 +86,11 @@ async def generate_title_node(
     title = title_tool_call["args"].get("title", "")
     
     # Update thread metadata (simplified - in real implementation, use LangGraph client)
-    # If thread_id is available, we can update thread metadata
     # For now, return the title
-    result = {
+    return {
         "title": title,
+        "thread_id": thread_id
     }
-    
-    if thread_id:
-        result["thread_id"] = thread_id
-    
-    return result
 
 
 # Build graph
