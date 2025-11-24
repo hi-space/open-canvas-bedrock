@@ -4,7 +4,9 @@
 
 Open Canvas is a platform for generating and improving documents and code through collaboration with AI agents. The backend (Agents) and frontend (Web) are tightly integrated to provide the following core features.
 
-![screenshot](./static/screenshot.png)
+[![Demo](./static/screenshot.png)](https://www.youtube.com/watch?v=vJb0TTRrEvU)
+
+(_Click on the image to watch the demo video on YouTube_)
 
 ## 🔄 System Architecture and Data Flow
 
