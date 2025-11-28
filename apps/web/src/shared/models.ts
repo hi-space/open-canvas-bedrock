@@ -2,6 +2,48 @@ import { CustomModelConfig, ModelConfigurationParams } from "./types";
 
 const BEDROCK_MODELS: ModelConfigurationParams[] = [
   {
+    name: "global.anthropic.claude-opus-4-5-20251101-v1:0",
+    label: "Claude Opus 4.5",
+    config: {
+      provider: "bedrock",
+      temperatureRange: {
+        min: 0,
+        max: 1,
+        default: 0.5,
+        current: 0.5,
+      },
+      maxTokens: {
+        min: 1,
+        max: 8_192,
+        default: 4_096,
+        current: 4_096,
+      },
+    },
+    isNew: true,
+    category: "Anthropic",
+  },
+  {
+    name: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    label: "Claude Sonnet 4.5",
+    config: {
+      provider: "bedrock",
+      temperatureRange: {
+        min: 0,
+        max: 1,
+        default: 0.5,
+        current: 0.5,
+      },
+      maxTokens: {
+        min: 1,
+        max: 8_192,
+        default: 4_096,
+        current: 4_096,
+      },
+    },
+    isNew: false,
+    category: "Anthropic",
+  },
+  {
     name: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     label: "Claude Haiku 4.5",
     config: {
@@ -25,27 +67,6 @@ const BEDROCK_MODELS: ModelConfigurationParams[] = [
   {
     name: "global.anthropic.claude-sonnet-4-20250514-v1:0",
     label: "Claude Sonnet 4",
-    config: {
-      provider: "bedrock",
-      temperatureRange: {
-        min: 0,
-        max: 1,
-        default: 0.5,
-        current: 0.5,
-      },
-      maxTokens: {
-        min: 1,
-        max: 8_192,
-        default: 4_096,
-        current: 4_096,
-      },
-    },
-    isNew: false,
-    category: "Anthropic",
-  },
-  {
-    name: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    label: "Claude Sonnet 4.5",
     config: {
       provider: "bedrock",
       temperatureRange: {

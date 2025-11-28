@@ -35,6 +35,46 @@ class ModelConfigurationParams(BaseModel):
 # AWS Bedrock models - matching models.ts (without bedrock/ prefix)
 BEDROCK_MODELS: List[ModelConfigurationParams] = [
     {
+        "name": "global.anthropic.claude-opus-4-5-20251101-v1:0",
+        "label": "Claude Opus 4.5",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 64000,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": True,
+    },
+    {
+        "name": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "label": "Claude Sonnet 4.5",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 64000,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
         "name": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         "label": "Claude Haiku 4.5",
         "config": {
@@ -47,7 +87,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
+                "max": 64000,
                 "default": 4096,
                 "current": 4096,
             },
@@ -57,26 +97,6 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
     {
         "name": "global.anthropic.claude-sonnet-4-20250514-v1:0",
         "label": "Claude Sonnet 4",
-        "config": {
-            "provider": "bedrock",
-            "temperatureRange": {
-                "min": 0,
-                "max": 1,
-                "default": 0.5,
-                "current": 0.5,
-            },
-            "maxTokens": {
-                "min": 1,
-                "max": 8192,
-                "default": 4096,
-                "current": 4096,
-            },
-        },
-        "isNew": False,
-    },
-    {
-        "name": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "label": "Claude Sonnet 4.5",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
