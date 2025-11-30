@@ -1,5 +1,5 @@
-import { createSupabaseClient } from "@/lib/supabase/client";
-import { User } from "@supabase/supabase-js";
+// Authentication disabled - no user type needed
+type User = undefined;
 import {
   createContext,
   ReactNode,

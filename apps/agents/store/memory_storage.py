@@ -170,8 +170,8 @@ class MemoryThreadStorage:
         self._threads: Dict[str, Dict] = {}
         # messages: {thread_id: [message1, message2, ...]}
         self._messages: Dict[str, List[Dict]] = {}
-        # artifacts: {thread_id: artifact_data}
-        self._artifacts: Dict[str, Dict] = {}
+        # artifacts: {thread_id: {version_index: artifact_data}}
+        self._artifacts: Dict[str, Dict[int, Dict]] = {}
     
     def create_thread(self, thread_id: str, metadata: Optional[Dict] = None) -> Dict:
         """Create a new thread."""
@@ -263,17 +263,69 @@ class MemoryThreadStorage:
             self._threads[thread_id]["updated_at"] = datetime.utcnow().isoformat()
     
     def get_thread_artifact(self, thread_id: str) -> Optional[Dict]:
-        """Get artifact for a thread."""
-        return self._artifacts.get(thread_id)
+        """Get artifact for a thread (backward compatibility - returns latest version only)."""
+        return self.get_thread_artifact_latest(thread_id)
+    
+    def get_thread_artifact_latest(self, thread_id: str) -> Optional[Dict]:
+        """Get the latest artifact version for a thread."""
+        if thread_id not in self._artifacts or not self._artifacts[thread_id]:
+            return None
+        
+        versions = self._artifacts[thread_id]
+        if not versions:
+            return None
+        
+        # Get the latest version (highest version_index)
+        latest_index = max(versions.keys())
+        return versions[latest_index]
+    
+    def get_thread_artifact_version(self, thread_id: str, version_index: int) -> Optional[Dict]:
+        """Get a specific artifact version for a thread."""
+        if thread_id not in self._artifacts:
+            return None
+        return self._artifacts[thread_id].get(version_index)
+    
+    def get_thread_artifact_metadata(self, thread_id: str) -> Optional[Dict]:
+        """Get artifact metadata (version list, current_index, etc.) without full content."""
+        if thread_id not in self._artifacts or not self._artifacts[thread_id]:
+            return None
+        
+        version_indices = sorted(self._artifacts[thread_id].keys())
+        latest_index = max(version_indices) if version_indices else None
+        
+        return {
+            "version_indices": version_indices,
+            "current_index": latest_index,
+            "total_versions": len(version_indices),
+        }
     
     def set_thread_artifact(self, thread_id: str, artifact: Dict) -> None:
-        """Set artifact for a thread."""
-        self._artifacts[thread_id] = artifact
+        """Set artifact for a thread (saves each version separately)."""
+        if thread_id not in self._artifacts:
+            self._artifacts[thread_id] = {}
+        
+        # Extract contents array and currentIndex
+        contents = artifact.get("contents", [])
+        
+        if not contents:
+            # If no contents, save as a single version (backward compatibility)
+            self._artifacts[thread_id][1] = artifact
+        else:
+            # Save each version separately
+            for content in contents:
+                version_index = content.get("index", 1)
+                # Create a single-version artifact for this version
+                version_artifact = {
+                    "currentIndex": version_index,
+                    "contents": [content],
+                }
+                self._artifacts[thread_id][version_index] = version_artifact
+        
         if thread_id in self._threads:
             self._threads[thread_id]["updated_at"] = datetime.utcnow().isoformat()
     
     def delete_thread_artifact(self, thread_id: str) -> bool:
-        """Delete artifact for a thread."""
+        """Delete artifact for a thread (all versions)."""
         if thread_id in self._artifacts:
             del self._artifacts[thread_id]
             return True

@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { TighterText } from "@/components/ui/header";
 import { GraphInput } from "@/shared/types";
-import { User } from "@supabase/supabase-js";
+// Authentication disabled - no user type needed
+type User = undefined;
 
 export interface CustomQuickActionsProps {
   isTextSelected: boolean;

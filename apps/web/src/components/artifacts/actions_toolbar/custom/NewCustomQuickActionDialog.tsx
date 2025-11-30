@@ -26,7 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { CustomQuickAction } from "@/shared/types";
 import { TighterText } from "@/components/ui/header";
-import { User } from "@supabase/supabase-js";
+// Authentication disabled - no user type needed
+type User = undefined;
 
 const CUSTOM_INSTRUCTIONS_TOOLTIP_TEXT = `This field contains the custom instructions you set, which will then be used to instruct the LLM on how to re-generate the selected artifact.`;
 const FULL_PROMPT_TOOLTIP_TEXT = `This is the full prompt that will be set to the LLM when you invoke this quick action, including your custom instructions and other default context.`;

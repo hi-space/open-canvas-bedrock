@@ -1480,27 +1480,103 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setSelectedArtifact = (index: number) => {
+  const setSelectedArtifact = async (index: number) => {
     setUpdateRenderedArtifactRequired(true);
     // Don't set threadSwitched here - it prevents artifact updates
+
+    const currentThreadId = threadData.threadId;
+    if (!currentThreadId) {
+      toast({
+        title: "Error",
+        description: "No thread selected",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
 
     setArtifact((prev) => {
       if (!prev) {
         toast({
           title: "Error",
-          description: "No artifactV2 found",
+          description: "No artifact found",
           variant: "destructive",
           duration: 5000,
         });
         return prev;
       }
-      const newArtifact = {
-        ...prev,
-        currentIndex: index,
-      };
-      lastSavedArtifact.current = newArtifact;
-      return newArtifact;
+
+      // Check if we already have this version loaded
+      const hasVersion = prev.contents?.some((c: any) => c.index === index);
+      if (hasVersion) {
+        // Version already loaded, just update currentIndex
+        const newArtifact = {
+          ...prev,
+          currentIndex: index,
+        };
+        lastSavedArtifact.current = newArtifact;
+        return newArtifact;
+      }
+
+      // Need to fetch this version from server
+      // Set loading state first
+      return prev;
     });
+
+    // Fetch the specific version from server
+    try {
+      const response = await fetch(
+        `${API_URL}/api/threads/${currentThreadId}/artifact/versions/${index}`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch artifact version ${index}`);
+      }
+
+      const versionArtifact = await response.json();
+      
+      setArtifact((prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        // Merge the new version into existing artifact
+        const existingContents = prev.contents || [];
+        const newContent = versionArtifact.contents?.[0];
+        
+        if (newContent) {
+          // Check if this version already exists
+          const existingIndex = existingContents.findIndex((c: any) => c.index === index);
+          let updatedContents;
+          
+          if (existingIndex >= 0) {
+            // Replace existing version
+            updatedContents = [...existingContents];
+            updatedContents[existingIndex] = newContent;
+          } else {
+            // Add new version
+            updatedContents = [...existingContents, newContent];
+          }
+
+          const newArtifact = {
+            ...prev,
+            currentIndex: index,
+            contents: updatedContents,
+          };
+          lastSavedArtifact.current = newArtifact;
+          return newArtifact;
+        }
+
+        return prev;
+      });
+    } catch (error) {
+      console.error("Failed to fetch artifact version:", error);
+      toast({
+        title: "Error",
+        description: `Failed to load artifact version ${index}`,
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
   };
 
   const setArtifactContent = (index: number, content: string) => {
@@ -1540,7 +1616,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     // isn't created on page load if one already exists.
     threadData.setThreadId(thread.thread_id);
 
-    // Fetch full thread data including artifact and all messages
+    // Fetch full thread data including latest artifact version and all messages
     const fullThread = await threadData.getThread(thread.thread_id);
     if (!fullThread) {
       console.warn("Failed to fetch full thread data");
@@ -1571,22 +1647,36 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     const castThreadValues = fullThread.values as Record<string, any>;
     if (castThreadValues?.artifact) {
       const artifact = castThreadValues.artifact as Artifact;
-      // Ensure currentIndex is valid - if not set or invalid, use the last version
+      // The artifact from server now contains only the latest version
+      // Ensure currentIndex is set correctly
       if (artifact.contents && artifact.contents.length > 0) {
-        const maxIndex = Math.max(...artifact.contents.map((c: any) => c.index || 1));
-        const minIndex = Math.min(...artifact.contents.map((c: any) => c.index || 1));
-        // Validate currentIndex: if it's not in the contents array, use the last version
-        const hasValidIndex = artifact.contents.some((c: any) => c.index === artifact.currentIndex);
-        if (!hasValidIndex || !artifact.currentIndex) {
-          castValues.artifact = {
-            ...artifact,
-            currentIndex: maxIndex, // Use last version if currentIndex is invalid
-          };
-        } else {
-          castValues.artifact = artifact;
-        }
+        const contentIndex = artifact.contents[0]?.index || artifact.currentIndex || 1;
+        castValues.artifact = {
+          ...artifact,
+          currentIndex: contentIndex,
+        };
       } else {
         castValues.artifact = artifact;
+      }
+      
+      // Fetch version metadata to know total versions
+      try {
+        const metadataResponse = await fetch(
+          `${API_URL}/api/threads/${thread.thread_id}/artifact/versions`
+        );
+        if (metadataResponse.ok) {
+          const metadata = await metadataResponse.json();
+          // Store version metadata in artifact for UI navigation
+          if (castValues.artifact) {
+            castValues.artifact = {
+              ...castValues.artifact,
+              // Store metadata for navigation
+              _metadata: metadata,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to fetch artifact version metadata:", e);
       }
       
       // Update artifact title with thread title if available and artifact title is "Untitled"

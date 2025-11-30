@@ -131,3 +131,34 @@ async def update_thread_state(thread_id: str, request: ThreadUpdateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/{thread_id}/artifact/versions")
+async def get_artifact_versions(thread_id: str):
+    """Get artifact version metadata (version list, current_index, etc.) without full content."""
+    try:
+        metadata = thread_store.get_artifact_metadata(thread_id)
+        if metadata is None:
+            raise HTTPException(status_code=404, detail=f"Artifact not found for thread {thread_id}")
+        return metadata
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{thread_id}/artifact/versions/{version_index}")
+async def get_artifact_version(thread_id: str, version_index: int):
+    """Get a specific artifact version for a thread."""
+    try:
+        artifact = thread_store.get_artifact_version(thread_id, version_index)
+        if artifact is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Artifact version {version_index} not found for thread {thread_id}"
+            )
+        return artifact
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

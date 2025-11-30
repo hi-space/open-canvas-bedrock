@@ -296,17 +296,21 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     return <div className="w-full h-full"></div>;
   }
 
-  // Get the min and max indices from contents array
-  const indices = artifact.contents.map((c) => c.index);
-  const minIndex = Math.min(...indices);
-  const maxIndex = Math.max(...indices);
+  // Get version metadata if available (from server)
+  const versionMetadata = (artifact as any)._metadata;
+  const totalVersions = versionMetadata?.total_versions || artifact.contents.length;
+  const versionIndices = versionMetadata?.version_indices || artifact.contents.map((c) => c.index);
+  
+  // Get the min and max indices
+  const minIndex = Math.min(...versionIndices);
+  const maxIndex = Math.max(...versionIndices);
   
   const isBackwardsDisabled =
-    artifact.contents.length === 1 ||
+    totalVersions === 1 ||
     currentArtifactContent.index === minIndex ||
     isStreaming;
   const isForwardDisabled =
-    artifact.contents.length === 1 ||
+    totalVersions === 1 ||
     currentArtifactContent.index === maxIndex ||
     isStreaming;
 
@@ -318,7 +322,7 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
         isForwardDisabled={isForwardDisabled}
         setSelectedArtifact={setSelectedArtifact}
         currentArtifactContent={currentArtifactContent}
-        totalArtifactVersions={artifact.contents.length}
+        totalArtifactVersions={totalVersions}
         selectedAssistant={selectedAssistant}
         artifactUpdateFailed={artifactUpdateFailed}
         chatCollapsed={props.chatCollapsed}

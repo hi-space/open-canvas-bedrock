@@ -499,11 +499,17 @@ class DynamoDBThreadStorage:
                     BillingMode="PAY_PER_REQUEST",
                 )
             elif table_name == self.artifacts_table_name:
-                # Artifacts table: thread_id as partition key
+                # Artifacts table: thread_id as partition key, version_index as sort key
                 self.dynamodb.create_table(
                     TableName=table_name,
-                    KeySchema=[{"AttributeName": "thread_id", "KeyType": "HASH"}],
-                    AttributeDefinitions=[{"AttributeName": "thread_id", "AttributeType": "S"}],
+                    KeySchema=[
+                        {"AttributeName": "thread_id", "KeyType": "HASH"},
+                        {"AttributeName": "version_index", "KeyType": "RANGE"},
+                    ],
+                    AttributeDefinitions=[
+                        {"AttributeName": "thread_id", "AttributeType": "S"},
+                        {"AttributeName": "version_index", "AttributeType": "N"},
+                    ],
                     BillingMode="PAY_PER_REQUEST",
                 )
             
@@ -739,36 +745,125 @@ class DynamoDBThreadStorage:
             raise Exception(f"DynamoDB error: {str(e)}")
     
     def get_thread_artifact(self, thread_id: str) -> Optional[Dict]:
-        """Get artifact for a thread."""
+        """Get artifact for a thread (backward compatibility - returns latest version only)."""
+        return self.get_thread_artifact_latest(thread_id)
+    
+    def get_thread_artifact_latest(self, thread_id: str) -> Optional[Dict]:
+        """Get the latest artifact version for a thread."""
         try:
-            response = self.artifacts_table.get_item(
-                Key={"thread_id": thread_id}
+            # Query all versions and get the latest one
+            response = self.artifacts_table.query(
+                KeyConditionExpression=Key("thread_id").eq(thread_id),
+                ScanIndexForward=False,  # Sort descending by version_index
+                Limit=1,
             )
             
-            if "Item" not in response:
+            if not response.get("Items"):
                 return None
             
-            artifact_str = response["Item"].get("artifact_data")
+            item = response["Items"][0]
+            artifact_str = item.get("artifact_data")
             try:
-                return json.loads(artifact_str) if isinstance(artifact_str, str) else artifact_str
+                artifact = json.loads(artifact_str) if isinstance(artifact_str, str) else artifact_str
+                # Return in the old format for backward compatibility
+                # If it's already in the old format (with contents array), return as is
+                if isinstance(artifact, dict) and "contents" in artifact:
+                    return artifact
+                # Otherwise, wrap it in the expected format
+                return artifact
             except (json.JSONDecodeError, TypeError):
                 return None
         except ClientError as e:
             raise Exception(f"DynamoDB error: {str(e)}")
     
-    def set_thread_artifact(self, thread_id: str, artifact: Dict) -> None:
-        """Set artifact for a thread."""
+    def get_thread_artifact_version(self, thread_id: str, version_index: int) -> Optional[Dict]:
+        """Get a specific artifact version for a thread."""
         try:
-            artifact_str = json.dumps(artifact)
-            updated_at = datetime.utcnow().isoformat()
-            
-            self.artifacts_table.put_item(
-                Item={
+            response = self.artifacts_table.get_item(
+                Key={
                     "thread_id": thread_id,
-                    "artifact_data": artifact_str,
-                    "updated_at": updated_at,
+                    "version_index": version_index,
                 }
             )
+            
+            if "Item" not in response:
+                return None
+            
+            item = response["Item"]
+            artifact_str = item.get("artifact_data")
+            try:
+                artifact = json.loads(artifact_str) if isinstance(artifact_str, str) else artifact_str
+                return artifact
+            except (json.JSONDecodeError, TypeError):
+                return None
+        except ClientError as e:
+            raise Exception(f"DynamoDB error: {str(e)}")
+    
+    def get_thread_artifact_metadata(self, thread_id: str) -> Optional[Dict]:
+        """Get artifact metadata (version list, current_index, etc.) without full content."""
+        try:
+            # Query all versions
+            response = self.artifacts_table.query(
+                KeyConditionExpression=Key("thread_id").eq(thread_id),
+                ScanIndexForward=True,  # Sort ascending by version_index
+                ProjectionExpression="version_index, updated_at",
+            )
+            
+            if not response.get("Items"):
+                return None
+            
+            version_indices = sorted([item["version_index"] for item in response["Items"]])
+            latest_index = max(version_indices) if version_indices else None
+            
+            return {
+                "version_indices": version_indices,
+                "current_index": latest_index,
+                "total_versions": len(version_indices),
+            }
+        except ClientError as e:
+            raise Exception(f"DynamoDB error: {str(e)}")
+    
+    def set_thread_artifact(self, thread_id: str, artifact: Dict) -> None:
+        """Set artifact for a thread (saves each version separately)."""
+        try:
+            # Extract contents array and currentIndex
+            contents = artifact.get("contents", [])
+            current_index = artifact.get("currentIndex")
+            
+            if not contents:
+                # If no contents, save as a single version (backward compatibility)
+                artifact_str = json.dumps(artifact)
+                updated_at = datetime.utcnow().isoformat()
+                
+                self.artifacts_table.put_item(
+                    Item={
+                        "thread_id": thread_id,
+                        "version_index": 1,
+                        "artifact_data": artifact_str,
+                        "updated_at": updated_at,
+                    }
+                )
+            else:
+                # Save each version separately
+                updated_at = datetime.utcnow().isoformat()
+                
+                for content in contents:
+                    version_index = content.get("index", 1)
+                    # Create a single-version artifact for this version
+                    version_artifact = {
+                        "currentIndex": version_index,
+                        "contents": [content],
+                    }
+                    artifact_str = json.dumps(version_artifact)
+                    
+                    self.artifacts_table.put_item(
+                        Item={
+                            "thread_id": thread_id,
+                            "version_index": version_index,
+                            "artifact_data": artifact_str,
+                            "updated_at": updated_at,
+                        }
+                    )
             
             # Update thread updated_at
             self.update_thread_metadata(thread_id, {})
@@ -776,14 +871,24 @@ class DynamoDBThreadStorage:
             raise Exception(f"DynamoDB error: {str(e)}")
     
     def delete_thread_artifact(self, thread_id: str) -> bool:
-        """Delete artifact for a thread."""
+        """Delete artifact for a thread (all versions)."""
         try:
-            response = self.artifacts_table.delete_item(
-                Key={"thread_id": thread_id},
-                ReturnValues="ALL_OLD",
+            # Query all versions
+            response = self.artifacts_table.query(
+                KeyConditionExpression=Key("thread_id").eq(thread_id)
             )
             
-            return "Attributes" in response
+            deleted_count = 0
+            for item in response.get("Items", []):
+                self.artifacts_table.delete_item(
+                    Key={
+                        "thread_id": thread_id,
+                        "version_index": item["version_index"],
+                    }
+                )
+                deleted_count += 1
+            
+            return deleted_count > 0
         except ClientError as e:
             raise Exception(f"DynamoDB error: {str(e)}")
 

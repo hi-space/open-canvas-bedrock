@@ -46,16 +46,31 @@ class BaseThreadStorage(ABC):
     
     @abstractmethod
     def get_thread_artifact(self, thread_id: str) -> Optional[Dict]:
-        """Get artifact for a thread."""
+        """Get artifact for a thread (backward compatibility - returns latest version only)."""
+        pass
+    
+    @abstractmethod
+    def get_thread_artifact_latest(self, thread_id: str) -> Optional[Dict]:
+        """Get the latest artifact version for a thread."""
+        pass
+    
+    @abstractmethod
+    def get_thread_artifact_version(self, thread_id: str, version_index: int) -> Optional[Dict]:
+        """Get a specific artifact version for a thread."""
+        pass
+    
+    @abstractmethod
+    def get_thread_artifact_metadata(self, thread_id: str) -> Optional[Dict]:
+        """Get artifact metadata (version list, current_index, etc.) without full content."""
         pass
     
     @abstractmethod
     def set_thread_artifact(self, thread_id: str, artifact: Dict) -> None:
-        """Set artifact for a thread."""
+        """Set artifact for a thread (saves each version separately)."""
         pass
     
     @abstractmethod
     def delete_thread_artifact(self, thread_id: str) -> bool:
-        """Delete artifact for a thread."""
+        """Delete artifact for a thread (all versions)."""
         pass
 

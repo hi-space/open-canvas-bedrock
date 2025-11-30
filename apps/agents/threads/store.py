@@ -25,15 +25,24 @@ class ThreadStore:
         thread_id = str(uuid.uuid4())
         return self._storage.create_thread(thread_id, metadata)
     
-    def get(self, thread_id: str) -> Optional[Dict]:
-        """Get a thread by ID (includes messages and artifact in values)."""
+    def get(self, thread_id: str, include_artifact: bool = True) -> Optional[Dict]:
+        """Get a thread by ID (includes messages and latest artifact in values).
+        
+        Args:
+            thread_id: Thread ID
+            include_artifact: If True, includes the latest artifact version. If False, only metadata.
+        """
         thread = self._storage.get_thread(thread_id)
         if thread is None:
             return None
         
-        # Get messages and artifact
+        # Get messages
         messages = self._storage.get_thread_messages(thread_id)
-        artifact = self._storage.get_thread_artifact(thread_id)
+        
+        # Get latest artifact only (not all versions)
+        artifact = None
+        if include_artifact:
+            artifact = self._storage.get_thread_artifact_latest(thread_id)
         
         # Return in LangGraph SDK compatible format
         return {
@@ -46,6 +55,14 @@ class ThreadStore:
             "created_at": thread.get("created_at"),
             "updated_at": thread.get("updated_at"),
         }
+    
+    def get_artifact_version(self, thread_id: str, version_index: int) -> Optional[Dict]:
+        """Get a specific artifact version for a thread."""
+        return self._storage.get_thread_artifact_version(thread_id, version_index)
+    
+    def get_artifact_metadata(self, thread_id: str) -> Optional[Dict]:
+        """Get artifact metadata (version list, current_index, etc.) without full content."""
+        return self._storage.get_thread_artifact_metadata(thread_id)
     
     def update(self, thread_id: str, updates: Dict) -> Optional[Dict]:
         """Update a thread.
