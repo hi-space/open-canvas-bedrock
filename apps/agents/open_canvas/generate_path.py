@@ -4,6 +4,7 @@ Generate path node implementation with URL handling, document processing, and dy
 from typing import Dict, Any, List, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_community.document_loaders import FireCrawlLoader
 from pydantic import BaseModel, Field
 from open_canvas.state import OpenCanvasState
 from bedrock_client import get_bedrock_model
@@ -72,8 +73,6 @@ Respond with only 'true' or 'false'."""
         
         # Scrape URLs using FireCrawl
         try:
-            from langchain_community.document_loaders import FireCrawlLoader
-            
             url_contents = []
             for url in urls:
                 try:

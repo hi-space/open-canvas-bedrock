@@ -89,18 +89,23 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
   BaseMessage
 > = (message): Message | Message[] => {
   const content = getMessageContentOrThrow(message);
+  
+  // Ensure message has a valid ID
+  const messageId = message.id && typeof message.id === "string" && message.id.trim()
+    ? message.id.trim()
+    : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   switch (getMessageType(message)) {
     case "system":
       return {
         role: "system",
-        id: message.id,
+        id: messageId,
         content: [{ type: "text", text: content }],
       };
     case "human":
       return {
         role: "user",
-        id: message.id,
+        id: messageId,
         content: [{ type: "text", text: content }],
         ...(message.additional_kwargs
           ? {
@@ -125,7 +130,7 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
         : [];
       return {
         role: "assistant",
-        id: message.id,
+        id: messageId,
         content: [
           ...toolCallsContent,
           {

@@ -59,7 +59,7 @@ export interface TextRendererProps {
   isInputVisible: boolean;
 }
 
-export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProps>((props, ref) => {
+const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>((props, ref) => {
   const editor = useCreateBlockNote({});
   const { graphData } = useGraphContext();
   const {
@@ -402,6 +402,8 @@ export const TextRendererComponent = forwardRef<HTMLDivElement, TextRendererProp
   );
 });
 
-TextRendererComponent.displayName = "TextRendererComponent";
+TextRendererComponentInner.displayName = "TextRendererComponent";
 
-export const TextRenderer = React.memo(TextRendererComponent);
+export const TextRendererComponent = React.memo(TextRendererComponentInner);
+
+export const TextRenderer = TextRendererComponent;

@@ -168,7 +168,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     debounce(
       (artifact: Artifact, threadId: string) =>
         updateArtifact(artifact, threadId),
-      5000
+      1500
     )
   ).current;
   const [isArtifactSaved, setIsArtifactSaved] = useState(true);
@@ -234,10 +234,42 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (
-      !lastSavedArtifact.current ||
-      lastSavedArtifact.current.contents !== artifact.contents
-    ) {
+    // Compare only the current content to avoid expensive full artifact comparison
+    // This is much more efficient than comparing the entire artifact
+    // Note: currentContent is already defined above, so we reuse it
+
+    // Get the corresponding content from last saved artifact
+    const lastSavedContent = lastSavedArtifact.current?.contents.find(
+      (c) => c.index === currentIndex
+    );
+
+    // Compare only the relevant content fields based on type
+    let hasChanged = false;
+    if (!lastSavedArtifact.current || !lastSavedContent) {
+      hasChanged = true;
+    } else if (currentContent.type === "text" && isArtifactMarkdownContent(currentContent)) {
+      const lastMarkdown = isArtifactMarkdownContent(lastSavedContent)
+        ? lastSavedContent.fullMarkdown
+        : null;
+      hasChanged = currentContent.fullMarkdown !== lastMarkdown;
+    } else if (currentContent.type === "code" && isArtifactCodeContent(currentContent)) {
+      const lastCode = isArtifactCodeContent(lastSavedContent)
+        ? lastSavedContent.code
+        : null;
+      hasChanged = currentContent.code !== lastCode;
+    } else {
+      // Fallback to JSON comparison for other cases
+      hasChanged = JSON.stringify(currentContent) !== JSON.stringify(lastSavedContent);
+    }
+
+    // Also check if artifact structure changed (e.g., new content added, index changed)
+    if (!hasChanged && lastSavedArtifact.current) {
+      hasChanged =
+        artifact.currentIndex !== lastSavedArtifact.current.currentIndex ||
+        artifact.contents.length !== lastSavedArtifact.current.contents.length;
+    }
+
+    if (hasChanged) {
       setIsArtifactSaved(false);
       // This means the artifact in state does not match the last saved artifact
       // We need to update
@@ -283,11 +315,34 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     if (isStreaming) return;
 
     try {
-      // TODO: Implement artifact update via API
-      // For now, just update local state
+      const response = await fetch(`${API_URL}/api/threads/${threadId}/state`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          values: {
+            artifact: artifactToUpdate,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update thread state: ${response.statusText}`);
+      }
+
+      // Get the updated thread to ensure we have the saved artifact
+      const updatedThread = await response.json();
+      const savedArtifact = updatedThread?.values?.artifact;
+      
+      // Use the saved artifact from server response, or fallback to what we sent
+      const artifactToSave = savedArtifact || artifactToUpdate;
+      
+      // Create a deep copy to avoid reference issues
+      lastSavedArtifact.current = JSON.parse(JSON.stringify(artifactToSave));
       setIsArtifactSaved(true);
-      lastSavedArtifact.current = artifactToUpdate;
-    } catch (_) {
+    } catch (error) {
+      console.error("Failed to save artifact:", error);
       setArtifactUpdateFailed(true);
     }
   };
@@ -1551,7 +1606,13 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     } else {
       castValues.artifact = undefined;
     }
-    lastSavedArtifact.current = castValues?.artifact;
+    // Create a deep copy to avoid reference issues
+    lastSavedArtifact.current = castValues?.artifact 
+      ? JSON.parse(JSON.stringify(castValues.artifact))
+      : undefined;
+    
+    // Mark artifact as saved since we just loaded it from the server
+    setIsArtifactSaved(true);
 
     if (!castValues?.messages?.length) {
       setMessages([]);
@@ -1559,13 +1620,18 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       return;
     }
     setArtifact(castValues?.artifact);
-    setMessages(
-      castValues.messages.map((msg: Record<string, any>) => {
+    
+    // Ensure all messages have valid IDs before setting
+    const messagesWithIds = castValues.messages
+      .map((msg: Record<string, any>, index: number) => {
         // Convert plain object to BaseMessage instance
         // Use role field (standard format: user/assistant/system)
         const role = msg.role || "user";
         const content = msg.content || "";
-        const id = msg.id || uuidv4();
+        // Ensure ID is always a string and unique
+        const id = msg.id && typeof msg.id === "string" && msg.id.trim() 
+          ? msg.id.trim() 
+          : `msg-${thread.thread_id}-${index}-${uuidv4()}`;
         const additional_kwargs = msg.additional_kwargs || {};
         
         let baseMessage: BaseMessage;
@@ -1614,7 +1680,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         
         return baseMessage;
       })
-    );
+      .filter((msg: BaseMessage) => {
+        // Filter out messages with invalid IDs or empty content
+        return msg.id && typeof msg.id === "string" && msg.id.trim().length > 0;
+      });
+    
+    setMessages(messagesWithIds);
   };
 
   const contextValue: GraphContentType = {
