@@ -188,13 +188,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     // Authentication disabled - allow without user
     if (typeof window === "undefined") return;
 
-    // Get or create a new assistant if there isn't one set in state, and we're not
-    // loading all assistants already.
+    // Load assistants but don't auto-select one
+    // User can explicitly choose "No Assistant" or select an assistant
     if (
       !assistantsData.selectedAssistant &&
-      !assistantsData.isLoadingAllAssistants
+      !assistantsData.isLoadingAllAssistants &&
+      assistantsData.assistants.length === 0
     ) {
-      assistantsData.getOrCreateAssistant(userData.user?.id || "anonymous");
+      assistantsData.getAssistants(userData.user?.id || "anonymous");
     }
   }, []);
 

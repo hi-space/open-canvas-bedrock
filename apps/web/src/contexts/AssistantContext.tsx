@@ -163,10 +163,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       }
 
       if (selectedAssistant?.assistant_id === assistantId) {
-        // Get the first assistant in the list to set as
-        const defaultAssistant =
-          assistants.find((a) => a.metadata?.is_default) || assistants[0];
-        setSelectedAssistant(defaultAssistant);
+        // If deleting the selected assistant, set to "No Assistant" mode
+        // User can manually select another assistant if they want
+        setSelectedAssistant(undefined);
       }
 
       setAssistants((prev) =>
@@ -344,89 +343,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       const searchResult = await searchResponse.json();
       let userAssistants: Assistant[] = Array.isArray(searchResult) ? searchResult : [];
 
-      // If no assistants exist, create one
-      // Backend will handle duplicate prevention with if_exists="return_existing"
-      if (userAssistants.length === 0) {
-        const createdAssistant = await createCustomAssistant({
-          newAssistant: {
-            iconData: {
-              iconName: "User",
-              iconColor: "#000000",
-            },
-            name: "Default assistant",
-            description: "Your default assistant.",
-            is_default: true,
-          },
-          userId: fixedUserId,
-        });
+      // No assistants mode: Don't create default assistant automatically
+      // "No Assistant" is the default - users can create assistants manually if they want reflection functionality
+      // Don't auto-select assistants even if they exist - let user choose explicitly
 
-        if (createdAssistant) {
-          userAssistants = [createdAssistant];
-        } else {
-          // If creation failed, search again in case another request created it
-          const retryResponse = await fetch(`${API_URL}/api/assistants/search`, {
-        method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              graph_id: "agent",
-              metadata: {
-                user_id: fixedUserId,
-              },
-              limit: 100,
-            }),
-          });
-
-          if (retryResponse.ok) {
-            const retryResult = await retryResponse.json();
-            userAssistants = Array.isArray(retryResult) ? retryResult : [];
-          }
-        }
-      }
-
-      // Update state with assistants
-      if (userAssistants.length > 0) {
-        setAssistants(userAssistants);
-
-        // Find or set default assistant
-        let defaultAssistant = userAssistants.find(
-          (assistant) => assistant.metadata?.is_default
-        );
-
-        if (!defaultAssistant) {
-          // No default found, use the first one (oldest by creation time)
-          const sorted = [...userAssistants].sort((a, b) => 
-            (a.created_at || "").localeCompare(b.created_at || "")
-          );
-          defaultAssistant = sorted[0];
-          
-          // Update it to be the default
-          const updated = await editCustomAssistant({
-            editedAssistant: {
-              is_default: true,
-              iconData: {
-                iconName: (defaultAssistant.metadata?.iconName as string | undefined) || "User",
-                iconColor: (defaultAssistant.metadata?.iconColor as string | undefined) || "#000000",
-              },
-              description: (defaultAssistant.metadata?.description as string | undefined) || "Your default assistant.",
-              name: defaultAssistant.name?.toLowerCase() === "untitled" 
-                ? "Default assistant" 
-                : defaultAssistant.name,
-              tools: (defaultAssistant.config?.configurable?.tools as AssistantTool[] | undefined) || undefined,
-              systemPrompt: (defaultAssistant.config?.configurable?.systemPrompt as string | undefined) || undefined,
-            },
-            assistantId: defaultAssistant.assistant_id,
-            userId: fixedUserId,
-          });
-
-          if (updated) {
-            defaultAssistant = updated;
-          }
-        }
-
-        setSelectedAssistant(defaultAssistant);
-      }
+      // Update state with assistants (but don't auto-select)
+      setAssistants(userAssistants);
+      // Keep selectedAssistant as undefined (No Assistant mode)
     } catch (e) {
       console.error("Failed to get or create assistant", e);
     } finally {

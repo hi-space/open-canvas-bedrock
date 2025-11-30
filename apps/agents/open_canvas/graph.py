@@ -40,6 +40,17 @@ async def route_node(state: OpenCanvasState) -> str:
     return next_node
 
 
+def route_after_followup(state: OpenCanvasState, config: RunnableConfig) -> Literal["reflect", "cleanState"]:
+    """Route after generateFollowup: skip reflection if no assistant_id."""
+    configurable = config.get("configurable", {}) if config else {}
+    assistant_id = configurable.get("open_canvas_assistant_id")
+    
+    # Skip reflection if no assistant_id (no assistants mode)
+    if not assistant_id:
+        return "cleanState"
+    return "reflect"
+
+
 async def generate_artifact_node(
     state: OpenCanvasState,
     config: RunnableConfig
@@ -1152,7 +1163,14 @@ builder.add_conditional_edges(
     }
 )
 builder.add_edge("replyToGeneralInput", "generateFollowup")
-builder.add_edge("generateFollowup", "reflect")
+builder.add_conditional_edges(
+    "generateFollowup",
+    route_after_followup,
+    {
+        "reflect": "reflect",
+        "cleanState": "cleanState",
+    }
+)
 builder.add_edge("reflect", "cleanState")
 builder.add_conditional_edges(
     "cleanState",

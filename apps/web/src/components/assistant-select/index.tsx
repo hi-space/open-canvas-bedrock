@@ -93,7 +93,9 @@ function AssistantSelectComponent(props: AssistantSelectProps) {
               setOpen(true);
             }}
           >
-            {getIcon(metadata?.iconData?.iconName as string | undefined)}
+            {selectedAssistant
+              ? getIcon(metadata?.iconData?.iconName as string | undefined)
+              : <Icons.UserX className="w-4 h-4" />}
           </TooltipIconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="max-h-[600px] max-w-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 ml-4">
@@ -117,6 +119,25 @@ function AssistantSelectComponent(props: AssistantSelectProps) {
               >
                 <Icons.CirclePlus className="w-4 h-4" />
                 <TighterText className="font-medium">New</TighterText>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!selectedAssistant) {
+                    setOpen(false);
+                    return;
+                  }
+                  setSelectedAssistant(undefined);
+                }}
+                className={cn(
+                  "flex items-center justify-start gap-2",
+                  !selectedAssistant && "bg-gray-50"
+                )}
+                disabled={allDisabled}
+              >
+                <Icons.UserX className="w-4 h-4" />
+                <TighterText className="font-medium">No Assistant</TighterText>
+                {!selectedAssistant && <span className="ml-auto">•</span>}
               </DropdownMenuItem>
               {assistants.map((assistant) => (
                 <AssistantItem
