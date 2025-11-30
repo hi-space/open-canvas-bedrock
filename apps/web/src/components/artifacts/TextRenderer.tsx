@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useRef, useState, forwardRef } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef, useState, forwardRef, useMemo } from "react";
 import { ArtifactMarkdown } from "@/shared/types";
 import "@blocknote/core/fonts/inter.css";
 import {
@@ -60,7 +60,9 @@ export interface TextRendererProps {
 }
 
 const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>((props, ref) => {
-  const editor = useCreateBlockNote({});
+  // Memoize the editor configuration to prevent unnecessary recreations
+  const editorConfig = useMemo(() => ({}), []);
+  const editor = useCreateBlockNote(editorConfig);
   const { graphData } = useGraphContext();
   const {
     artifact,
@@ -372,6 +374,7 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
             }
           `}</style>
           <BlockNoteView
+            key={artifact ? `blocknote-${JSON.stringify(artifact.contents.map(c => ({ index: c.index, type: c.type })))}` : 'blocknote-empty'}
             theme="light"
             formattingToolbar={false}
             slashMenu={false}
