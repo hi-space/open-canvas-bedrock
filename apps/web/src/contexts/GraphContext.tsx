@@ -1529,7 +1529,28 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         `${API_URL}/api/threads/${currentThreadId}/artifact/versions/${index}`
       );
       if (!response.ok) {
-        throw new Error(`Failed to fetch artifact version ${index}`);
+        if (response.status === 404) {
+          // Version doesn't exist, check if it's in metadata
+          setArtifact((prev) => {
+            if (!prev) return prev;
+            const metadata = (prev as any)._metadata;
+            if (metadata && metadata.version_indices) {
+              const validIndices = metadata.version_indices;
+              if (!validIndices.includes(index)) {
+                toast({
+                  title: "Error",
+                  description: `Artifact version ${index} does not exist. Available versions: ${validIndices.join(", ")}`,
+                  variant: "destructive",
+                  duration: 5000,
+                });
+              }
+            }
+            return prev;
+          });
+        } else {
+          throw new Error(`Failed to fetch artifact version ${index}: ${response.statusText}`);
+        }
+        return;
       }
 
       const versionArtifact = await response.json();

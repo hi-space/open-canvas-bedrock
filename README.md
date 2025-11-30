@@ -21,7 +21,7 @@ Open Canvas is a platform for generating and improving documents and code throug
 ┌─────────────────────────────────────────────────────────────┐
 │  Web App (Next.js)                                          │
 │  - UI rendering, user interaction handling                   │
-│  - Authentication (Supabase), state management (Zustand)     │
+│  - State management (Zustand)                                 │
 └─────────────────────┬───────────────────────────────────────┘
                       ↓ HTTP / SSE
 ┌─────────────────────────────────────────────────────────────┐

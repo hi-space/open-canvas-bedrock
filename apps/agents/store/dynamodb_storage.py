@@ -751,25 +751,27 @@ class DynamoDBThreadStorage:
     def get_thread_artifact_latest(self, thread_id: str) -> Optional[Dict]:
         """Get the latest artifact version for a thread."""
         try:
-            # Query all versions and get the latest one
+            # Query all versions to find the latest one
             response = self.artifacts_table.query(
                 KeyConditionExpression=Key("thread_id").eq(thread_id),
-                ScanIndexForward=False,  # Sort descending by version_index
-                Limit=1,
             )
             
             if not response.get("Items"):
                 return None
             
-            item = response["Items"][0]
-            artifact_str = item.get("artifact_data")
+            # Find the latest version by comparing version_index
+            items = response["Items"]
+            if not items:
+                return None
+            
+            # Find latest version_index
+            latest_item = max(items, key=lambda x: x.get("version_index", 0))
+            
+            artifact_str = latest_item.get("artifact_data")
             try:
                 artifact = json.loads(artifact_str) if isinstance(artifact_str, str) else artifact_str
-                # Return in the old format for backward compatibility
-                # If it's already in the old format (with contents array), return as is
-                if isinstance(artifact, dict) and "contents" in artifact:
-                    return artifact
-                # Otherwise, wrap it in the expected format
+                # The artifact stored has currentIndex and contents with single item
+                # Return it as is - it already has the correct structure
                 return artifact
             except (json.JSONDecodeError, TypeError):
                 return None
@@ -812,7 +814,8 @@ class DynamoDBThreadStorage:
             if not response.get("Items"):
                 return None
             
-            version_indices = sorted([item["version_index"] for item in response["Items"]])
+            items = response["Items"]
+            version_indices = sorted([item["version_index"] for item in items if "version_index" in item])
             latest_index = max(version_indices) if version_indices else None
             
             return {
