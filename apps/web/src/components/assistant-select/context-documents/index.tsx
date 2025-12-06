@@ -2,7 +2,11 @@ import { TighterText } from "@/components/ui/header";
 import { InlineContextTooltip } from "@/components/ui/inline-context-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ALLOWED_AUDIO_TYPES, ALLOWED_VIDEO_TYPES } from "@/constants";
+import {
+  ALLOWED_AUDIO_TYPES,
+  ALLOWED_VIDEO_TYPES,
+  ALLOWED_IMAGE_TYPES,
+} from "@/constants";
 import { LoaderCircle, Plus, X } from "lucide-react";
 import { UploadedFiles } from "./uploaded-file";
 import { Button } from "@/components/ui/button";
@@ -130,7 +134,7 @@ export function ContextDocuments(props: ContextDocumentsProps) {
         id="context-documents"
         type="file"
         multiple
-        accept=".txt,.md,.json,.xml,.css,.html,.csv,.pdf,.doc,.docx,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm"
+        accept=".txt,.md,.json,.xml,.css,.html,.csv,.pdf,.doc,.docx,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm,.jpg,.jpeg,.png,.gif,.webp,.svg"
         onChange={(e) => {
           const newFiles = e.target.files;
           if (!newFiles) return;
@@ -154,6 +158,7 @@ export function ContextDocuments(props: ContextDocumentsProps) {
             const file = newFiles[i];
             const isAudio = ALLOWED_AUDIO_TYPES.has(file.type);
             const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+            const isImage = ALLOWED_IMAGE_TYPES.has(file.type);
 
             // Check size limits based on file type
             if (isAudio && file.size > twentyFiveMbBytes) {
@@ -164,7 +169,13 @@ export function ContextDocuments(props: ContextDocumentsProps) {
               alert(`Video file "${file.name}" exceeds the 1GB size limit`);
               e.target.value = "";
               return;
-            } else if (!isAudio && !isVideo && file.size > tenMbBytes) {
+            } else if (isImage && file.size > tenMbBytes) {
+              alert(
+                `Image file "${file.name}" exceeds the 10MB size limit. Large images will be automatically compressed.`
+              );
+              e.target.value = "";
+              return;
+            } else if (!isAudio && !isVideo && !isImage && file.size > tenMbBytes) {
               alert(`Document "${file.name}" exceeds the 10MB size limit`);
               e.target.value = "";
               return;

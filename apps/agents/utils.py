@@ -95,14 +95,49 @@ def get_model_config(
     }
 
 
-def format_messages(messages: List[BaseMessage]) -> str:
-    """Format messages for display."""
+def format_messages(messages: List[BaseMessage], max_length: Optional[int] = None) -> str:
+    """Format messages for display.
+    
+    Args:
+        messages: List of messages to format
+        max_length: Maximum length of formatted string. If exceeded, truncate from the beginning.
+    """
     formatted = []
     for idx, msg in enumerate(messages):
         msg_type = msg.__class__.__name__
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
         formatted.append(f'<{msg_type} index="{idx}">\n{content}\n</{msg_type}>')
-    return "\n".join(formatted)
+    
+    result = "\n".join(formatted)
+    
+    if max_length and len(result) > max_length:
+        # Truncate from the beginning, keeping the most recent messages
+        truncated = result[-max_length:]
+        # Try to find a message boundary
+        first_msg_start = truncated.find('<')
+        if first_msg_start > 0:
+            truncated = truncated[first_msg_start:]
+        return f"[Previous conversation truncated due to length...]\n{truncated}"
+    
+    return result
+
+
+def estimate_input_size(content: str) -> int:
+    """Estimate the size of content in tokens/characters.
+    Rough estimate: 1 token ≈ 4 characters for English text.
+    For base64 images, use actual character count.
+    """
+    return len(content)
+
+
+def truncate_content(content: str, max_size: int, suffix: str = "...[truncated]") -> str:
+    """Truncate content to maximum size, preserving the end."""
+    if len(content) <= max_size:
+        return content
+    
+    # Keep the end of the content
+    truncated = content[-(max_size - len(suffix)):]
+    return suffix + truncated
 
 
 def create_ai_message_from_web_results(web_results: List[Dict[str, Any]]) -> AIMessage:
@@ -453,6 +488,47 @@ def create_context_document_messages(
             messages.append({
                 "type": "text",
                 "text": formatted_text
+            })
+        elif doc_type.startswith("image/"):
+            # Handle images - pass as image_url format for LLM
+            # Check image size to avoid "Input is too long" errors
+            # Base64 encoding increases size by ~33%, so we check the base64 string length
+            # Maximum recommended: ~2MB base64 (allows ~1.5MB original image)
+            # Reduced to avoid "Input is too long" errors and improve efficiency
+            # Base64 encoding is inefficient (~33% overhead), so we keep images small
+            MAX_IMAGE_BASE64_SIZE = 2 * 1024 * 1024  # 2MB
+            
+            if len(doc_data) > MAX_IMAGE_BASE64_SIZE:
+                print(f"Warning: Image '{doc_name}' is too large ({len(doc_data)} bytes). "
+                      f"Maximum recommended size is {MAX_IMAGE_BASE64_SIZE} bytes. "
+                      f"Skipping image to avoid model input length errors.", flush=True)
+                # Include a text message indicating the image was too large
+                messages.append({
+                    "type": "text",
+                    "text": f"File: {doc_name} (image - too large, skipped. Please compress the image to under 5MB base64 size)"
+                })
+                continue
+            
+            # doc_data should already be in base64 format (data:image/...;base64,...)
+            # If it's just base64 without prefix, add the data URL prefix
+            if not doc_data.startswith("data:"):
+                # Clean base64 string
+                cleaned = clean_base64(doc_data)
+                # Create data URL
+                image_data_url = f"data:{doc_type};base64,{cleaned}"
+            else:
+                image_data_url = doc_data
+            
+            # Include document name as text, then the image
+            messages.append({
+                "type": "text",
+                "text": f"File: {doc_name} (image)"
+            })
+            messages.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": image_data_url
+                }
             })
     
     if not messages:

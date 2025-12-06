@@ -1,5 +1,13 @@
 import * as Icons from "lucide-react";
-import { ALLOWED_VIDEO_TYPES, ALLOWED_AUDIO_TYPES } from "@/constants";
+import {
+  ALLOWED_VIDEO_TYPES,
+  ALLOWED_AUDIO_TYPES,
+  ALLOWED_IMAGE_TYPES,
+  MAX_IMAGE_BASE64_SIZE,
+  MAX_IMAGE_WIDTH,
+  MAX_IMAGE_HEIGHT,
+  IMAGE_QUALITY,
+} from "@/constants";
 import { useToast } from "@/hooks/use-toast";
 import { ContextDocument } from "@/shared/types";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
@@ -78,6 +86,157 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
+/**
+ * Compress and resize image to reduce base64 size
+ * Returns compressed image as base64 data URL
+ */
+export async function compressImage(
+  file: File
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Skip compression for SVG (vector graphics)
+    if (file.type === "image/svg+xml") {
+      fileToBase64(file).then(resolve).catch(reject);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate new dimensions while maintaining aspect ratio
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
+          const ratio = Math.min(
+            MAX_IMAGE_WIDTH / width,
+            MAX_IMAGE_HEIGHT / height
+          );
+          width = Math.floor(width * ratio);
+          height = Math.floor(height * ratio);
+        }
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+
+        // Use high-quality image rendering
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to blob with compression
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Failed to compress image"));
+              return;
+            }
+
+            // Check if compressed size is acceptable
+            if (blob.size > MAX_IMAGE_BASE64_SIZE) {
+              // If still too large, reduce quality and size further
+              const reduceSize = () => {
+                // Reduce dimensions by 25% more
+                const newWidth = Math.floor(width * 0.75);
+                const newHeight = Math.floor(height * 0.75);
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = "high";
+                ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                
+                canvas.toBlob(
+                  (smallerBlob) => {
+                    if (!smallerBlob) {
+                      reject(new Error("Failed to compress image"));
+                      return;
+                    }
+                    // Check size again, if still too large, reduce quality
+                    if (smallerBlob.size > MAX_IMAGE_BASE64_SIZE) {
+                      canvas.toBlob(
+                        (finalBlob) => {
+                          if (!finalBlob) {
+                            reject(new Error("Failed to compress image"));
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === "string") {
+                              resolve(reader.result);
+                            } else {
+                              reject(
+                                `Failed to convert compressed image to base64. Received ${typeof reader.result} result.`
+                              );
+                            }
+                          };
+                          reader.onerror = reject;
+                          reader.readAsDataURL(finalBlob);
+                        },
+                        file.type,
+                        0.6 // Even lower quality
+                      );
+                    } else {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === "string") {
+                          resolve(reader.result);
+                        } else {
+                          reject(
+                            `Failed to convert compressed image to base64. Received ${typeof reader.result} result.`
+                          );
+                        }
+                      };
+                      reader.onerror = reject;
+                      reader.readAsDataURL(smallerBlob);
+                    }
+                  },
+                  file.type,
+                  0.65 // Lower quality
+                );
+              };
+              reduceSize();
+            } else {
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === "string") {
+                  resolve(reader.result);
+                } else {
+                  reject(
+                    `Failed to convert compressed image to base64. Received ${typeof reader.result} result.`
+                  );
+                }
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            }
+          },
+          file.type,
+          IMAGE_QUALITY
+        );
+      };
+      img.onerror = () => {
+        reject(new Error("Failed to load image"));
+      };
+      if (typeof e.target?.result === "string") {
+        img.src = e.target.result;
+      } else {
+        reject(new Error("Failed to read image file"));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 const MAX_AUDIO_SIZE = 26214400;
 
 export async function load(
@@ -128,7 +287,12 @@ export async function convertToAudio(
     const audioData = await ffmpeg.readFile("output.mp3");
 
     // Create a Blob from the audio data
-    const audioBlob = new Blob([audioData], { type: "audio/mp3" });
+    // FFmpeg readFile returns Uint8Array, but TypeScript types may be incompatible
+    // Create a new Uint8Array from the buffer to ensure compatibility
+    const audioBytes = new Uint8Array(
+      audioData instanceof Uint8Array ? audioData.buffer : (audioData as any)
+    );
+    const audioBlob = new Blob([audioBytes], { type: "audio/mp3" });
 
     // Generate a filename for the new audio file
     // You can customize this naming convention
@@ -173,6 +337,7 @@ export async function convertDocuments({
   const documentsPromise = Array.from(documents).map(async (doc) => {
     const isAudio = ALLOWED_AUDIO_TYPES.has(doc.type);
     const isVideo = ALLOWED_VIDEO_TYPES.has(doc.type);
+    const isImage = ALLOWED_IMAGE_TYPES.has(doc.type);
 
     if (isAudio) {
       if (doc.size > MAX_AUDIO_SIZE) {
@@ -261,6 +426,42 @@ export async function convertDocuments({
       };
     }
 
+    if (isImage) {
+      // Compress and resize images to reduce base64 size
+      try {
+        const compressedBase64 = await compressImage(doc);
+        // Double-check size after compression
+        if (compressedBase64.length > MAX_IMAGE_BASE64_SIZE) {
+          toast({
+            title: "Image too large",
+            description: `Image "${doc.name}" is too large even after compression. Please use a smaller image.`,
+            variant: "destructive",
+            duration: 5000,
+          });
+          return null;
+        }
+        return {
+          name: doc.name,
+          type: doc.type,
+          data: compressedBase64,
+        };
+      } catch (error) {
+        console.error("Error compressing image:", error);
+        toast({
+          title: "Failed to process image",
+          description: `Failed to compress image "${doc.name}". Using original image.`,
+          variant: "destructive",
+          duration: 5000,
+        });
+        // Fallback to original
+        return {
+          name: doc.name,
+          type: doc.type,
+          data: await fileToBase64(doc),
+        };
+      }
+    }
+
     return {
       name: doc.name,
       type: doc.type,
@@ -268,7 +469,7 @@ export async function convertDocuments({
     };
   });
   const documentsResult = (await Promise.all(documentsPromise)).filter(
-    (x) => x !== null
+    (x): x is ContextDocument => x !== null
   );
   return documentsResult;
 }

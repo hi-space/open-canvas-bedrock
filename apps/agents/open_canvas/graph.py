@@ -63,9 +63,22 @@ async def generate_artifact_node(
     reflections_dict = configurable.get("reflections", {})
     reflections = format_reflections(reflections_dict) if reflections_dict else "No reflections found."
     
-    # Format messages
+    # Format messages with size limit
     messages = state.get("_messages", state.get("messages", []))
-    conversation = format_messages(messages)
+    from utils import estimate_input_size
+    
+    # Estimate maximum safe input size
+    MAX_SAFE_INPUT_SIZE = 200 * 1024  # 200KB of text
+    reflections_size = estimate_input_size(reflections)
+    reserved_size = 2000  # For prompt template and system message
+    available_for_conversation = MAX_SAFE_INPUT_SIZE - reflections_size - reserved_size
+    
+    if available_for_conversation > 0:
+        conversation = format_messages(messages, max_length=available_for_conversation)
+    else:
+        conversation = format_messages(messages, max_length=MAX_SAFE_INPUT_SIZE // 2)
+        print(f"Warning: Reflections are very large ({reflections_size} chars). "
+              f"Truncating conversation history.", flush=True)
     
     # Build prompt
     prompt = f"""You are an AI assistant tasked with generating a new artifact based on the user's request.
@@ -155,6 +168,7 @@ async def generate_followup_node(
 ) -> Dict[str, Any]:
     """Generate followup message after artifact generation."""
     from open_canvas.prompts import FOLLOWUP_ARTIFACT_PROMPT
+    from utils import estimate_input_size, truncate_content
     
     model = get_bedrock_model(config)
     
@@ -174,7 +188,33 @@ async def generate_followup_node(
     
     # Get conversation history
     messages = state.get("messages", [])
-    conversation = format_messages(messages)
+    
+    # Estimate maximum safe input size
+    # Bedrock models typically have context windows, but we'll be conservative
+    # Rough estimate: ~200K characters should be safe for most models
+    MAX_SAFE_INPUT_SIZE = 200 * 1024  # 200KB of text
+    
+    # Calculate current sizes
+    artifact_size = estimate_input_size(artifact_content)
+    reflections_size = estimate_input_size(reflections)
+    
+    # Calculate available size for conversation
+    # Reserve space for prompt template, system message, and safety margin
+    reserved_size = 5000  # For prompt template and system message
+    available_for_conversation = MAX_SAFE_INPUT_SIZE - artifact_size - reflections_size - reserved_size
+    
+    # Format conversation with size limit
+    if available_for_conversation > 0:
+        conversation = format_messages(messages, max_length=available_for_conversation)
+    else:
+        # If artifact/reflections are too large, truncate them
+        print(f"Warning: Artifact ({artifact_size} chars) and reflections ({reflections_size} chars) "
+              f"are very large. Truncating conversation history.", flush=True)
+        conversation = "[Conversation history truncated due to large artifact/reflections]"
+        # Truncate artifact if needed
+        if artifact_size > MAX_SAFE_INPUT_SIZE * 0.6:  # If artifact is > 60% of max
+            artifact_content = truncate_content(artifact_content, int(MAX_SAFE_INPUT_SIZE * 0.5))
+            print(f"Truncated artifact content to {len(artifact_content)} characters", flush=True)
     
     # Build prompt
     prompt = FOLLOWUP_ARTIFACT_PROMPT.format(
@@ -183,10 +223,32 @@ async def generate_followup_node(
         conversation=conversation
     )
     
-    response = await model.ainvoke([
-        SystemMessage(content="You are a helpful AI assistant."),
-        HumanMessage(content=prompt),
-    ])
+    # Final safety check
+    total_size = estimate_input_size(prompt)
+    if total_size > MAX_SAFE_INPUT_SIZE * 1.2:  # 20% safety margin
+        print(f"Warning: Total prompt size ({total_size} chars) exceeds safe limit. "
+              f"Attempting to send anyway, but may fail.", flush=True)
+    
+    try:
+        response = await model.ainvoke([
+            SystemMessage(content="You are a helpful AI assistant."),
+            HumanMessage(content=prompt),
+        ])
+    except Exception as e:
+        error_msg = str(e)
+        if "too long" in error_msg.lower() or "Input is too long" in error_msg:
+            print(f"Error: Input too long ({total_size} chars). "
+                  f"Artifact: {artifact_size}, Reflections: {reflections_size}, "
+                  f"Conversation: {len(conversation)}", flush=True)
+            # Return a fallback message
+            from langchain_core.messages import AIMessage
+            return {
+                "messages": [AIMessage(
+                    content="I apologize, but the input is too large for me to process. "
+                           "Please try with a smaller artifact or shorter conversation history."
+                )]
+            }
+        raise
     
     return {
         "messages": [response]
