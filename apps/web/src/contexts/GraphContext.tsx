@@ -455,6 +455,28 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     const newMessages = params.messages || [];
     const fullMessages = [...existingMessages, ...newMessages];
 
+    // IMPORTANT: Save user's new message immediately to prevent loss
+    // This ensures the message is persisted even if streaming fails
+    if (currentThreadId && newMessages.length > 0) {
+      try {
+        await fetch(`${API_URL}/api/threads/${currentThreadId}/state`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            values: {
+              messages: fullMessages,
+            },
+          }),
+        });
+        console.log("User message saved immediately:", newMessages.map((m: any) => m.id));
+      } catch (error) {
+        console.error("Failed to save user message immediately:", error);
+        // Continue anyway - we'll try to save again after streaming
+      }
+    }
+
     const messagesInput = {
       // `messages` contains the full, unfiltered list of messages (existing + new)
       messages: fullMessages,
@@ -572,7 +594,30 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
       let eventCount = 0;
       // Track messages during streaming to save them later
-      let finalMessages: BaseMessage[] = [...messages];
+      // IMPORTANT: Use fullMessages (which includes new user messages) instead of stale `messages` state
+      // Convert fullMessages to BaseMessage objects for tracking
+      const initialMessages: BaseMessage[] = fullMessages.map((msg: any) => {
+        const role = msg.role || "user";
+        const content = typeof msg.content === "string" ? msg.content : String(msg.content);
+        const id = msg.id || `msg-${Date.now()}-${Math.random()}`;
+        
+        if (role === "user" || role === "human") {
+          return new HumanMessage({
+            content,
+            id,
+            additional_kwargs: msg.additional_kwargs || {},
+          });
+        } else {
+          return new AIMessage({
+            content,
+            id,
+            additional_kwargs: msg.additional_kwargs || {},
+            response_metadata: msg.response_metadata || {},
+          });
+        }
+      });
+      
+      let finalMessages: BaseMessage[] = [...initialMessages];
       let finalArtifact: Artifact | undefined = artifact;
       
       for await (const event of stream) {
@@ -942,12 +987,17 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               }
               
               // Parse messages if present
-              // Only add followup messages to chat, not artifact generation messages
+              // Only add NEW AI messages to chat (user messages are already in UI via optimistic update)
               // Artifact generation messages should only appear in the canvas via the artifact
               if (output.messages && Array.isArray(output.messages)) {
                 
                 const parsedMessages: BaseMessage[] = [];
                 const artifactMessageIds = new Set<string>();
+                
+                // Get user message IDs that were just sent (these are already in UI)
+                const justSentUserMessageIds = new Set(
+                  newMessages.map((msg: any) => msg.id).filter(Boolean)
+                );
                 
                 // First pass: identify which messages are from generateArtifact
                 // generateArtifact messages are the ones that match the artifact content
@@ -1151,17 +1201,20 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 
                 if (parsedMessages.length > 0) {
                   setMessages((prev) => {
-                    // Filter out messages that are already in the list (by ID)
+                    // Simple deduplication by ID
                     const existingIds = new Set(prev.map(m => m.id));
-                    // Also filter out user messages - they're already in the chat
-                    // And filter out any messages that match artifact content
+                    
+                    // Filter out duplicates and messages already in UI
                     const newMessages = parsedMessages.filter(m => {
-                      // Skip if already exists
+                      // Skip if already exists (by ID)
                       if (existingIds.has(m.id)) {
                         return false;
                       }
-                      // Skip user messages - they're already in the chat from when user sent them
-                      if (m instanceof HumanMessage) {
+                      
+                      // OPTIMISTIC UI: Skip user messages that were just sent
+                      // These are already in the UI from the optimistic update
+                      if (m instanceof HumanMessage && justSentUserMessageIds.has(m.id)) {
+                        console.log("Skipping user message (already in UI from optimistic update):", m.id);
                         return false;
                       }
                       

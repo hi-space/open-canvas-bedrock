@@ -597,13 +597,6 @@ class DynamoDBThreadStorage:
     def delete_thread(self, thread_id: str) -> bool:
         """Delete thread and all associated data."""
         try:
-            # Delete messages
-            messages = self.get_thread_messages(thread_id)
-            for msg in messages:
-                # Messages are deleted by querying and deleting individually
-                # For efficiency, we'll delete all messages in batch
-                pass
-            
             # Delete all messages
             response = self.messages_table.query(
                 KeyConditionExpression=Key("thread_id").eq(thread_id)
@@ -616,10 +609,17 @@ class DynamoDBThreadStorage:
                     }
                 )
             
-            # Delete artifact
-            self.artifacts_table.delete_item(
-                Key={"thread_id": thread_id}
+            # Delete all artifact versions
+            artifacts_response = self.artifacts_table.query(
+                KeyConditionExpression=Key("thread_id").eq(thread_id)
             )
+            for item in artifacts_response.get("Items", []):
+                self.artifacts_table.delete_item(
+                    Key={
+                        "thread_id": thread_id,
+                        "version_index": item["version_index"],
+                    }
+                )
             
             # Delete thread
             response = self.threads_table.delete_item(

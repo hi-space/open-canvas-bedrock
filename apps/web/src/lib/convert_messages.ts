@@ -163,29 +163,38 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
 
 export function convertToOpenAIFormat(message: BaseMessage) {
   const content = getMessageContentOrThrow(message);
+  
+  // Preserve message ID to prevent duplicates
+  const messageId = message.id && typeof message.id === "string" && message.id.trim()
+    ? message.id.trim()
+    : undefined;
 
   switch (getMessageType(message)) {
     case "system":
       return {
         role: "system",
         content,
+        ...(messageId && { id: messageId }),
       };
     case "human":
       return {
         role: "user",
         content,
         additional_kwargs: message.additional_kwargs,
+        ...(messageId && { id: messageId }),
       };
     case "ai":
       return {
         role: "assistant",
         content,
+        ...(messageId && { id: messageId }),
       };
     case "tool":
       return {
         role: "tool",
         toolName: message.name,
         content,
+        ...(messageId && { id: messageId }),
       };
     default:
       throw new Error(`Unsupported message type: ${getMessageType(message)}`);

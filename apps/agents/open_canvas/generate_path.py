@@ -239,9 +239,7 @@ async def dynamic_determine_path(
     new_messages: List[BaseMessage],
     config: RunnableConfig
 ) -> Optional[Dict[str, str]]:
-    """Dynamically determine path using LLM tool calling."""
-    from utils import get_formatted_reflections, format_artifact_content
-    
+    """Dynamically determine path using LLM tool calling."""    
     current_artifact_content = None
     if state.get("artifact"):
         current_artifact_content = get_artifact_content(state.get("artifact"))
