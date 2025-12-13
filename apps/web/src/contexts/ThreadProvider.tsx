@@ -213,12 +213,12 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
         const userThreads = await response.json();
         if (Array.isArray(userThreads) && userThreads.length > 0) {
-          const lastInArray = userThreads[0];
-          const allButLast = userThreads.slice(1, userThreads.length);
-          const filteredThreads = allButLast.filter(
+          // Filter all threads to only show those with content
+          // This prevents empty threads from appearing in the history
+          const filteredThreads = userThreads.filter(
             (thread) => thread.values && Object.keys(thread.values).length > 0
           );
-          setUserThreads([...filteredThreads, lastInArray]);
+          setUserThreads(filteredThreads);
         } else {
           setUserThreads([]);
         }
