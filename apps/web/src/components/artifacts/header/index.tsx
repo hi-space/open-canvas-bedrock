@@ -38,6 +38,7 @@ export function ArtifactHeader(props: ArtifactHeaderProps) {
           title={props.currentArtifactContent.title}
           isArtifactSaved={props.isArtifactSaved}
           artifactUpdateFailed={props.artifactUpdateFailed}
+          content={props.currentArtifactContent}
         />
       </div>
       <div className="flex gap-2 items-end mt-[10px] mr-[6px]">
