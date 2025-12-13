@@ -220,8 +220,10 @@ export function ThreadHistoryComponent(props: ThreadHistoryProps) {
 
   const groupedThreads = groupThreads(
     userThreads,
-    (thread) => {
-      switchSelectedThread(thread);
+    async (thread) => {
+      // Wait for thread to be fully loaded before calling the callback
+      // This prevents race conditions where callback checks thread.values before it's loaded
+      await switchSelectedThread(thread);
       props.switchSelectedThreadCallback(thread);
       setOpen(false);
     },

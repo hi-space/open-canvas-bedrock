@@ -64,6 +64,7 @@ import { useQueryState } from "nuqs";
 interface GraphData {
   runId: string | undefined;
   isStreaming: boolean;
+  isLoadingThread: boolean;
   error: boolean;
   selectedBlocks: TextHighlight | undefined;
   messages: BaseMessage[];
@@ -177,6 +178,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState(false);
   const [artifactUpdateFailed, setArtifactUpdateFailed] = useState(false);
   const [searchEnabled, setSearchEnabled] = useState(false);
+  const [isLoadingThread, setIsLoadingThread] = useState(false);
 
   const [_, setWebSearchResultsId] = useQueryState(
     WEB_SEARCH_RESULTS_QUERY_PARAM
@@ -216,21 +218,13 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!threadData.threadId) return;
-    if (!messages.length || !artifact) return;
+    if (!artifact) return;
     if (updateRenderedArtifactRequired || threadSwitched || isStreaming) return;
     const currentIndex = artifact.currentIndex;
     const currentContent = artifact.contents.find(
       (c) => c.index === currentIndex
     );
     if (!currentContent) return;
-    if (
-      artifact.contents.length === 1 &&
-      artifact.contents[0].type === "text" &&
-      !artifact.contents[0].fullMarkdown
-    ) {
-      // If the artifact has only one content and it's empty, we shouldn't update the state
-      return;
-    }
 
     // Compare only the current content to avoid expensive full artifact comparison
     // This is much more efficient than comparing the entire artifact
@@ -289,14 +283,36 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     }
     searchOrCreateEffectRan.current = true;
 
+    // Show loading state when loading from URL
+    setIsLoadingThread(true);
+    
     threadData.getThread(threadData.threadId).then((thread) => {
       if (thread) {
+        console.log("Loading thread from URL:", threadData.threadId);
         switchSelectedThread(thread);
         return;
       }
 
       // Failed to fetch thread. Remove from query params
+      console.warn("Failed to fetch thread from URL:", threadData.threadId);
+      toast({
+        title: "Thread not found",
+        description: "The requested thread could not be found. Starting a new conversation.",
+        variant: "destructive",
+        duration: 5000,
+      });
       threadData.setThreadId(null);
+      setIsLoadingThread(false);
+    }).catch((error) => {
+      console.error("Error loading thread from URL:", error);
+      toast({
+        title: "Error loading thread",
+        description: "Failed to load the requested thread. Starting a new conversation.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      threadData.setThreadId(null);
+      setIsLoadingThread(false);
     });
   }, [threadData.threadId]);
 
@@ -1572,20 +1588,31 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   };
 
   const switchSelectedThread = async (thread: Thread) => {
+    // Start loading
+    setIsLoadingThread(true);
     setUpdateRenderedArtifactRequired(true);
     setThreadSwitched(true);
-    setChatStarted(true);
+    // Don't set chatStarted here - wait until we know if thread has content
+    // setChatStarted(true);
 
-    // Set the thread ID in state. Then set in cookies so a new thread
-    // isn't created on page load if one already exists.
-    threadData.setThreadId(thread.thread_id);
+    try {
+      // Set the thread ID in state. Then set in cookies so a new thread
+      // isn't created on page load if one already exists.
+      threadData.setThreadId(thread.thread_id);
 
-    // Fetch full thread data including latest artifact version and all messages
-    const fullThread = await threadData.getThread(thread.thread_id);
-    if (!fullThread) {
-      console.warn("Failed to fetch full thread data");
-      return;
-    }
+      // Fetch full thread data including latest artifact version and all messages
+      const fullThread = await threadData.getThread(thread.thread_id);
+      if (!fullThread) {
+        console.error("Failed to fetch full thread data for thread:", thread.thread_id);
+        toast({
+          title: "Error",
+          description: "Failed to load thread. Please try again.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        setIsLoadingThread(false);
+        return;
+      }
 
     // Set the model name and config
     if (fullThread.metadata?.customModelName) {
@@ -1610,52 +1637,60 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     };
     const castThreadValues = fullThread.values as Record<string, any>;
     if (castThreadValues?.artifact) {
-      const artifact = castThreadValues.artifact as Artifact;
-      // The artifact from server now contains only the latest version
-      // Ensure currentIndex is set correctly
-      if (artifact.contents && artifact.contents.length > 0) {
-        const contentIndex = artifact.contents[0]?.index || artifact.currentIndex || 1;
-        castValues.artifact = {
-          ...artifact,
-          currentIndex: contentIndex,
-        };
-      } else {
-        castValues.artifact = artifact;
-      }
-      
-      // Fetch version metadata to know total versions
       try {
-        const metadataResponse = await fetch(
-          `${API_URL}/api/threads/${thread.thread_id}/artifact/versions`
-        );
-        if (metadataResponse.ok) {
-          const metadata = await metadataResponse.json();
-          // Store version metadata in artifact for UI navigation
-          if (castValues.artifact) {
+        const artifact = castThreadValues.artifact as Artifact;
+        // The artifact from server now contains only the latest version
+        // Ensure currentIndex is set correctly
+        if (artifact.contents && artifact.contents.length > 0) {
+          const contentIndex = artifact.contents[0]?.index || artifact.currentIndex || 1;
+          castValues.artifact = {
+            ...artifact,
+            currentIndex: contentIndex,
+          };
+        } else {
+          console.warn("Artifact has no contents, using as-is");
+          castValues.artifact = artifact;
+        }
+        
+        // Fetch version metadata to know total versions
+        try {
+          const metadataResponse = await fetch(
+            `${API_URL}/api/threads/${thread.thread_id}/artifact/versions`
+          );
+          if (metadataResponse.ok) {
+            const metadata = await metadataResponse.json();
+            // Store version metadata in artifact for UI navigation
+            if (castValues.artifact) {
+              castValues.artifact = {
+                ...castValues.artifact,
+                // Store metadata for navigation
+                _metadata: metadata,
+              } as Artifact & { _metadata?: any };
+            }
+          } else {
+            console.warn("Failed to fetch artifact version metadata: HTTP", metadataResponse.status);
+          }
+        } catch (e) {
+          console.warn("Failed to fetch artifact version metadata:", e);
+        }
+        
+        // Update artifact title with thread title if available and artifact title is "Untitled"
+        const threadTitle = fullThread.metadata?.thread_title;
+        if (threadTitle && castValues.artifact) {
+          const currentTitle = castValues.artifact.contents?.[0]?.title;
+          if (!currentTitle || currentTitle === "Untitled" || currentTitle === "Generated Artifact") {
             castValues.artifact = {
               ...castValues.artifact,
-              // Store metadata for navigation
-              _metadata: metadata,
-            } as Artifact & { _metadata?: any };
+              contents: castValues.artifact.contents?.map((content: any) => ({
+                ...content,
+                title: threadTitle,
+              })) || [],
+            };
           }
         }
-      } catch (e) {
-        console.warn("Failed to fetch artifact version metadata:", e);
-      }
-      
-      // Update artifact title with thread title if available and artifact title is "Untitled"
-      const threadTitle = fullThread.metadata?.thread_title;
-      if (threadTitle && castValues.artifact) {
-        const currentTitle = castValues.artifact.contents?.[0]?.title;
-        if (!currentTitle || currentTitle === "Untitled" || currentTitle === "Generated Artifact") {
-          castValues.artifact = {
-            ...castValues.artifact,
-            contents: castValues.artifact.contents?.map((content: any) => ({
-              ...content,
-              title: threadTitle,
-            })) || [],
-          };
-        }
+      } catch (error) {
+        console.error("Failed to parse artifact from thread:", error);
+        castValues.artifact = undefined;
       }
     } else {
       castValues.artifact = undefined;
@@ -1668,84 +1703,172 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     // Mark artifact as saved since we just loaded it from the server
     setIsArtifactSaved(true);
 
-    if (!castValues?.messages?.length) {
+    // Always set artifact first (even if no messages)
+    setArtifact(castValues?.artifact);
+    
+    // If no messages, set empty array and return
+    if (!castValues?.messages || castValues.messages.length === 0) {
+      console.log("No messages in thread, setting empty message array");
       setMessages([]);
-      setArtifact(castValues?.artifact);
       return;
     }
-    setArtifact(castValues?.artifact);
+    
+    // Validate that messages is an array
+    if (!Array.isArray(castValues.messages)) {
+      console.error("Messages is not an array:", typeof castValues.messages, castValues.messages);
+      toast({
+        title: "Error",
+        description: "Thread data is corrupted. Messages are not in the correct format.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      setMessages([]);
+      return;
+    }
+    
+    console.log(`Processing ${castValues.messages.length} messages from thread ${thread.thread_id}`);
     
     // Ensure all messages have valid IDs before setting
     const messagesWithIds = castValues.messages
       .map((msg: Record<string, any>, index: number) => {
-        // Convert plain object to BaseMessage instance
-        // Use role field (standard format: user/assistant/system)
-        const role = msg.role || "user";
-        const content = msg.content || "";
-        // Ensure ID is always a string and unique
-        const id = msg.id && typeof msg.id === "string" && msg.id.trim() 
-          ? msg.id.trim() 
-          : `msg-${thread.thread_id}-${index}-${uuidv4()}`;
-        const additional_kwargs = msg.additional_kwargs || {};
-        
-        let baseMessage: BaseMessage;
-        
-        if (role === "user" || role === "human") {
-          baseMessage = new HumanMessage({
-            content,
-            id,
-            additional_kwargs,
-          });
-        } else if (role === "assistant" || role === "ai") {
-          baseMessage = new AIMessage({
-            content,
-            id,
-            additional_kwargs,
-            tool_calls: msg.tool_calls || [],
-            response_metadata: msg.response_metadata || {},
-          });
-        } else if (role === "system") {
-          baseMessage = new HumanMessage({  // SystemMessage if available, otherwise HumanMessage
-            content,
-            id,
-            additional_kwargs,
-          });
-        } else {
-          // Default to HumanMessage for unknown roles
-          baseMessage = new HumanMessage({
-            content,
-            id,
-            additional_kwargs,
-          });
+        try {
+          // Convert plain object to BaseMessage instance
+          // Use role field (standard format: user/assistant/system)
+          const role = msg.role || "user";
+          const content = msg.content || "";
+          
+          // Ensure ID is ALWAYS a valid string - never allow empty/invalid IDs
+          let id = msg.id;
+          if (!id || typeof id !== "string" || id.trim().length === 0) {
+            // Generate a unique ID if missing or invalid
+            id = `msg-${thread.thread_id}-${index}-${uuidv4()}`;
+            console.log(`Generated ID for message at index ${index}:`, id);
+          } else {
+            id = id.trim();
+          }
+          
+          const additional_kwargs = msg.additional_kwargs || {};
+          
+          let baseMessage: BaseMessage;
+          
+          if (role === "user" || role === "human") {
+            baseMessage = new HumanMessage({
+              content,
+              id,
+              additional_kwargs,
+            });
+          } else if (role === "assistant" || role === "ai") {
+            baseMessage = new AIMessage({
+              content,
+              id,
+              additional_kwargs,
+              tool_calls: msg.tool_calls || [],
+              response_metadata: msg.response_metadata || {},
+            });
+          } else if (role === "system") {
+            baseMessage = new HumanMessage({  // SystemMessage if available, otherwise HumanMessage
+              content,
+              id,
+              additional_kwargs,
+            });
+          } else {
+            // Default to HumanMessage for unknown roles
+            console.warn(`Unknown message role "${role}" at index ${index}, defaulting to HumanMessage`);
+            baseMessage = new HumanMessage({
+              content,
+              id,
+              additional_kwargs,
+            });
+          }
+          
+          // Handle langSmithRunURL
+          if (msg.response_metadata?.langSmithRunURL) {
+            const toolCalls = (baseMessage as AIMessage).tool_calls || [];
+            toolCalls.push({
+              name: "langsmith_tool_ui",
+              args: { sharedRunURL: msg.response_metadata.langSmithRunURL },
+              id: msg.response_metadata.langSmithRunURL
+                ?.split("https://smith.langchain.com/public/")[1]
+                .split("/")[0],
+            });
+            (baseMessage as AIMessage).tool_calls = toolCalls;
+          }
+          
+          return baseMessage;
+        } catch (error) {
+          console.error(`Failed to parse message at index ${index}:`, error, msg);
+          // Return null for failed messages - will be filtered out
+          return null;
         }
-        
-        // Handle langSmithRunURL
-        if (msg.response_metadata?.langSmithRunURL) {
-          const toolCalls = (baseMessage as AIMessage).tool_calls || [];
-          toolCalls.push({
-            name: "langsmith_tool_ui",
-            args: { sharedRunURL: msg.response_metadata.langSmithRunURL },
-            id: msg.response_metadata.langSmithRunURL
-              ?.split("https://smith.langchain.com/public/")[1]
-              .split("/")[0],
-          });
-          (baseMessage as AIMessage).tool_calls = toolCalls;
-        }
-        
-        return baseMessage;
       })
-      .filter((msg: BaseMessage) => {
-        // Filter out messages with invalid IDs or empty content
-        return msg.id && typeof msg.id === "string" && msg.id.trim().length > 0;
+      .filter((msg: BaseMessage | null): msg is BaseMessage => {
+        // Filter out null messages (parsing failures)
+        // All valid messages now have guaranteed valid IDs from the map step
+        if (msg === null) {
+          console.warn("Filtered out null message (parsing failed)");
+          return false;
+        }
+        
+        // Double-check ID validity (should always pass now)
+        if (!msg.id || typeof msg.id !== "string" || msg.id.trim().length === 0) {
+          console.error("Message has invalid ID after mapping - this should not happen:", msg);
+          return false;
+        }
+        
+        return true;
       });
     
+    console.log(`Loaded ${messagesWithIds.length} messages for thread ${thread.thread_id}`);
+    
+    // If we had messages but none were successfully parsed, warn the user
+    if (castValues.messages.length > 0 && messagesWithIds.length === 0) {
+      console.error(`All ${castValues.messages.length} messages failed to parse for thread ${thread.thread_id}`);
+      toast({
+        title: "Warning",
+        description: `Failed to load ${castValues.messages.length} message(s). The thread may be corrupted.`,
+        variant: "destructive",
+        duration: 7000,
+      });
+    } else if (messagesWithIds.length < castValues.messages.length) {
+      const failedCount = castValues.messages.length - messagesWithIds.length;
+      console.warn(`${failedCount} message(s) failed to parse for thread ${thread.thread_id}`);
+      toast({
+        title: "Warning",
+        description: `${failedCount} message(s) could not be loaded. Some conversation history may be missing.`,
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
+    
     setMessages(messagesWithIds);
+    
+    // Set chatStarted based on whether thread has content
+    // Chat should be "started" if there are messages OR artifact present
+    const hasMessages = messagesWithIds.length > 0;
+    const hasArtifact = !!castValues.artifact;
+    const shouldStartChat = hasMessages || hasArtifact;
+    
+    console.log(`Thread ${thread.thread_id} - hasMessages: ${hasMessages}, hasArtifact: ${hasArtifact}, setChatStarted: ${shouldStartChat}`);
+    setChatStarted(shouldStartChat);
+    } catch (error) {
+      console.error("Error in switchSelectedThread:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while loading the thread.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      // Always stop loading, even if there was an error
+      setIsLoadingThread(false);
+    }
   };
 
   const contextValue: GraphContentType = {
     graphData: {
       runId,
       isStreaming,
+      isLoadingThread,
       error,
       selectedBlocks,
       messages,

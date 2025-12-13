@@ -1,6 +1,7 @@
 import { convertToOpenAIFormat } from "@/lib/convert_messages";
 import { cn } from "@/lib/utils";
 import {
+  Artifact,
   ArtifactMarkdown,
 } from "@/shared/types";
 import { EditorView } from "@codemirror/view";
@@ -39,12 +40,15 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     artifact,
     selectedBlocks,
     isStreaming,
+    isLoadingThread,
     isArtifactSaved,
     artifactUpdateFailed,
     setSelectedArtifact,
     setMessages,
     streamMessage,
     setSelectedBlocks,
+    setArtifact,
+    chatStarted,
   } = graphData;
   const editorRef = useRef<EditorView | null>(null);
   const artifactContentRef = useRef<HTMLDivElement>(null);
@@ -61,6 +65,25 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
   const [inputValue, setInputValue] = useState("");
   const [isHoveringOverArtifact, setIsHoveringOverArtifact] = useState(false);
   const [isValidSelectionOrigin, setIsValidSelectionOrigin] = useState(false);
+  
+  // Create empty artifact if none exists (like "New Markdown" button)
+  useEffect(() => {
+    if (chatStarted && !artifact && !isStreaming) {
+      const artifactContent: ArtifactMarkdown = {
+        index: 1,
+        type: "text",
+        title: "새 문서",
+        fullMarkdown: "",
+      };
+
+      const newArtifact: Artifact = {
+        currentIndex: 1,
+        contents: [artifactContent],
+      };
+      setArtifact(newArtifact);
+      props.setIsEditing(true);
+    }
+  }, [chatStarted, artifact, isStreaming]);
 
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
@@ -270,7 +293,8 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     ? getArtifactContent(artifact)
     : undefined;
 
-  if (!artifact && isStreaming) {
+  // Show loading spinner while loading thread or streaming
+  if (isLoadingThread || (!artifact && isStreaming)) {
     return <ArtifactLoading />;
   }
 

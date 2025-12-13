@@ -54,7 +54,7 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
   } = props;
   const { toast } = useToast();
   const {
-    graphData: { clearState, runId, feedbackSubmitted, setFeedbackSubmitted },
+    graphData: { clearState, runId, feedbackSubmitted, setFeedbackSubmitted, isLoadingThread },
   } = useGraphContext();
   const { selectedAssistant } = useAssistantContext();
   const {
@@ -140,19 +140,29 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
             searchEnabled={props.searchEnabled}
           />
         )}
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage: UserMessage,
-            AssistantMessage: (prop) => (
-              <AssistantMessage
-                {...prop}
-                feedbackSubmitted={feedbackSubmitted}
-                setFeedbackSubmitted={setFeedbackSubmitted}
-                runId={runId}
-              />
-            ),
-          }}
-        />
+        {isLoadingThread && hasChatStarted && (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
+              <p className="text-sm text-gray-500">Loading thread...</p>
+            </div>
+          </div>
+        )}
+        {!isLoadingThread && (
+          <ThreadPrimitive.Messages
+            components={{
+              UserMessage: UserMessage,
+              AssistantMessage: (prop) => (
+                <AssistantMessage
+                  {...prop}
+                  feedbackSubmitted={feedbackSubmitted}
+                  setFeedbackSubmitted={setFeedbackSubmitted}
+                  runId={runId}
+                />
+              ),
+            }}
+          />
+        )}
       </ThreadPrimitive.Viewport>
       <div className="mt-4 flex w-full flex-col items-center justify-end rounded-t-lg bg-inherit pb-4 px-4">
         <ThreadScrollToBottom />

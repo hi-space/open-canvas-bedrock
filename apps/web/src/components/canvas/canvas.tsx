@@ -30,7 +30,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 export function CanvasComponent() {
   const { graphData } = useGraphContext();
-  const { setModelName, setModelConfig } = useThreadContext();
+  const threadData = useThreadContext();
+  const { setModelName, setModelConfig, createThread, threadId } = threadData;
   const { setArtifact, chatStarted, setChatStarted } = graphData;
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -53,11 +54,27 @@ export function CanvasComponent() {
     }
   }, [chatCollapsedSearchParam]);
 
-  const handleQuickStart = (
+  const handleQuickStart = async (
     type: "text" | "code",
     language?: ProgrammingLanguageOptions
   ) => {
     setChatStarted(true);
+
+    // Create thread if it doesn't exist
+    if (!threadId) {
+      try {
+        await createThread();
+      } catch (e) {
+        console.error("Failed to create thread:", e);
+        toast({
+          title: "Error",
+          description: "Failed to create thread",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+    }
 
     const artifactContent: ArtifactMarkdown = {
       index: 1,
@@ -90,8 +107,12 @@ export function CanvasComponent() {
               router.replace(`?${queryParams.toString()}`, { scroll: false });
             }}
             switchSelectedThreadCallback={(thread) => {
-              // Chat should only be "started" if there are messages present
-              if ((thread.values as Record<string, any>)?.messages?.length) {
+              const threadValues = thread.values as Record<string, any>;
+              const hasMessages = threadValues?.messages?.length > 0;
+              const hasArtifact = !!threadValues?.artifact;
+              
+              // Chat should be "started" if there are messages OR artifact present
+              if (hasMessages || hasArtifact) {
                 setChatStarted(true);
                 if (thread?.metadata?.customModelName) {
                   setModelName(
@@ -111,9 +132,13 @@ export function CanvasComponent() {
                 } else {
                   setModelConfig(DEFAULT_MODEL_NAME, DEFAULT_MODEL_CONFIG);
                 }
-              } else {
+              } else if (!chatStarted) {
+                // Only set to false if chat hasn't started yet
+                // This prevents unexpected navigation to home screen during thread switching
                 setChatStarted(false);
               }
+              // If chatStarted is already true, keep it true during thread switching
+              // The actual thread data will be loaded by switchSelectedThread
             }}
             setChatStarted={setChatStarted}
             hasChatStarted={chatStarted}
@@ -142,8 +167,12 @@ export function CanvasComponent() {
                 router.replace(`?${queryParams.toString()}`, { scroll: false });
               }}
               switchSelectedThreadCallback={(thread) => {
-                // Chat should only be "started" if there are messages present
-                if ((thread.values as Record<string, any>)?.messages?.length) {
+                const threadValues = thread.values as Record<string, any>;
+                const hasMessages = threadValues?.messages?.length > 0;
+                const hasArtifact = !!threadValues?.artifact;
+                
+                // Chat should be "started" if there are messages OR artifact present
+                if (hasMessages || hasArtifact) {
                   setChatStarted(true);
                   if (thread?.metadata?.customModelName) {
                     setModelName(
@@ -163,9 +192,13 @@ export function CanvasComponent() {
                   } else {
                     setModelConfig(DEFAULT_MODEL_NAME, DEFAULT_MODEL_CONFIG);
                   }
-                } else {
+                } else if (!chatStarted) {
+                  // Only set to false if chat hasn't started yet
+                  // This prevents unexpected navigation to home screen during thread switching
                   setChatStarted(false);
                 }
+                // If chatStarted is already true, keep it true during thread switching
+                // The actual thread data will be loaded by switchSelectedThread
               }}
               setChatStarted={setChatStarted}
               hasChatStarted={chatStarted}
