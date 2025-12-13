@@ -12,7 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import { getLanguageTemplate } from "@/lib/get_language_template";
 import {
   Artifact,
-  ArtifactCode,
   ArtifactMarkdown,
   CustomModelConfig,
   ProgrammingLanguageOptions,
@@ -58,33 +57,14 @@ export function CanvasComponent() {
     type: "text" | "code",
     language?: ProgrammingLanguageOptions
   ) => {
-    if (type === "code" && !language) {
-      toast({
-        title: "Language not selected",
-        description: "Please select a language to continue",
-        duration: 5000,
-      });
-      return;
-    }
     setChatStarted(true);
 
-    let artifactContent: ArtifactCode | ArtifactMarkdown;
-    if (type === "code" && language) {
-      artifactContent = {
-        index: 1,
-        type: "code",
-        title: `Quick start ${type}`,
-        code: getLanguageTemplate(language),
-        language,
-      };
-    } else {
-      artifactContent = {
-        index: 1,
-        type: "text",
-        title: `Quick start ${type}`,
-        fullMarkdown: "",
-      };
-    }
+    const artifactContent: ArtifactMarkdown = {
+      index: 1,
+      type: "text",
+      title: `Quick start ${type}`,
+      fullMarkdown: "",
+    };
 
     const newArtifact: Artifact = {
       currentIndex: 1,

@@ -191,10 +191,8 @@ START
 [generatePath] 경로 결정 노드
   ├─→ generateArtifact (새 아티팩트 생성)
   ├─→ rewriteArtifact (전체 재작성)
-  ├─→ updateArtifact (코드 부분 수정)
   ├─→ updateHighlightedText (텍스트 부분 수정)
   ├─→ rewriteArtifactTheme (텍스트 테마: 번역, 길이, 이모지 등)
-  ├─→ rewriteCodeArtifactTheme (코드 테마: 주석, 로그, 포팅, 버그수정)
   ├─→ webSearch → [routePostWebSearch] → (아티팩트 작업)
   ├─→ customAction (커스텀 퀵 액션)
   └─→ replyToGeneralInput (일반 대화)
@@ -221,10 +219,8 @@ START
 **2. 아티팩트 작업 노드들**
 - `generateArtifact`: 사용자 요청으로부터 새 아티팩트 생성
 - `rewriteArtifact`: 기존 아티팩트를 전면 재작성
-- `updateArtifact`: 하이라이트된 코드 부분만 수정
 - `updateHighlightedText`: 하이라이트된 텍스트 부분만 수정
 - `rewriteArtifactTheme`: 번역, 길이 조정, 읽기 수준 변경, 이모지 추가
-- `rewriteCodeArtifactTheme`: 주석 추가, 로그 추가, 언어 포팅, 버그 수정
 - `customAction`: 사용자 정의 프롬프트로 작업 수행
 
 **3. webSearch (웹 검색 경로)**

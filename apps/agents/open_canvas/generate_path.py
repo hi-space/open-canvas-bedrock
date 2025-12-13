@@ -356,13 +356,6 @@ async def generate_path(
                     break
     
     # Check for explicit routing conditions first
-    if state.get("highlightedCode"):
-        result = {"next": "updateArtifact"}
-        if new_messages:
-            result["messages"] = new_messages
-            result["_messages"] = new_messages
-        return result
-    
     if state.get("highlightedText"):
         result = {"next": "updateHighlightedText"}
         if new_messages:
@@ -373,14 +366,6 @@ async def generate_path(
     if (state.get("language") or state.get("artifactLength") or 
         state.get("regenerateWithEmojis") or state.get("readingLevel")):
         result = {"next": "rewriteArtifactTheme"}
-        if new_messages:
-            result["messages"] = new_messages
-            result["_messages"] = new_messages
-        return result
-    
-    if (state.get("addComments") or state.get("addLogs") or 
-        state.get("portLanguage") or state.get("fixBugs")):
-        result = {"next": "rewriteCodeArtifactTheme"}
         if new_messages:
             result["messages"] = new_messages
             result["_messages"] = new_messages

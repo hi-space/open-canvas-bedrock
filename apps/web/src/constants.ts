@@ -1,5 +1,5 @@
 export const API_URL =
-  process.env.API_URL ?? process.env.FASTAPI_API_URL ?? "http://localhost:8001";
+  process.env.API_URL ?? process.env.FASTAPI_API_URL ?? "http://localhost:9000";
 // v2 is tied to the 'open-canvas-prod' deployment.
 export const ASSISTANT_ID_COOKIE = "oc_assistant_id_v2";
 // export const ASSISTANT_ID_COOKIE = "oc_assistant_id";

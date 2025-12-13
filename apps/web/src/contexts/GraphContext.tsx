@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { useUserContext } from "@/contexts/UserContext";
 import {
-  isArtifactCodeContent,
   isArtifactMarkdownContent,
 } from "@/shared/utils/artifacts";
 import { reverseCleanContent } from "@/lib/normalize_string";
@@ -50,7 +49,6 @@ import {
   handleGenerateArtifactToolCallChunk,
   removeCodeBlockFormatting,
   replaceOrInsertMessageChunk,
-  updateHighlightedCode,
   updateHighlightedMarkdown,
   updateRewrittenArtifact,
 } from "./utils";
@@ -226,10 +224,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     );
     if (!currentContent) return;
     if (
-      (artifact.contents.length === 1 &&
-        artifact.contents[0].type === "text" &&
-        !artifact.contents[0].fullMarkdown) ||
-      (artifact.contents[0].type === "code" && !artifact.contents[0].code)
+      artifact.contents.length === 1 &&
+      artifact.contents[0].type === "text" &&
+      !artifact.contents[0].fullMarkdown
     ) {
       // If the artifact has only one content and it's empty, we shouldn't update the state
       return;
@@ -253,11 +250,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         ? lastSavedContent.fullMarkdown
         : null;
       hasChanged = currentContent.fullMarkdown !== lastMarkdown;
-    } else if (currentContent.type === "code" && isArtifactCodeContent(currentContent)) {
-      const lastCode = isArtifactCodeContent(lastSavedContent)
-        ? lastSavedContent.code
-        : null;
-      hasChanged = currentContent.code !== lastCode;
     } else {
       // Fallback to JSON comparison for other cases
       hasChanged = JSON.stringify(currentContent) !== JSON.stringify(lastSavedContent);
@@ -485,7 +477,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     };
     // Add check for multiple defined fields
     const fieldsToCheck = [
-      input.highlightedCode,
       input.highlightedText,
       input.language,
       input.artifactLength,
@@ -807,69 +798,16 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               }
             }
 
-            if (langgraphNode === "updateArtifact") {
-              if (!artifact || !params.highlightedCode || !prevCurrentContent) {
-                continue;
-              }
-              if (prevCurrentContent.type !== "code") {
-                continue;
-              }
-
-              const partialUpdatedContent =
-                extractStreamDataChunk(chunk)?.content || "";
-              const { startCharIndex, endCharIndex } = params.highlightedCode;
-
-              if (
-                updatedArtifactStartContent === undefined &&
-                updatedArtifactRestContent === undefined
-              ) {
-                updatedArtifactStartContent = prevCurrentContent.code.slice(
-                  0,
-                  startCharIndex
-                );
-                updatedArtifactRestContent =
-                  prevCurrentContent.code.slice(endCharIndex);
-              } else {
-                updatedArtifactStartContent += partialUpdatedContent;
-              }
-
-              const firstUpdateCopy = isFirstUpdate;
-              setFirstTokenReceived(true);
-              setArtifact((prev) => {
-                if (!prev) {
-                  throw new Error("No artifact found when updating markdown");
-                }
-                const content = removeCodeBlockFormatting(
-                  `${updatedArtifactStartContent}${updatedArtifactRestContent}`
-                );
-                const updated = updateHighlightedCode(
-                  prev,
-                  content,
-                  newArtifactIndex,
-                  prevCurrentContent,
-                  firstUpdateCopy
-                );
-                finalArtifact = updated;
-                return updated;
-              });
-              // Trigger rendering update for streaming
-              setUpdateRenderedArtifactRequired(true);
-
-              if (isFirstUpdate) {
-                isFirstUpdate = false;
-              }
-            }
 
             // Handle rewrite artifact events
             if (
               [
                 "rewriteArtifact",
                 "rewriteArtifactTheme",
-                "rewriteCodeArtifactTheme",
                 "customAction",
               ].includes(langgraphNode)
             ) {
-              if (!artifact || !prevCurrentContent) {
+              if (!artifact || !prevCurrentContent || !isArtifactMarkdownContent(prevCurrentContent)) {
                 continue;
               }
 
@@ -901,19 +839,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 artifactLanguage = rewriteArtifactMeta.language;
               } else {
                 // Fallback to node-based determination
-                artifactLanguage =
-                  params.portLanguage ||
-                  (isArtifactCodeContent(prevCurrentContent)
-                    ? prevCurrentContent.language
-                    : "other");
-
-                if (langgraphNode === "rewriteCodeArtifactTheme") {
-                  artifactType = "code";
-                } else if (langgraphNode === "rewriteArtifactTheme") {
-                  artifactType = "text";
-                } else {
-                  artifactType = prevCurrentContent.type;
-                }
+                artifactLanguage = "other";
+                artifactType = "text";
                 artifactTitle = prevCurrentContent.title;
               }
 
@@ -926,9 +853,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 }
 
                 let content = newArtifactContent;
-                if (artifactType === "code") {
-                  content = removeCodeBlockFormatting(content);
-                }
 
                 const updated = updateRewrittenArtifact({
                   prevArtifact: prev ?? artifact,
@@ -938,7 +862,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     title: artifactTitle,
                     language: artifactLanguage,
                   },
-                  prevCurrentContent,
+                  prevCurrentContent: prevCurrentContent,
                   newArtifactIndex,
                   isFirstUpdate: firstUpdateCopy,
                   artifactLanguage,
@@ -984,19 +908,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 }
                 if (artifactToSet.contents && Array.isArray(artifactToSet.contents)) {
                   artifactToSet.contents = artifactToSet.contents.map((content, idx) => {
-                    // Determine type from content structure
-                    let contentType: "text" | "code" = content.type as "text" | "code";
-                    if (!contentType) {
-                      // Infer type from content structure
-                      if ("fullMarkdown" in content && content.fullMarkdown !== undefined) {
-                        contentType = "text";
-                      } else if ("code" in content && content.code !== undefined) {
-                        contentType = "code";
-                      } else {
-                        // Default to text if cannot determine
-                        contentType = "text";
-                      }
-                    }
+                    // Always use text type
+                    const contentType: "text" = "text";
                     
                     // Ensure content has required fields based on type
                     // Use dynamically determined values from backend if available
@@ -1004,30 +917,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       ? artifact.contents.find((c) => c.index === (content.index || idx + 1) - 1)
                       : undefined;
                     
-                    if (contentType === "text") {
-                      return {
-                        ...content,
-                        index: content.index || idx + 1,
-                        type: "text" as const,
-                        // Use title from content if available, otherwise "Untitled" (will be updated when thread is loaded)
-                        title: content.title || prevContent?.title || "Untitled",
-                        fullMarkdown: ("fullMarkdown" in content ? content.fullMarkdown : "") || "",
-                      };
-                    } else {
-                      return {
-                        ...content,
-                        index: content.index || idx + 1,
-                        type: "code" as const,
-                        // Use title from content if available, otherwise "Untitled" (will be updated when thread is loaded)
-                        title: content.title || prevContent?.title || "Untitled",
-                        // Use language from content if available (may be dynamically determined)
-                        language: ("language" in content ? content.language : 
-                          (prevContent && isArtifactCodeContent(prevContent)
-                            ? prevContent.language 
-                            : "typescript")) as any,
-                        code: ("code" in content ? content.code : "") || "",
-                      };
-                    }
+                    return {
+                      ...content,
+                      index: content.index || idx + 1,
+                      type: "text" as const,
+                      // Use title from content if available, otherwise "Untitled" (will be updated when thread is loaded)
+                      title: content.title || prevContent?.title || "Untitled",
+                      fullMarkdown: ("fullMarkdown" in content ? content.fullMarkdown : "") || "",
+                    };
                   });
                 }
                 
@@ -1057,7 +954,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 // and are NOT from generateFollowup
                 if (output.artifact && output.artifact.contents && output.artifact.contents.length > 0) {
                   const artifactContent = output.artifact.contents[0];
-                  const artifactText = artifactContent.fullMarkdown || artifactContent.code || "";
+                  const artifactText = artifactContent.fullMarkdown || "";
                   
                   for (let i = 0; i < output.messages.length; i++) {
                     const msg = output.messages[i];
@@ -1203,7 +1100,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     if (output.artifact && output.artifact.contents && output.artifact.contents.length > 0) {
                       // Check all artifact contents, not just the first one
                       for (const artifactContent of output.artifact.contents) {
-                        const artifactText = artifactContent.fullMarkdown || artifactContent.code || "";
+                        const artifactText = artifactContent.fullMarkdown || "";
                         if (artifactText && content.trim().length > 50) {
                           // More lenient comparison - check if content is similar to artifact
                           const compareLength = Math.min(300, artifactText.length, content.trim().length);
@@ -1274,8 +1171,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         for (const artifactContent of finalArtifact.contents) {
                           const artifactText = isArtifactMarkdownContent(artifactContent) 
                             ? artifactContent.fullMarkdown 
-                            : isArtifactCodeContent(artifactContent)
-                            ? artifactContent.code
                             : "";
                           if (artifactText && msgContent.trim().length > 50) {
                             const compareLength = Math.min(200, artifactText.length, msgContent.trim().length);
@@ -1312,23 +1207,17 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 const latestContent = output.artifact.contents[output.artifact.contents.length - 1];
                 if (latestContent) {
                   rewriteArtifactMeta = {
-                    type: latestContent.type as ArtifactType,
+                    type: "text" as ArtifactType,
                     title: latestContent.title || prevCurrentContent?.title || "Untitled",
-                    language: (latestContent.language || 
-                      (isArtifactCodeContent(prevCurrentContent) 
-                        ? prevCurrentContent.language 
-                        : "other")) as ProgrammingLanguageOptions,
+                    language: "other" as ProgrammingLanguageOptions,
                   };
                 }
               } else if (output.type || output.title || output.language) {
                 // Direct meta in output
                 rewriteArtifactMeta = {
-                  type: (output.type || prevCurrentContent?.type || "text") as ArtifactType,
+                  type: "text" as ArtifactType,
                   title: output.title || prevCurrentContent?.title || "Untitled",
-                  language: (output.language || 
-                    (isArtifactCodeContent(prevCurrentContent) 
-                      ? prevCurrentContent.language 
-                      : "other")) as ProgrammingLanguageOptions,
+                  language: "other" as ProgrammingLanguageOptions,
                 };
               }
             }
@@ -1694,7 +1583,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               ...castValues.artifact,
               // Store metadata for navigation
               _metadata: metadata,
-            };
+            } as Artifact & { _metadata?: any };
           }
         }
       } catch (e) {

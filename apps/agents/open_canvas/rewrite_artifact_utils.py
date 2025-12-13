@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from open_canvas.state import OpenCanvasState
 from bedrock_client import get_bedrock_model
 from utils import (
-    get_artifact_content, is_artifact_code_content, is_artifact_markdown_content,
+    get_artifact_content, is_artifact_markdown_content,
     format_artifact_content, get_formatted_reflections, get_string_from_content
 )
 from open_canvas.prompts import (
@@ -32,12 +32,12 @@ async def optionally_update_artifact_meta(
     state: OpenCanvasState,
     config: RunnableConfig
 ) -> Dict[str, Any]:
-    """Optionally update artifact meta (type, title, language) using LLM.
+    """Optionally update artifact meta (type, title) using LLM.
     
     Returns a dict with:
-    - type: "text" or "code"
+    - type: "text" (always)
     - title: Optional string
-    - language: Programming language (if type is "code")
+    - language: "other" (always)
     """
     from utils import get_formatted_reflections
     
@@ -74,12 +74,10 @@ async def optionally_update_artifact_meta(
 
 You must respond with a JSON object in the following format:
 {{
-  "type": "text" or "code",
+  "type": "text",
   "title": "optional title string (only if subject/topic changed)",
-  "language": "programming language if type is code, otherwise 'other'"
+  "language": "other"
 }}
-
-Available programming languages: {', '.join(PROGRAMMING_LANGUAGES)}
 
 Respond with ONLY the JSON object, no other text."""
     
@@ -99,52 +97,35 @@ Respond with ONLY the JSON object, no other text."""
                 parsed = json.loads(json_match.group(0))
                 
                 # Validate and set defaults
-                artifact_type = parsed.get("type", current_artifact_content.get("type", "text"))
-                if artifact_type not in ["text", "code"]:
-                    artifact_type = current_artifact_content.get("type", "text")
+                artifact_type = "text"
                 
                 artifact_title = parsed.get("title")
                 if not artifact_title:
                     # Keep current title if not specified
                     artifact_title = current_artifact_content.get("title", "Untitled")
                 
-                language = parsed.get("language", "other")
-                if language not in PROGRAMMING_LANGUAGES:
-                    if is_artifact_code_content(current_artifact_content):
-                        language = current_artifact_content.get("language", "other")
-                    else:
-                        language = "other"
-                
                 return {
                     "type": artifact_type,
                     "title": artifact_title,
-                    "language": language
+                    "language": "other"
                 }
             except json.JSONDecodeError:
                 pass
         
         # Fallback: use current artifact meta
         return {
-            "type": current_artifact_content.get("type", "text"),
+            "type": "text",
             "title": current_artifact_content.get("title", "Untitled"),
-            "language": (
-                current_artifact_content.get("language", "other")
-                if is_artifact_code_content(current_artifact_content)
-                else "other"
-            )
+            "language": "other"
         }
         
     except Exception as e:
         print(f"Error in artifact meta update: {e}", flush=True)
         # Fallback to current values
         return {
-            "type": current_artifact_content.get("type", "text"),
+            "type": "text",
             "title": current_artifact_content.get("title", "Untitled"),
-            "language": (
-                current_artifact_content.get("language", "other")
-                if is_artifact_code_content(current_artifact_content)
-                else "other"
-            )
+            "language": "other"
         }
 
 
@@ -154,7 +135,7 @@ def build_meta_prompt(artifact_meta: Dict[str, Any]) -> str:
     artifact_title = artifact_meta.get("title", "")
     
     title_section = ""
-    if artifact_title and artifact_type != "code":
+    if artifact_title:
         title_section = f"And its title is (do NOT include this in your response):\n{artifact_title}"
     
     return OPTIONALLY_UPDATE_META_PROMPT.format(
@@ -193,21 +174,9 @@ def create_new_artifact_content(
         "title": artifact_meta.get("title") or current_artifact_content.get("title", "Untitled"),
     }
     
-    if artifact_type == "code":
-        language = artifact_meta.get("language", "other")
-        if language not in PROGRAMMING_LANGUAGES:
-            language = current_artifact_content.get("language", "other") if is_artifact_code_content(current_artifact_content) else "other"
-        
-        return {
-            **base_content,
-            "type": "code",
-            "language": language,
-            "code": new_content,
-        }
-    else:
-        return {
-            **base_content,
-            "type": "text",
-            "fullMarkdown": new_content,
-        }
+    return {
+        **base_content,
+        "type": "text",
+        "fullMarkdown": new_content,
+    }
 

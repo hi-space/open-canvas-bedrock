@@ -1,6 +1,6 @@
 # Open Canvas Web
 
-Open Canvas is an open-source web application for collaborating with AI agents to write documents and code. Inspired by OpenAI's "Canvas", it is open-source and provides a memory system and the ability to start from existing documents.
+Open Canvas is an open-source web application for collaborating with AI agents to write documents. Inspired by OpenAI's "Canvas", it is open-source and provides a memory system and the ability to start from existing documents.
 
 ## Key Features
 
@@ -14,25 +14,18 @@ Open Canvas is an open-source web application for collaborating with AI agents t
 
 ### 2. Artifact Management
 
-- **Code and Markdown Support**: Generate and edit both code and markdown text
-- **Multiple Programming Languages**: Support for various languages including Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure, etc.
+- **Markdown Support**: Generate and edit markdown documents
 - **Version Control**: All artifacts have version history and can be reverted to previous versions
 - **Real-Time Markdown Rendering**: View rendered results while editing markdown
 - **Text Selection Editing**: Select text in artifacts to modify specific parts
 
 ### 3. Quick Actions
 
-#### Quick Actions for Text Artifacts
+#### Quick Actions for Text
 - **Translation**: Translate to various languages
 - **Reading Level Adjustment**: Adjust text reading difficulty
 - **Length Adjustment**: Make text shorter or longer
 - **Emoji Addition**: Automatically add emojis to text
-
-#### Quick Actions for Code Artifacts
-- **Comment Addition**: Automatically add explanatory comments to code
-- **Log Addition**: Add log statements for debugging
-- **Language Porting**: Convert code to other programming languages
-- **Bug Fixing**: Automatically detect and fix bugs in code
 
 #### Custom Quick Actions
 - **User-Defined Action Creation**: Write your own prompts and save them as quick actions
@@ -90,7 +83,7 @@ Open Canvas is an open-source web application for collaborating with AI agents t
 - **Framework**: Next.js 14
 - **UI Library**: React, Radix UI, Tailwind CSS
 - **Agent UI**: @assistant-ui/react
-- **Editor**: CodeMirror (code), BlockNote (markdown)
+- **Editor**: BlockNote (markdown)
 - **State Management**: Zustand, React Context
 
 ## Getting Started
@@ -137,7 +130,7 @@ apps/web/
 The main canvas component that manages the chat panel and artifact renderer.
 
 ### ArtifactRenderer
-Renders code and markdown artifacts and provides editing functionality.
+Renders markdown artifacts and provides editing functionality.
 
 ### AssistantSelect
 Component for selecting, creating, editing, and deleting assistants.

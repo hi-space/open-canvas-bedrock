@@ -9,7 +9,7 @@ from open_canvas.state import OpenCanvasState
 from bedrock_client import get_bedrock_model
 from utils import (
     format_messages, format_reflections, get_model_config,
-    get_artifact_content, is_artifact_code_content, is_artifact_markdown_content,
+    get_artifact_content, is_artifact_markdown_content,
     get_formatted_reflections, format_artifact_content_with_template,
     is_thinking_model, extract_thinking_and_response_tokens, create_context_document_messages,
     get_string_from_content
@@ -126,35 +126,15 @@ Generate the artifact based on the user's request."""
     from langchain_core.messages import AIMessage
     response = AIMessage(content=full_content)
     
-    # Determine if content is code by checking for common code patterns
-    # This is a simple heuristic - could be improved
-    code_indicators = [
-        "def ", "function ", "class ", "import ", "from ", "const ", "let ", "var ",
-        "public ", "private ", "protected ", "#include", "package ", "using ",
-        "<?php", "<script", "SELECT ", "CREATE ", "INSERT ", "UPDATE "
-    ]
-    is_code = any(indicator in full_content[:500] for indicator in code_indicators)
-    
     # Create artifact without title (title will be set by frontend using thread title)
-    if is_code:
-        artifact = {
-            "type": "code",
-            "contents": [{
-                "type": "code",
-                "index": 1,
-                "language": "other",
-                "code": full_content
-            }]
-        }
-    else:
-        artifact = {
+    artifact = {
+        "type": "text",
+        "contents": [{
             "type": "text",
-            "contents": [{
-                "type": "text",
-                "index": 1,
-                "fullMarkdown": full_content
-            }]
-        }
+            "index": 1,
+            "fullMarkdown": full_content
+        }]
+    }
     
     return {
         "artifact": artifact,
@@ -178,10 +158,7 @@ async def generate_followup_node(
     if artifact:
         current_content = get_artifact_content(artifact)
         if current_content:
-            if current_content.get("type") == "code":
-                artifact_content = current_content.get("code", "")
-            else:
-                artifact_content = current_content.get("fullMarkdown", "")
+            artifact_content = current_content.get("fullMarkdown", "")
     
     # Get reflections
     reflections = get_formatted_reflections(config)
@@ -292,16 +269,11 @@ async def clean_state_node(state: OpenCanvasState) -> Dict[str, Any]:
     """Clean state after processing."""
     return {
         "next": None,
-        "highlightedCode": None,
         "highlightedText": None,
         "language": None,
         "artifactLength": None,
         "regenerateWithEmojis": None,
         "readingLevel": None,
-        "addComments": None,
-        "addLogs": None,
-        "portLanguage": None,
-        "fixBugs": None,
         "customQuickActionId": None,
         "webSearchEnabled": None,
     }
@@ -430,108 +402,6 @@ async def route_post_web_search(state: OpenCanvasState) -> Dict[str, Any]:
 
 
 # Implemented nodes
-async def update_artifact_node(state: OpenCanvasState, config: RunnableConfig) -> Dict[str, Any]:
-    """Update artifact based on highlighted code."""
-    from langchain_core.messages import HumanMessage, AIMessage
-    from open_canvas.prompts import UPDATE_HIGHLIGHTED_ARTIFACT_PROMPT
-    
-    # Get model - for Bedrock, we'll use the configured model
-    # Note: TypeScript version has fallback to gpt-4o for non-OpenAI models
-    # For Bedrock, we'll use the configured model
-    model = get_bedrock_model(config)
-    
-    # Get reflections
-    reflections = get_formatted_reflections(config)
-    
-    # Get current artifact content
-    artifact = state.get("artifact")
-    current_artifact_content = get_artifact_content(artifact) if artifact else None
-    
-    if not current_artifact_content:
-        raise ValueError("No artifact found")
-    
-    if not is_artifact_code_content(current_artifact_content):
-        raise ValueError("Current artifact content is not code")
-    
-    highlighted_code = state.get("highlightedCode")
-    if not highlighted_code:
-        raise ValueError("Cannot partially regenerate an artifact without a highlight")
-    
-    # Extract highlighted section with context
-    code = current_artifact_content.get("code", "")
-    start_char_index = highlighted_code.get("startCharIndex", 0)
-    end_char_index = highlighted_code.get("endCharIndex", len(code))
-    
-    start = max(0, start_char_index - 500)
-    end = min(len(code), end_char_index + 500)
-    
-    before_highlight = code[start:start_char_index]
-    highlighted_text = code[start_char_index:end_char_index]
-    after_highlight = code[end_char_index:end]
-    
-    # Build prompt
-    formatted_prompt = UPDATE_HIGHLIGHTED_ARTIFACT_PROMPT.format(
-        highlightedText=highlighted_text,
-        beforeHighlight=before_highlight,
-        afterHighlight=after_highlight,
-        reflections=reflections
-    )
-    
-    # Get recent human message
-    messages = state.get("_messages", state.get("messages", []))
-    recent_human_message = None
-    for msg in reversed(messages):
-        if isinstance(msg, HumanMessage):
-            recent_human_message = msg
-            break
-    
-    if not recent_human_message:
-        raise ValueError("No recent human message found")
-    
-    # Stream model for real-time updates
-    content = ""
-    async for chunk in model.astream([
-        SystemMessage(content=formatted_prompt),
-        recent_human_message,
-    ]):
-        if hasattr(chunk, "content"):
-            if isinstance(chunk.content, str):
-                chunk_content = chunk.content
-            elif isinstance(chunk.content, list):
-                chunk_content = "".join(
-                    item.get("text", "") if isinstance(item, dict) else str(item)
-                    for item in chunk.content
-                )
-            else:
-                chunk_content = str(chunk.content)
-            content += chunk_content
-        else:
-            content += str(chunk)
-    
-    # Build updated artifact
-    entire_text_before = code[:start_char_index]
-    entire_text_after = code[end_char_index:]
-    entire_updated_content = entire_text_before + content + entire_text_after
-    
-    # Create new artifact content
-    contents = artifact.get("contents", [])
-    new_index = len(contents) + 1
-    
-    new_artifact_content = {
-        **current_artifact_content,
-        "index": new_index,
-        "code": entire_updated_content,
-    }
-    
-    new_artifact = {
-        **artifact,
-        "currentIndex": new_index,
-        "contents": contents + [new_artifact_content],
-    }
-    
-    return {
-        "artifact": new_artifact,
-    }
 
 
 async def update_highlighted_text_node(state: OpenCanvasState, config: RunnableConfig) -> Dict[str, Any]:
@@ -656,10 +526,7 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
         raise ValueError("No artifact found")
     
     # Get artifact content string
-    if is_artifact_markdown_content(current_artifact_content):
-        artifact_content = current_artifact_content.get("fullMarkdown", "")
-    else:
-        artifact_content = current_artifact_content.get("code", "")
+    artifact_content = current_artifact_content.get("fullMarkdown", "")
     
     # Optionally update artifact meta using LLM
     from open_canvas.rewrite_artifact_utils import (
@@ -669,12 +536,12 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
     
     # Use current artifact content as fallback
     artifact_meta = {
-        "type": current_artifact_content.get("type", "text"),
+        "type": "text",
         "title": current_artifact_content.get("title", "Untitled"),
-        "language": current_artifact_content.get("language", "other") if is_artifact_code_content(current_artifact_content) else "other"
+        "language": "other"
     }
-    artifact_type = artifact_meta.get("type", current_artifact_content.get("type", "text"))
-    is_new_type = artifact_type != current_artifact_content.get("type", "text")
+    artifact_type = "text"
+    is_new_type = False
     
     # Build meta prompt
     meta_prompt = build_meta_prompt(artifact_meta) if is_new_type else ""
@@ -870,10 +737,7 @@ async def custom_action_node(state: OpenCanvasState, config: RunnableConfig) -> 
     current_artifact_content = get_artifact_content(artifact) if artifact else None
     
     if current_artifact_content:
-        if is_artifact_markdown_content(current_artifact_content):
-            artifact_content = current_artifact_content.get("fullMarkdown", "")
-        else:
-            artifact_content = current_artifact_content.get("code", "")
+        artifact_content = current_artifact_content.get("fullMarkdown", "")
     else:
         artifact_content = "No artifacts generated yet."
     
@@ -905,18 +769,11 @@ async def custom_action_node(state: OpenCanvasState, config: RunnableConfig) -> 
     contents = artifact.get("contents", [])
     new_index = len(contents) + 1
     
-    if is_artifact_markdown_content(current_artifact_content):
-        new_artifact_content = {
-            **current_artifact_content,
-            "index": new_index,
-            "fullMarkdown": new_content,
-        }
-    else:
-        new_artifact_content = {
-            **current_artifact_content,
-            "index": new_index,
-            "code": new_content,
-        }
+    new_artifact_content = {
+        **current_artifact_content,
+        "index": new_index,
+        "fullMarkdown": new_content,
+    }
     
     return {
         "artifact": {
@@ -1056,118 +913,6 @@ async def rewrite_artifact_theme_node(state: OpenCanvasState, config: RunnableCo
     return result
 
 
-async def rewrite_code_artifact_theme_node(state: OpenCanvasState, config: RunnableConfig) -> Dict[str, Any]:
-    """Rewrite code artifact theme (comments, logs, port language, fix bugs)."""
-    from langchain_core.messages import AIMessage
-    from open_canvas.prompts import (
-        ADD_COMMENTS_TO_CODE_ARTIFACT_PROMPT, ADD_LOGS_TO_CODE_ARTIFACT_PROMPT,
-        PORT_LANGUAGE_CODE_ARTIFACT_PROMPT, FIX_BUGS_CODE_ARTIFACT_PROMPT
-    )
-    import uuid
-    
-    model = get_bedrock_model(config)
-    model_config = get_model_config(config)
-    model_name = model_config.get("modelName", "")
-    
-    # Get current artifact content
-    artifact = state.get("artifact")
-    current_artifact_content = get_artifact_content(artifact) if artifact else None
-    
-    if not current_artifact_content:
-        raise ValueError("No artifact found")
-    
-    if not is_artifact_code_content(current_artifact_content):
-        raise ValueError("Current artifact content is not code")
-    
-    artifact_content = current_artifact_content.get("code", "")
-    
-    # Determine which prompt to use
-    if state.get("addComments"):
-        formatted_prompt = ADD_COMMENTS_TO_CODE_ARTIFACT_PROMPT.format(
-            artifactContent=artifact_content
-        )
-    elif state.get("portLanguage"):
-        language_map = {
-            "typescript": "TypeScript",
-            "javascript": "JavaScript",
-            "cpp": "C++",
-            "java": "Java",
-            "php": "PHP",
-            "python": "Python",
-            "html": "HTML",
-            "sql": "SQL",
-        }
-        new_language = language_map.get(state.get("portLanguage"), state.get("portLanguage"))
-        formatted_prompt = PORT_LANGUAGE_CODE_ARTIFACT_PROMPT.format(
-            newLanguage=new_language,
-            artifactContent=artifact_content
-        )
-    elif state.get("addLogs"):
-        formatted_prompt = ADD_LOGS_TO_CODE_ARTIFACT_PROMPT.format(
-            artifactContent=artifact_content
-        )
-    elif state.get("fixBugs"):
-        formatted_prompt = FIX_BUGS_CODE_ARTIFACT_PROMPT.format(
-            artifactContent=artifact_content
-        )
-    else:
-        raise ValueError("No theme selected")
-    
-    # Stream model for real-time updates
-    artifact_content_text = ""
-    async for chunk in model.astream([
-        HumanMessage(content=formatted_prompt),
-    ]):
-        if hasattr(chunk, "content"):
-            if isinstance(chunk.content, str):
-                chunk_content = chunk.content
-            elif isinstance(chunk.content, list):
-                chunk_content = "".join(
-                    item.get("text", "") if isinstance(item, dict) else str(item)
-                    for item in chunk.content
-                )
-            else:
-                chunk_content = str(chunk.content)
-            artifact_content_text += chunk_content
-        else:
-            artifact_content_text += str(chunk)
-    
-    # Handle thinking models
-    thinking_message = None
-    if is_thinking_model(model_name):
-        extracted = extract_thinking_and_response_tokens(artifact_content_text)
-        if extracted["thinking"]:
-            thinking_message = AIMessage(
-                id=f"thinking-{uuid.uuid4()}",
-                content=extracted["thinking"]
-            )
-        artifact_content_text = extracted["response"]
-    
-    # Create new artifact content
-    contents = artifact.get("contents", [])
-    new_index = len(contents) + 1
-    
-    new_artifact_content = {
-        "index": new_index,
-        "type": "code",
-        "title": current_artifact_content.get("title", "Untitled"),
-        "language": state.get("portLanguage") or current_artifact_content.get("language", "other"),
-        "code": artifact_content_text,
-    }
-    
-    result = {
-        "artifact": {
-            **artifact,
-            "currentIndex": new_index,
-            "contents": contents + [new_artifact_content],
-        },
-    }
-    
-    if thinking_message:
-        result["messages"] = [thinking_message]
-        result["_messages"] = [thinking_message]
-    
-    return result
 
 
 # Build graph
@@ -1177,8 +922,6 @@ builder.add_edge(START, "generatePath")
 builder.add_node("replyToGeneralInput", reply_to_general_input_node)
 builder.add_node("rewriteArtifact", rewrite_artifact_node)
 builder.add_node("rewriteArtifactTheme", rewrite_artifact_theme_node)
-builder.add_node("rewriteCodeArtifactTheme", rewrite_code_artifact_theme_node)
-builder.add_node("updateArtifact", update_artifact_node)
 builder.add_node("updateHighlightedText", update_highlighted_text_node)
 builder.add_node("generateArtifact", generate_artifact_node)
 builder.add_node("customAction", custom_action_node)
@@ -1195,9 +938,7 @@ builder.add_conditional_edges(
     "generatePath",
     route_node,
     {
-        "updateArtifact": "updateArtifact",
         "rewriteArtifactTheme": "rewriteArtifactTheme",
-        "rewriteCodeArtifactTheme": "rewriteCodeArtifactTheme",
         "replyToGeneralInput": "replyToGeneralInput",
         "generateArtifact": "generateArtifact",
         "rewriteArtifact": "rewriteArtifact",
@@ -1209,11 +950,9 @@ builder.add_conditional_edges(
 
 # Add edges
 builder.add_edge("generateArtifact", "generateFollowup")
-builder.add_edge("updateArtifact", "generateFollowup")
 builder.add_edge("updateHighlightedText", "generateFollowup")
 builder.add_edge("rewriteArtifact", "generateFollowup")
 builder.add_edge("rewriteArtifactTheme", "generateFollowup")
-builder.add_edge("rewriteCodeArtifactTheme", "generateFollowup")
 builder.add_edge("customAction", "generateFollowup")
 builder.add_edge("webSearch", "routePostWebSearch")
 builder.add_conditional_edges(

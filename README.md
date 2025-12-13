@@ -61,17 +61,15 @@ Open Canvas is a platform for generating and improving documents and code throug
 ![agent-graph](./static/agent_graph.png)
 
 #### Open Canvas Agent (Main Agent)
-The core agent that generates and modifies artifacts (documents/code) through conversation.
+The core agent that generates and modifies artifacts (documents) through conversation.
 
 **Key Features:**
-- **Artifact Generation**: Create new code or markdown documents based on user requests
+- **Artifact Generation**: Create markdown documents based on user requests
 - **Full Rewrite**: Completely rewrite existing artifacts
 - **Partial Modification**: 
-  - Selectively update only highlighted code sections
   - Selectively modify only highlighted text sections
 - **Theme Changes**:
-  - Text: Language translation, length adjustment, reading level changes, emoji addition
-  - Code: Comment addition, log addition, language porting, bug fixes
+  - Language translation, length adjustment, reading level changes, emoji addition
 - **Web Search Integration**: Automatically perform web searches when latest information is needed
 - **Custom Actions**: Customized tasks through user-defined prompts
 
@@ -125,13 +123,11 @@ Summarizes long conversation content to optimize token usage.
 ### 2. 📝 Artifact Management
 
 #### Supported Formats
-- **Code**: Python, JavaScript, Java, C++, Rust, SQL, HTML, PHP, C#, Clojure, etc.
 - **Documents**: Markdown, plain text
 
 #### Editing Features
-- **Real-Time Editing**: Edit code and markdown in real-time
+- **Real-Time Editing**: Edit markdown in real-time
 - **Live Markdown Rendering**: View rendered results while editing
-- **Syntax Highlighting**: Support syntax highlighting for various programming languages
 - **Text Selection Editing**: Select specific parts to request AI modifications
 
 #### Version Control
@@ -142,17 +138,11 @@ Summarizes long conversation content to optimize token usage.
 
 ### 3. ⚡ Quick Action System
 
-#### Default Quick Actions for Text Artifacts
+#### Default Quick Actions
 - **Translation**: Translate to 20+ languages (Korean, English, Japanese, Chinese, etc.)
 - **Reading Level Adjustment**: Adjust difficulty from elementary to expert level
 - **Length Adjustment**: Rewrite text to be shorter or longer
 - **Emoji Addition**: Automatically add appropriate emojis to text
-
-#### Default Quick Actions for Code Artifacts
-- **Comment Addition**: Automatically generate explanatory comments for code
-- **Log Addition**: Automatically insert log statements for debugging
-- **Language Porting**: Convert code to other programming languages
-- **Bug Fixing**: Detect and fix potential bugs in code
 
 #### Custom Quick Actions
 User-created customized quick actions.
@@ -240,11 +230,6 @@ Continuously learns by analyzing conversations and artifacts.
 - **Dark Mode**: Dark mode support to reduce eye strain
 
 #### Editor
-- **CodeMirror**: Powerful code editor
-  - Syntax highlighting
-  - Auto-completion
-  - Multiple cursors
-  - Code folding
 - **BlockNote**: Rich markdown editor
   - Real-time rendering
   - Block-based editing

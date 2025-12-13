@@ -192,10 +192,8 @@ START
 [generatePath] Path decision node
   ├─→ generateArtifact (create new artifact)
   ├─→ rewriteArtifact (full rewrite)
-  ├─→ updateArtifact (code partial modification)
   ├─→ updateHighlightedText (text partial modification)
   ├─→ rewriteArtifactTheme (text theme: translation, length, emoji, etc.)
-  ├─→ rewriteCodeArtifactTheme (code theme: comments, logs, porting, bug fixes)
   ├─→ webSearch → [routePostWebSearch] → (artifact operations)
   ├─→ customAction (custom quick action)
   └─→ replyToGeneralInput (general conversation)
@@ -222,10 +220,8 @@ START
 **2. Artifact Operation Nodes**
 - `generateArtifact`: Create new artifact from user request
 - `rewriteArtifact`: Fully rewrite existing artifact
-- `updateArtifact`: Modify only highlighted code sections
 - `updateHighlightedText`: Modify only highlighted text sections
 - `rewriteArtifactTheme`: Translation, length adjustment, reading level changes, emoji addition
-- `rewriteCodeArtifactTheme`: Comment addition, log addition, language porting, bug fixes
 - `customAction`: Perform tasks with user-defined prompts
 
 **3. webSearch (Web Search Path)**
