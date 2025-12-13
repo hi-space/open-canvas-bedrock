@@ -107,6 +107,27 @@ const BEDROCK_MODELS: ModelConfigurationParams[] = [
     category: "Anthropic",
   },
   {
+    name: "global.amazon.nova-2-lite-v1:0",
+    label: "Nova 2 Lite",
+    config: {
+      provider: "bedrock",
+      temperatureRange: {
+        min: 0,
+        max: 1,
+        default: 0.5,
+        current: 0.5,
+      },
+      maxTokens: {
+        min: 1,
+        max: 8_192,
+        default: 4_096,
+        current: 4_096,
+      },
+    },
+    isNew: true,
+    category: "Amazon",
+  },
+  {
     name: "us.amazon.nova-premier-v1:0",
     label: "Nova Premier",
     config: {

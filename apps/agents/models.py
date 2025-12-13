@@ -175,8 +175,8 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
         "isNew": False,
     },
     {
-        "name": "us.amazon.nova-micro-v1:0",
-        "label": "Nova Micro",
+        "name": "global.amazon.nova-2-lite-v1:0",
+        "label": "Nova 2Lite",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
@@ -197,6 +197,26 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
     {
         "name": "us.amazon.nova-lite-v1:0",
         "label": "Nova Lite",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 8192,
+                "default": 4096,
+                "current": 4096,
+            },
+        },
+        "isNew": False,
+    },
+    {
+        "name": "us.amazon.nova-micro-v1:0",
+        "label": "Nova Micro",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
