@@ -164,3 +164,25 @@ a {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Adjust heading sizes */
+.custom-blocknote-theme h1 {
+  font-size: 2.5rem !important; /* 32px */
+  line-height: 3rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.custom-blocknote-theme h2 {
+  font-size: 1.75rem !important; /* 24px */
+  line-height: 2.25rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.custom-blocknote-theme h3 {
+  font-size: 1.25rem !important; /* 20px */
+  line-height: 1.75rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
