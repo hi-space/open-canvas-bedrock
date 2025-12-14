@@ -1,4 +1,4 @@
-import { convertToOpenAIFormat } from "@/lib/convert_messages";
+import { serializeLangChainMessage } from "@/lib/convert_messages";
 import { cn } from "@/lib/utils";
 import {
   Artifact,
@@ -171,7 +171,7 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     setMessages((prevMessages) => [...prevMessages, humanMessage]);
     handleCleanupState();
     await streamMessage({
-      messages: [convertToOpenAIFormat(humanMessage)],
+      messages: [serializeLangChainMessage(humanMessage)],
       ...(selectionIndexes && {
         highlightedCode: {
           startCharIndex: selectionIndexes.start,

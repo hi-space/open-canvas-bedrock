@@ -3,7 +3,7 @@
 import { useToast } from "@/hooks/use-toast";
 import {
   convertLangchainMessages,
-  convertToOpenAIFormat,
+  serializeLangChainMessage,
 } from "@/lib/convert_messages";
 import {
   ProgrammingLanguageOptions,
@@ -113,7 +113,7 @@ export function ContentComposerChatInterfaceComponent(
       setMessages((prevMessages) => [...prevMessages, humanMessage]);
 
       await streamMessage({
-        messages: [convertToOpenAIFormat(humanMessage)],
+        messages: [serializeLangChainMessage(humanMessage)],
       });
     } finally {
       setIsRunning(false);

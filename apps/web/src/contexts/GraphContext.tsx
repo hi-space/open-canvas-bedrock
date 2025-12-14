@@ -17,6 +17,7 @@ import {
   TextHighlight,
 } from "@/shared/types";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { serializeLangChainMessage } from "@/lib/convert_messages";
 import { useRuns } from "@/hooks/useRuns";
 import { streamAgent } from "@/lib/api-client";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
@@ -414,57 +415,21 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             // Use messages from thread if available
             existingMessages = threadValues.messages;
           } else {
-            // Fallback to current state messages
-            existingMessages = messages.map((msg) => {
-              const msgType = msg.constructor.name === "HumanMessage" ? "user" :
-                              msg.constructor.name === "AIMessage" ? "assistant" : "system";
-              return {
-                role: msgType,
-                content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-                id: msg.id,
-                ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
-              };
-            });
+            // Fallback to current state messages - use LangChain format
+            existingMessages = messages.map((msg) => serializeLangChainMessage(msg));
           }
         } else {
-          // Fallback to current state messages
-          existingMessages = messages.map((msg) => {
-            const msgType = msg.constructor.name === "HumanMessage" ? "user" :
-                            msg.constructor.name === "AIMessage" ? "assistant" : "system";
-            return {
-              role: msgType,
-              content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-              id: msg.id,
-              ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
-            };
-          });
+          // Fallback to current state messages - use LangChain format
+          existingMessages = messages.map((msg) => serializeLangChainMessage(msg));
         }
       } catch (e) {
         console.warn("Failed to load thread messages, using current state:", e);
-        // Fallback to current state messages
-        existingMessages = messages.map((msg) => {
-          const msgType = msg.constructor.name === "HumanMessage" ? "user" :
-                          msg.constructor.name === "AIMessage" ? "assistant" : "system";
-          return {
-            role: msgType,
-            content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-            id: msg.id,
-            ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
-          };
-        });
+        // Fallback to current state messages - use LangChain format
+        existingMessages = messages.map((msg) => serializeLangChainMessage(msg));
       }
     } else {
-      // No thread ID, use current state messages
-      existingMessages = messages.map((msg) => {
-        const msgType = msg.constructor.name === "HumanMessage" ? "user" :
-                        msg.constructor.name === "AIMessage" ? "assistant" : "system";
-        return {
-          role: msgType,
-          content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-          id: msg.id,
-          ...((msg as any).additional_kwargs && { additional_kwargs: (msg as any).additional_kwargs }),
-        };
-      });
+      // No thread ID, use current state messages - use LangChain format
+      existingMessages = messages.map((msg) => serializeLangChainMessage(msg));
     }
     
     // Combine existing messages with new messages
@@ -1368,37 +1333,22 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       // This matches the original implementation structure
       if (currentThreadId && messagesToSave.length > 0) {
         try {
-          // Convert messages to serializable format
-          // Use role field (standard format) instead of type
+          // Convert messages to serializable format - use LangChain format (type field)
           const serializedMessages = messagesToSave.map((msg) => {
-            const role = msg.constructor.name === "HumanMessage" ? "user" : 
-                        msg.constructor.name === "AIMessage" ? "assistant" : "system";
-            const baseMsg: any = {
-              role: role,  // Use role (standard format: user/assistant/system)
-              content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-              id: msg.id,
-            };
-            if ((msg as any).additional_kwargs) {
-              // Remove large document data from additional_kwargs before saving
-              // Documents are already converted to context messages, so we only need metadata
-              const additionalKwargs = { ...(msg as any).additional_kwargs };
-              if (additionalKwargs.documents && Array.isArray(additionalKwargs.documents)) {
-                // Keep only document metadata (name, type) without the large base64 data
-                additionalKwargs.documents = additionalKwargs.documents.map((doc: any) => ({
+            const serialized = serializeLangChainMessage(msg);
+            // Remove large document data from additional_kwargs before saving
+            // Documents are already converted to context messages, so we only need metadata
+            if (serialized.additional_kwargs?.documents && Array.isArray(serialized.additional_kwargs.documents)) {
+              serialized.additional_kwargs = {
+                ...serialized.additional_kwargs,
+                documents: serialized.additional_kwargs.documents.map((doc: any) => ({
                   name: doc.name,
                   type: doc.type,
                   // Don't include the large 'data' field to avoid storage issues
-                }));
-              }
-              baseMsg.additional_kwargs = additionalKwargs;
+                })),
+              };
             }
-            if ((msg as any).response_metadata) {
-              baseMsg.response_metadata = (msg as any).response_metadata;
-            }
-            if ((msg as any).usage_metadata) {
-              baseMsg.usage_metadata = (msg as any).usage_metadata;
-            }
-            return baseMsg;
+            return serialized;
           });
           
           const response = await fetch(`${API_URL}/api/threads/${currentThreadId}/state`, {

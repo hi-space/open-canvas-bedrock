@@ -6,50 +6,6 @@ import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
 
 type Message = useExternalMessageConverter.Message;
 
-export const getMessageType = (message: Record<string, any>): string => {
-  if (Array.isArray(message.id)) {
-    const lastItem = message.id[message.id.length - 1];
-    if (lastItem.startsWith("HumanMessage")) {
-      return "human";
-    } else if (lastItem.startsWith("AIMessage")) {
-      return "ai";
-    } else if (lastItem.startsWith("ToolMessage")) {
-      return "tool";
-    } else if (
-      lastItem.startsWith("BaseMessage") ||
-      lastItem.startsWith("SystemMessage")
-    ) {
-      return "system";
-    }
-  }
-
-  if ("getType" in message && typeof message.getType === "function") {
-    return message.getType();
-  } else if ("_getType" in message && typeof message._getType === "function") {
-    return message._getType();
-  } else if ("type" in message) {
-    return message.type as string;
-  } else if ("role" in message) {
-    // Handle normalized message format from backend
-    const role = message.role as string;
-    if (role === "user" || role === "human") {
-      return "human";
-    } else if (role === "assistant" || role === "ai") {
-      return "ai";
-    } else if (role === "system") {
-      return "system";
-    } else if (role === "tool") {
-      return "tool";
-    }
-  } else {
-    console.error(message);
-    throw new Error("Unsupported message type");
-  }
-  
-  // Fallback (should not reach here)
-  console.error(message);
-  throw new Error("Unsupported message type");
-};
 
 function getMessageContentOrThrow(message: unknown): string {
   if (typeof message !== "object" || message === null) {
@@ -95,7 +51,7 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
     ? message.id.trim()
     : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  switch (getMessageType(message)) {
+  switch (message.getType()) {
     case "system":
       return {
         role: "system",
@@ -157,46 +113,17 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
       };
     default:
       console.error(message);
-      throw new Error(`Unsupported message type: ${getMessageType(message)}`);
+      throw new Error(`Unsupported message type: ${message.getType()}`);
   }
 };
 
-export function convertToOpenAIFormat(message: BaseMessage) {
-  const content = getMessageContentOrThrow(message);
-  
-  // Preserve message ID to prevent duplicates
-  const messageId = message.id && typeof message.id === "string" && message.id.trim()
-    ? message.id.trim()
-    : undefined;
-
-  switch (getMessageType(message)) {
-    case "system":
-      return {
-        role: "system",
-        content,
-        ...(messageId && { id: messageId }),
-      };
-    case "human":
-      return {
-        role: "user",
-        content,
-        additional_kwargs: message.additional_kwargs,
-        ...(messageId && { id: messageId }),
-      };
-    case "ai":
-      return {
-        role: "assistant",
-        content,
-        ...(messageId && { id: messageId }),
-      };
-    case "tool":
-      return {
-        role: "tool",
-        toolName: message.name,
-        content,
-        ...(messageId && { id: messageId }),
-      };
-    default:
-      throw new Error(`Unsupported message type: ${getMessageType(message)}`);
-  }
+/**
+ * BaseMessage를 plain object로 변환합니다.
+ * type 필드를 명시적으로 추가합니다. */
+export function serializeLangChainMessage(message: BaseMessage) {
+  return {
+    ...(message as any), // BaseMessage의 모든 enumerable 속성
+    type: message.getType(), // type 필드 명시적으로 추가 (필수!)
+  };
 }
+
