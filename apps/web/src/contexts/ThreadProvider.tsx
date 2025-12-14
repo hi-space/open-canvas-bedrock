@@ -3,14 +3,16 @@ import {
   ALL_MODELS,
   DEFAULT_MODEL_CONFIG,
   DEFAULT_MODEL_NAME,
+  setModels,
 } from "@/shared/models";
 import { CustomModelConfig } from "@/shared/types";
 import { Thread } from "@langchain/langgraph-sdk";
-import { createContext, ReactNode, useContext, useMemo, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { useUserContext } from "./UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryState } from "nuqs";
 import { API_URL } from "@/constants";
+import { fetchModels } from "@/lib/api-client";
 
 type ThreadContentType = {
   threadId: string | null;
@@ -43,43 +45,68 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   const [modelName, setModelName] =
     useState<ALL_MODEL_NAMES>(DEFAULT_MODEL_NAME);
   const [createThreadLoading, setCreateThreadLoading] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
 
   const [modelConfigs, setModelConfigs] = useState<
     Record<ALL_MODEL_NAMES, CustomModelConfig>
-  >(() => {
-    // Initialize with default configs for all models
-    const initialConfigs: Record<ALL_MODEL_NAMES, CustomModelConfig> =
-      {} as Record<ALL_MODEL_NAMES, CustomModelConfig>;
+  >({} as Record<ALL_MODEL_NAMES, CustomModelConfig>);
 
-    ALL_MODELS.forEach((model) => {
-      const modelKey = model.modelName || model.name;
+  // Fetch models from backend on mount
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const { models, defaultModelName, defaultModelConfig } = await fetchModels();
+        
+        // Update global models state
+        setModels(models, defaultModelName, defaultModelConfig);
+        
+        // Initialize model configs
+        const initialConfigs: Record<ALL_MODEL_NAMES, CustomModelConfig> =
+          {} as Record<ALL_MODEL_NAMES, CustomModelConfig>;
 
-      initialConfigs[modelKey] = {
-        ...model.config,
-        provider: model.config.provider,
-        temperatureRange: {
-          ...(model.config.temperatureRange ||
-            DEFAULT_MODEL_CONFIG.temperatureRange),
-        },
-        maxTokens: {
-          ...(model.config.maxTokens || DEFAULT_MODEL_CONFIG.maxTokens),
-        },
-        ...(model.config.provider === "azure_openai" && {
-          azureConfig: {
-            azureOpenAIApiKey: process.env._AZURE_OPENAI_API_KEY || "",
-            azureOpenAIApiInstanceName:
-              process.env._AZURE_OPENAI_API_INSTANCE_NAME || "",
-            azureOpenAIApiDeploymentName:
-              process.env._AZURE_OPENAI_API_DEPLOYMENT_NAME || "",
-            azureOpenAIApiVersion:
-              process.env._AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
-            azureOpenAIBasePath: process.env._AZURE_OPENAI_API_BASE_PATH,
-          },
-        }),
-      };
-    });
-    return initialConfigs;
-  });
+        models.forEach((model) => {
+          const modelKey = model.modelName || model.name;
+
+          initialConfigs[modelKey] = {
+            ...model.config,
+            provider: model.config.provider,
+            temperatureRange: {
+              ...(model.config.temperatureRange ||
+                defaultModelConfig.temperatureRange),
+            },
+            maxTokens: {
+              ...(model.config.maxTokens || defaultModelConfig.maxTokens),
+            },
+            ...(model.config.provider === "azure_openai" && {
+              azureConfig: {
+                azureOpenAIApiKey: process.env._AZURE_OPENAI_API_KEY || "",
+                azureOpenAIApiInstanceName:
+                  process.env._AZURE_OPENAI_API_INSTANCE_NAME || "",
+                azureOpenAIApiDeploymentName:
+                  process.env._AZURE_OPENAI_API_DEPLOYMENT_NAME || "",
+                azureOpenAIApiVersion:
+                  process.env._AZURE_OPENAI_API_VERSION || "2024-08-01-preview",
+                azureOpenAIBasePath: process.env._AZURE_OPENAI_API_BASE_PATH,
+              },
+            }),
+          };
+        });
+        
+        setModelConfigs(initialConfigs);
+        setModelName(defaultModelName);
+        setModelsLoaded(true);
+      } catch (error) {
+        console.error("Failed to load models:", error);
+        toast({
+          title: "Failed to load models",
+          description: "Could not load models from backend. Please refresh the page.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadModels();
+  }, [toast]);
 
   const modelConfig = useMemo(() => {
     // Try exact match first, then try without "azure/" or "groq/" prefixes

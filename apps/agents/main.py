@@ -54,6 +54,7 @@ from threads.routes import router as threads_router
 from assistants.routes import router as assistants_router
 from store.routes import router as store_router
 from runs.routes import router as runs_router
+from models_routes import router as models_router
 
 app.include_router(open_canvas_router, prefix="/api/agent", tags=["agent"])
 app.include_router(reflection_router, prefix="/api/reflection", tags=["reflection"])
@@ -65,6 +66,7 @@ app.include_router(threads_router, prefix="/api/threads", tags=["threads"])
 app.include_router(assistants_router, prefix="/api/assistants", tags=["assistants"])
 app.include_router(store_router, prefix="/api/store", tags=["store"])
 app.include_router(runs_router, prefix="/api/runs", tags=["runs"])
+app.include_router(models_router, prefix="/api/models", tags=["models"])
 
 if __name__ == "__main__":
     import uvicorn

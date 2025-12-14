@@ -1,5 +1,5 @@
 import { API_URL } from "@/constants";
-import { GraphInput } from "@/shared/types";
+import { GraphInput, ModelConfigurationParams, CustomModelConfig } from "@/shared/types";
 
 export interface ApiRequest {
   messages: any[];
@@ -27,6 +27,31 @@ export interface ApiResponse {
   messages?: any[];
   artifact?: any;
   [key: string]: any;
+}
+
+export interface ModelsResponse {
+  models: ModelConfigurationParams[];
+  defaultModelName: string;
+  defaultModelConfig: CustomModelConfig;
+}
+
+/**
+ * Fetch available models from the backend
+ */
+export async function fetchModels(): Promise<ModelsResponse> {
+  const response = await fetch(`${API_URL}/api/models/list`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch models: ${response.status} ${errorText}`);
+  }
+
+  return await response.json();
 }
 
 /**

@@ -30,6 +30,7 @@ class ModelConfigurationParams(BaseModel):
     label: str
     config: ModelConfig
     isNew: bool = False
+    category: Optional[str] = None
 
 
 # AWS Bedrock models - matching models.ts (without bedrock/ prefix)
@@ -53,6 +54,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
         },
         "isNew": True,
+        "category": "Anthropic",
     },
     {
         "name": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -73,6 +75,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
         },
         "isNew": False,
+        "category": "Anthropic",
     },
     {
         "name": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -93,6 +96,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
         },
         "isNew": False,
+        "category": "Anthropic",
     },
     {
         "name": "global.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -113,6 +117,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
         },
         "isNew": False,
+        "category": "Anthropic",
     },
     {
         "name": "us.anthropic.claude-opus-4-1-20250805-v1:0",
@@ -133,6 +138,7 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
         },
         "isNew": False,
+        "category": "Anthropic",
     },
     {
         "name": "us.amazon.nova-premier-v1:0",
@@ -147,12 +153,13 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
+                "max": 5000,
                 "default": 4096,
                 "current": 4096,
             },
         },
         "isNew": False,
+        "category": "Amazon",
     },
     {
         "name": "us.amazon.nova-pro-v1:0",
@@ -167,16 +174,17 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
+                "max": 5000,
                 "default": 4096,
                 "current": 4096,
             },
         },
         "isNew": False,
+        "category": "Amazon",
     },
     {
         "name": "global.amazon.nova-2-lite-v1:0",
-        "label": "Nova 2Lite",
+        "label": "Nova 2 Lite",
         "config": {
             "provider": "bedrock",
             "temperatureRange": {
@@ -187,12 +195,13 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
+                "max": 5000,
                 "default": 4096,
                 "current": 4096,
             },
         },
-        "isNew": False,
+        "isNew": True,
+        "category": "Amazon",
     },
     {
         "name": "us.amazon.nova-lite-v1:0",
@@ -207,12 +216,13 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
+                "max": 5000,
                 "default": 4096,
                 "current": 4096,
             },
         },
         "isNew": False,
+        "category": "Amazon",
     },
     {
         "name": "us.amazon.nova-micro-v1:0",
@@ -227,12 +237,13 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
+                "max": 5000,
                 "default": 4096,
                 "current": 4096,
             },
         },
         "isNew": False,
+        "category": "Amazon",
     },
     {
         "name": "us.meta.llama3-3-70b-instruct-v1:0",
@@ -247,12 +258,13 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
-                "default": 4096,
-                "current": 4096,
+                "max": 2048,
+                "default": 512,
+                "current": 512,
             },
         },
         "isNew": False,
+        "category": "Meta",
     },
     {
         "name": "us.deepseek.r1-v1:0",
@@ -267,12 +279,34 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
             },
             "maxTokens": {
                 "min": 1,
-                "max": 8192,
-                "default": 4096,
-                "current": 4096,
+                "max": 32768,
+                "default": 8192,
+                "current": 8192,
             },
         },
         "isNew": False,
+        "category": "DeepSeek",
+    },
+    {
+        "name": "deepseek.v3-v1:0",
+        "label": "DeepSeek-V3.1",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 32768,
+                "default": 8192,
+                "current": 8192,
+            },
+        },
+        "isNew": False,
+        "category": "DeepSeek",
     }
 ]
 
