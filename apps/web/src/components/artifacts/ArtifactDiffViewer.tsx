@@ -4,15 +4,14 @@ import { Artifact, ArtifactMarkdown, ArtifactCode } from "@/shared/types";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useGraphContext } from "@/contexts/GraphContext";
-import { useThreadContext } from "@/contexts/ThreadProvider";
-import { API_URL } from "@/constants";
 import { TextRenderer } from "./TextRenderer";
 import { ArtifactContent } from "./ArtifactContent";
 import { ActionsToolbar } from "./actions_toolbar";
 import { CustomQuickActions } from "./actions_toolbar/custom";
 import { useUserContext } from "@/contexts/UserContext";
 import { useAssistantContext } from "@/contexts/AssistantContext";
-import { getArtifactContent } from "@/shared/utils/artifacts";
+import { useArtifactVersions } from "@/hooks/useArtifactVersions";
+import { useArtifactVersionLoader } from "@/hooks/useArtifactVersionLoader";
 
 interface ArtifactDiffViewerProps {
   artifact: Artifact;
@@ -92,75 +91,34 @@ export function ArtifactDiffViewer({
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const [isScrolling, setIsScrolling] = React.useState(false);
-  const [isLoadingBaseVersion, setIsLoadingBaseVersion] = React.useState(false);
   const { graphData } = useGraphContext();
-  const { setArtifact, selectedBlocks, streamMessage, artifact: contextArtifact } = graphData;
-  const { threadId } = useThreadContext();
+  const { setArtifact, selectedBlocks, streamMessage } = graphData;
   const { user } = useUserContext();
   const { selectedAssistant } = useAssistantContext();
 
-  // Get both versions
-  const baseContent = artifact.contents.find((c) => c.index === baseVersionIndex);
-  
-  // Right side always shows the latest version (highest index)
-  const versionMetadata = (artifact as any)._metadata;
-  const versionIndices = versionMetadata?.version_indices || artifact.contents.map((c) => c.index);
-  const latestVersionIndex = Math.max(...versionIndices);
-  const currentContent = artifact.contents.find((c) => c.index === latestVersionIndex);
+  // Use version management hooks
+  const { metadata, getVersionContent } = useArtifactVersions(artifact);
+  const { loadVersion, isVersionLoading, isVersionLoaded } =
+    useArtifactVersionLoader(artifact, setArtifact, {
+      preserveCurrentIndex: true, // Don't change currentIndex in diff mode
+    });
 
-  // Auto-load base version if not loaded (without changing currentIndex)
+  // Get both versions
+  const baseContent = getVersionContent(baseVersionIndex);
+  // Right side shows the currently selected version (not always latest)
+  const currentVersionIndex = artifact.currentIndex ?? metadata?.latestIndex ?? 1;
+  const currentContent = getVersionContent(currentVersionIndex);
+
+  // Auto-load base version if not loaded
   useEffect(() => {
-    if (!baseContent && baseVersionIndex && threadId) {
-      setIsLoadingBaseVersion(true);
-      const loadBaseVersion = async () => {
-        try {
-          const response = await fetch(
-            `${API_URL}/api/threads/${threadId}/artifact/versions/${baseVersionIndex}`
-          );
-          
-          if (response.ok) {
-            const versionArtifact = await response.json();
-            const newContent = versionArtifact.contents?.[0];
-            
-            if (newContent) {
-              setArtifact((prev) => {
-                if (!prev) return prev;
-                
-                // Check if this version already exists
-                const existingIndex = prev.contents.findIndex((c: any) => c.index === baseVersionIndex);
-                let updatedContents;
-                
-                if (existingIndex >= 0) {
-                  // Replace existing version
-                  updatedContents = [...prev.contents];
-                  updatedContents[existingIndex] = newContent;
-                } else {
-                  // Add new version
-                  updatedContents = [...prev.contents, newContent];
-                }
-                
-                // Don't change currentIndex - keep it as is to preserve the latest version display
-                return {
-                  ...prev,
-                  contents: updatedContents,
-                  // Explicitly preserve currentIndex
-                  currentIndex: prev.currentIndex,
-                };
-              });
-            }
-          }
-        } catch (error) {
-          console.error("Failed to load base version:", error);
-        } finally {
-          setIsLoadingBaseVersion(false);
-        }
-      };
-      
-      loadBaseVersion();
-    } else {
-      setIsLoadingBaseVersion(false);
+    if (
+      baseVersionIndex &&
+      !isVersionLoaded(baseVersionIndex) &&
+      !isVersionLoading(baseVersionIndex)
+    ) {
+      loadVersion(baseVersionIndex);
     }
-  }, [baseContent, baseVersionIndex, threadId, setArtifact]);
+  }, [baseVersionIndex, isVersionLoaded, isVersionLoading, loadVersion]);
 
   // Compute diff
   const diffOps = useMemo(() => {
@@ -212,24 +170,26 @@ export function ArtifactDiffViewer({
 
   if (!baseContent || !currentContent) {
     // Show loading state if base version is being loaded
-    if (isLoadingBaseVersion) {
+    if (isVersionLoading(baseVersionIndex)) {
       return (
         <div className="w-full h-full flex items-center justify-center text-gray-500">
           Loading version {baseVersionIndex}...
         </div>
       );
     }
-    
+
     // Check if base version index is valid
-    const isValidBaseIndex = versionIndices.includes(baseVersionIndex);
-    if (!isValidBaseIndex && baseVersionIndex) {
+    const isValidBaseIndex =
+      metadata?.versionIndices.includes(baseVersionIndex) ?? false;
+    if (!isValidBaseIndex && baseVersionIndex && metadata) {
       return (
         <div className="w-full h-full flex items-center justify-center text-gray-500">
-          Version {baseVersionIndex} not found. Available versions: {versionIndices.join(", ")}
+          Version {baseVersionIndex} not found. Available versions:{" "}
+          {metadata.versionIndices.join(", ")}
         </div>
       );
     }
-    
+
     return (
       <div className="w-full h-full flex items-center justify-center text-gray-500">
         One or both versions not found
@@ -287,14 +247,14 @@ export function ArtifactDiffViewer({
       {/* Right side - Current version (uses ArtifactContent with all features) */}
       <div className="flex-1 flex flex-col relative">
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-700 sticky top-0 z-10">
-          Version {latestVersionIndex} (Latest)
+          Version {currentVersionIndex} {currentVersionIndex === metadata?.latestIndex ? "(Latest)" : "(Current)"}
         </div>
         <div className="flex-1 relative">
           <ArtifactContent
             isEditing={isEditing}
             isHovering={isHovering}
             scrollContainerRef={rightScrollRef}
-            forceVersionIndex={latestVersionIndex}
+            forceVersionIndex={currentVersionIndex}
           />
         </div>
       </div>
