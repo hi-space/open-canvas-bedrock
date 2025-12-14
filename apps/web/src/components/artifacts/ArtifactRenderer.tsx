@@ -1,36 +1,27 @@
-import { serializeLangChainMessage } from "@/lib/convert_messages";
 import { cn } from "@/lib/utils";
 import {
   Artifact,
-  ArtifactCode,
   ArtifactMarkdown,
 } from "@/shared/types";
-import { EditorView } from "@codemirror/view";
-import { HumanMessage } from "@langchain/core/messages";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import React, { useEffect, useState } from "react";
 import { ActionsToolbar } from "./actions_toolbar";
-import { TextRenderer } from "./TextRenderer";
 import { CustomQuickActions } from "./actions_toolbar/custom";
 import { getArtifactContent } from "@/shared/utils/artifacts";
 import { ArtifactLoading } from "./ArtifactLoading";
-import { AskOpenCanvas } from "./components/AskOpenCanvas";
 import { useGraphContext } from "@/contexts/GraphContext";
 import { ArtifactHeader } from "./header";
 import { useUserContext } from "@/contexts/UserContext";
 import { useAssistantContext } from "@/contexts/AssistantContext";
+import { ArtifactDiffViewer } from "./ArtifactDiffViewer";
+import { ArtifactContent } from "./ArtifactContent";
 
 export interface ArtifactRendererProps {
   isEditing: boolean;
   setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
   chatCollapsed: boolean;
   setChatCollapsed: (c: boolean) => void;
-}
-
-interface SelectionBox {
-  top: number;
-  left: number;
-  text: string;
+  hideHeader?: boolean; // For diff mode - hide header when used in split view
+  hideToolbars?: boolean; // For diff mode - hide toolbars when used in split view
 }
 
 function ArtifactRendererComponent(props: ArtifactRendererProps) {
@@ -45,27 +36,16 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     isArtifactSaved,
     artifactUpdateFailed,
     setSelectedArtifact,
-    setMessages,
     streamMessage,
-    setSelectedBlocks,
     setArtifact,
     chatStarted,
+    isDiffMode,
+    diffBaseVersionIndex,
+    setIsDiffMode,
+    setDiffBaseVersionIndex,
+    refreshArtifactMetadata,
   } = graphData;
-  const editorRef = useRef<EditorView | null>(null);
-  const artifactContentRef = useRef<HTMLDivElement>(null);
-  const highlightLayerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const selectionBoxRef = useRef<HTMLDivElement>(null);
-  const [selectionBox, setSelectionBox] = useState<SelectionBox>();
-  const [selectionIndexes, setSelectionIndexes] = useState<{
-    start: number;
-    end: number;
-  }>();
-  const [isInputVisible, setIsInputVisible] = useState(false);
-  const [isSelectionActive, setIsSelectionActive] = useState(false);
-  const [inputValue, setInputValue] = useState("");
   const [isHoveringOverArtifact, setIsHoveringOverArtifact] = useState(false);
-  const [isValidSelectionOrigin, setIsValidSelectionOrigin] = useState(false);
   
   // Create empty artifact if none exists (like "New Markdown" button)
   useEffect(() => {
@@ -86,212 +66,6 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     }
   }, [chatStarted, artifact, isStreaming]);
 
-  const handleMouseUp = useCallback(() => {
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0 && contentRef.current) {
-      const range = selection.getRangeAt(0);
-      const selectedText = range.toString().trim();
-
-      // Check if the selection originated from within the artifact content
-      if (selectedText && artifactContentRef.current) {
-        const isWithinArtifact = (node: Node | null): boolean => {
-          if (!node) return false;
-          if (node === artifactContentRef.current) return true;
-          return isWithinArtifact(node.parentNode);
-        };
-
-        // Check both start and end containers
-        const startInArtifact = isWithinArtifact(range.startContainer);
-        const endInArtifact = isWithinArtifact(range.endContainer);
-
-        if (startInArtifact && endInArtifact) {
-          setIsValidSelectionOrigin(true);
-          const rects = range.getClientRects();
-          const firstRect = rects[0];
-          const lastRect = rects[rects.length - 1];
-          const contentRect = contentRef.current.getBoundingClientRect();
-
-          const boxWidth = 400; // Approximate width of the selection box
-          let left = lastRect.right - contentRect.left - boxWidth;
-
-          if (left < 0) {
-            left = Math.min(0, firstRect.left - contentRect.left);
-          }
-          // Ensure the box doesn't go beyond the left edge
-          if (left < 0) {
-            left = Math.min(0, firstRect.left - contentRect.left);
-          }
-
-          const newSelectionBox = {
-            top: lastRect.bottom - contentRect.top,
-            left: left,
-            text: selectedText,
-          };
-          console.log("[ArtifactRenderer] Setting selectionBox:", newSelectionBox);
-          setSelectionBox(newSelectionBox);
-          setIsInputVisible(false);
-          setIsSelectionActive(true);
-        } else {
-          setIsValidSelectionOrigin(false);
-          handleCleanupState();
-        }
-      }
-    }
-  }, []);
-
-  const handleCleanupState = () => {
-    console.log("[ArtifactRenderer] handleCleanupState called - clearing selectionBox");
-    setIsInputVisible(false);
-    setSelectionBox(undefined);
-    setSelectionIndexes(undefined);
-    setIsSelectionActive(false);
-    setIsValidSelectionOrigin(false);
-    setInputValue("");
-  };
-
-  const handleDocumentMouseDown = useCallback(
-    (event: MouseEvent) => {
-      if (
-        isSelectionActive &&
-        selectionBoxRef.current &&
-        !selectionBoxRef.current.contains(event.target as Node)
-      ) {
-        handleCleanupState();
-      }
-    },
-    [isSelectionActive]
-  );
-
-  const handleSelectionBoxMouseDown = useCallback((event: React.MouseEvent) => {
-    event.stopPropagation();
-  }, []);
-
-  const handleSubmit = async (content: string) => {
-    const humanMessage = new HumanMessage({
-      content,
-      id: uuidv4(),
-      additional_kwargs: selectedBlocks
-        ? {
-            highlightedText: selectedBlocks,
-          }
-        : {},
-    });
-
-    setMessages((prevMessages) => [...prevMessages, humanMessage]);
-    handleCleanupState();
-    await streamMessage({
-      messages: [serializeLangChainMessage(humanMessage)],
-    });
-  };
-
-  useEffect(() => {
-    document.addEventListener("mouseup", handleMouseUp);
-    document.addEventListener("mousedown", handleDocumentMouseDown);
-
-    return () => {
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("mousedown", handleDocumentMouseDown);
-    };
-  }, [handleMouseUp, handleDocumentMouseDown]);
-
-  useEffect(() => {
-    try {
-      if (artifactContentRef.current && highlightLayerRef.current) {
-        const content = artifactContentRef.current;
-        const highlightLayer = highlightLayerRef.current;
-
-        // Clear existing highlights
-        highlightLayer.innerHTML = "";
-
-        if (isSelectionActive && selectionBox) {
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-
-            if (content.contains(range.commonAncestorContainer)) {
-              const rects = range.getClientRects();
-              const layerRect = highlightLayer.getBoundingClientRect();
-
-              // Calculate start and end indexes
-              let startIndex = 0;
-              let endIndex = 0;
-              let currentArtifactContent:
-                | ArtifactCode
-                | ArtifactMarkdown
-                | undefined = undefined;
-              try {
-                currentArtifactContent = artifact
-                  ? getArtifactContent(artifact)
-                  : undefined;
-              } catch (_) {
-                console.error(
-                  "[ArtifactRenderer.tsx L229]\n\nERROR NO ARTIFACT CONTENT FOUND\n\n",
-                  artifact
-                );
-                // no-op
-              }
-
-
-              for (let i = 0; i < rects.length; i++) {
-                const rect = rects[i];
-                const highlightEl = document.createElement("div");
-                highlightEl.className =
-                  "absolute bg-[#3597934d] pointer-events-none";
-
-                // Adjust the positioning and size
-                const verticalPadding = 3;
-                highlightEl.style.left = `${rect.left - layerRect.left}px`;
-                highlightEl.style.top = `${rect.top - layerRect.top - verticalPadding}px`;
-                highlightEl.style.width = `${rect.width}px`;
-                highlightEl.style.height = `${rect.height + verticalPadding * 2}px`;
-
-                highlightLayer.appendChild(highlightEl);
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to get artifact selection", e);
-    }
-  }, [isSelectionActive, selectionBox]);
-
-  useEffect(() => {
-    if (!!selectedBlocks && !isSelectionActive) {
-      // Selection is not active but selected blocks are present. Clear them.
-      setSelectedBlocks(undefined);
-    }
-  }, [selectedBlocks, isSelectionActive]);
-
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Check if we're in an input/textarea element
-      const activeElement = document.activeElement;
-      const isInputActive =
-        activeElement instanceof HTMLInputElement ||
-        activeElement instanceof HTMLTextAreaElement;
-
-      // If selection states are active and we're not in an input field
-      if (
-        (isInputVisible || selectionBox || isSelectionActive) &&
-        !isInputActive
-      ) {
-        // Check if the key is a character key or backspace/delete
-        if (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete") {
-          handleCleanupState();
-        }
-      }
-
-      // Handle escape key for input box
-      if ((isInputVisible || isSelectionActive) && e.key === "Escape") {
-        handleCleanupState();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyPress);
-    return () => document.removeEventListener("keydown", handleKeyPress);
-  }, [isInputVisible, selectionBox, isSelectionActive]);
-
   const currentArtifactContent = artifact
     ? getArtifactContent(artifact)
     : undefined;
@@ -310,91 +84,137 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
   const totalVersions = versionMetadata?.total_versions || artifact.contents.length;
   const versionIndices = versionMetadata?.version_indices || artifact.contents.map((c) => c.index);
   
-  // Get the min and max indices
-  const minIndex = Math.min(...versionIndices);
-  const maxIndex = Math.max(...versionIndices);
+  // Sort version indices for navigation
+  const sortedVersionIndices = [...versionIndices].sort((a, b) => a - b);
+  const minIndex = sortedVersionIndices[0];
+  const maxIndex = sortedVersionIndices[sortedVersionIndices.length - 1];
+  
+  // Helper function to find previous/next version index in the sorted array
+  const getPreviousVersionIndex = (currentIndex: number): number | null => {
+    const currentPos = sortedVersionIndices.indexOf(currentIndex);
+    if (currentPos <= 0) return null;
+    return sortedVersionIndices[currentPos - 1];
+  };
+  
+  const getNextVersionIndex = (currentIndex: number): number | null => {
+    const currentPos = sortedVersionIndices.indexOf(currentIndex);
+    if (currentPos < 0 || currentPos >= sortedVersionIndices.length - 1) return null;
+    return sortedVersionIndices[currentPos + 1];
+  };
+  
+  // In diff mode, navigation controls the base version (left side)
+  // In normal mode, navigation controls the current version
+  const navigationIndex = isDiffMode && diffBaseVersionIndex !== undefined 
+    ? diffBaseVersionIndex 
+    : currentArtifactContent.index;
+  
+  const previousVersionIndex = getPreviousVersionIndex(navigationIndex);
+  const nextVersionIndex = getNextVersionIndex(navigationIndex);
   
   const isBackwardsDisabled =
     totalVersions === 1 ||
-    currentArtifactContent.index === minIndex ||
+    previousVersionIndex === null ||
     isStreaming;
   const isForwardDisabled =
     totalVersions === 1 ||
-    currentArtifactContent.index === maxIndex ||
+    (isDiffMode && diffBaseVersionIndex !== undefined && (nextVersionIndex === null || nextVersionIndex >= maxIndex)) ||
+    (!isDiffMode && nextVersionIndex === null) ||
     isStreaming;
+
+  // Show diff viewer if in diff mode and base version is set
+  if (isDiffMode && diffBaseVersionIndex !== undefined && artifact) {
+    // Get base version content for header display
+    const baseVersionContent = artifact.contents.find((c) => c.index === diffBaseVersionIndex) || currentArtifactContent;
+    
+    return (
+      <div className="relative w-full h-full max-h-screen overflow-auto">
+        <ArtifactHeader
+          isArtifactSaved={isArtifactSaved}
+          isBackwardsDisabled={isBackwardsDisabled}
+          isForwardDisabled={isForwardDisabled}
+          setSelectedArtifact={
+            // In diff mode, navigation changes the base version (left side)
+            (index: number) => {
+              if (isDiffMode && diffBaseVersionIndex !== undefined) {
+                setDiffBaseVersionIndex(index);
+              } else {
+                setSelectedArtifact(index);
+              }
+            }
+          }
+          currentArtifactContent={baseVersionContent}
+          totalArtifactVersions={totalVersions}
+          previousVersionIndex={previousVersionIndex}
+          nextVersionIndex={nextVersionIndex}
+          selectedAssistant={selectedAssistant}
+          artifactUpdateFailed={artifactUpdateFailed}
+          chatCollapsed={props.chatCollapsed}
+          setChatCollapsed={props.setChatCollapsed}
+          isDiffMode={isDiffMode}
+          setIsDiffMode={setIsDiffMode}
+          setDiffBaseVersionIndex={setDiffBaseVersionIndex}
+          refreshArtifactMetadata={refreshArtifactMetadata}
+        />
+        <ArtifactDiffViewer
+          artifact={artifact}
+          baseVersionIndex={diffBaseVersionIndex}
+          isEditing={props.isEditing}
+          isHovering={isHoveringOverArtifact}
+          setIsEditing={props.setIsEditing}
+          chatCollapsed={props.chatCollapsed}
+          setChatCollapsed={props.setChatCollapsed}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full max-h-screen overflow-auto">
-      <ArtifactHeader
-        isArtifactSaved={isArtifactSaved}
-        isBackwardsDisabled={isBackwardsDisabled}
-        isForwardDisabled={isForwardDisabled}
-        setSelectedArtifact={setSelectedArtifact}
-        currentArtifactContent={currentArtifactContent}
-        totalArtifactVersions={totalVersions}
-        selectedAssistant={selectedAssistant}
-        artifactUpdateFailed={artifactUpdateFailed}
-        chatCollapsed={props.chatCollapsed}
-        setChatCollapsed={props.setChatCollapsed}
-      />
-      <div
-        ref={contentRef}
-          className={cn(
-          "flex justify-center h-full"
-        )}
-      >
-        <div
-          className={cn(
-            "relative min-h-full min-w-full"
-          )}
-        >
-          <div
-            className="h-full"
-            ref={artifactContentRef}
-            onMouseEnter={() => setIsHoveringOverArtifact(true)}
-            onMouseLeave={() => setIsHoveringOverArtifact(false)}
-          >
-            {currentArtifactContent.type === "text" ? (
-              <TextRenderer
-                isInputVisible={isInputVisible}
-                isEditing={props.isEditing}
-                isHovering={isHoveringOverArtifact}
-              />
-            ) : null}
-          </div>
-          <div
-            ref={highlightLayerRef}
-            className="absolute top-0 left-0 w-full h-full pointer-events-none"
-          />
-        </div>
-        {selectionBox && isSelectionActive && isValidSelectionOrigin && (
-          <AskOpenCanvas
-            ref={selectionBoxRef}
-            inputValue={inputValue}
-            setInputValue={setInputValue}
-            isInputVisible={isInputVisible}
-            selectionBox={selectionBox}
-            setIsInputVisible={setIsInputVisible}
-            handleSubmitMessage={handleSubmit}
-            handleSelectionBoxMouseDown={handleSelectionBoxMouseDown}
-            artifact={artifact}
-            selectionIndexes={selectionIndexes}
-            handleCleanupState={handleCleanupState}
-          />
-        )}
-      </div>
-      <CustomQuickActions
-        streamMessage={streamMessage}
-        assistantId={selectedAssistant?.assistant_id}
-        user={user}
-        isTextSelected={isSelectionActive || selectedBlocks !== undefined}
-      />
-      {currentArtifactContent.type === "text" ? (
-        <ActionsToolbar
-          streamMessage={streamMessage}
-          isTextSelected={isSelectionActive || selectedBlocks !== undefined}
+      {!props.hideHeader && (
+        <ArtifactHeader
+          isArtifactSaved={isArtifactSaved}
+          isBackwardsDisabled={isBackwardsDisabled}
+          isForwardDisabled={isForwardDisabled}
+          setSelectedArtifact={setSelectedArtifact}
+          currentArtifactContent={currentArtifactContent}
+          totalArtifactVersions={totalVersions}
+          previousVersionIndex={previousVersionIndex}
+          nextVersionIndex={nextVersionIndex}
+          selectedAssistant={selectedAssistant}
+          artifactUpdateFailed={artifactUpdateFailed}
+          chatCollapsed={props.chatCollapsed}
+          setChatCollapsed={props.setChatCollapsed}
+          isDiffMode={isDiffMode}
+          setIsDiffMode={setIsDiffMode}
+          setDiffBaseVersionIndex={setDiffBaseVersionIndex}
+          refreshArtifactMetadata={refreshArtifactMetadata}
         />
-      ) : null}
+      )}
+      <div
+        onMouseEnter={() => setIsHoveringOverArtifact(true)}
+        onMouseLeave={() => setIsHoveringOverArtifact(false)}
+      >
+        <ArtifactContent
+          isEditing={props.isEditing}
+          isHovering={isHoveringOverArtifact}
+        />
+      </div>
+      {!props.hideToolbars && (
+        <>
+          <CustomQuickActions
+            streamMessage={streamMessage}
+            assistantId={selectedAssistant?.assistant_id}
+            user={user}
+            isTextSelected={selectedBlocks !== undefined}
+          />
+          {currentArtifactContent.type === "text" ? (
+            <ActionsToolbar
+              streamMessage={streamMessage}
+              isTextSelected={selectedBlocks !== undefined}
+            />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

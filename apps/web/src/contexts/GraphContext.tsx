@@ -77,6 +77,9 @@ interface GraphData {
   artifactUpdateFailed: boolean;
   chatStarted: boolean;
   searchEnabled: boolean;
+  // Diff comparison mode
+  isDiffMode: boolean;
+  diffBaseVersionIndex: number | undefined; // Version to compare against (usually previous version)
   setSearchEnabled: Dispatch<SetStateAction<boolean>>;
   setChatStarted: Dispatch<SetStateAction<boolean>>;
   setIsStreaming: Dispatch<SetStateAction<boolean>>;
@@ -90,6 +93,9 @@ interface GraphData {
   clearState: () => void;
   switchSelectedThread: (thread: Thread) => Promise<void>;
   setUpdateRenderedArtifactRequired: Dispatch<SetStateAction<boolean>>;
+  setIsDiffMode: Dispatch<SetStateAction<boolean>>;
+  setDiffBaseVersionIndex: Dispatch<SetStateAction<number | undefined>>;
+  refreshArtifactMetadata: () => Promise<void>; // Refresh version metadata from server
 }
 
 type GraphContentType = {
@@ -180,6 +186,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const [artifactUpdateFailed, setArtifactUpdateFailed] = useState(false);
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
+  const [isDiffMode, setIsDiffMode] = useState(false);
+  const [diffBaseVersionIndex, setDiffBaseVersionIndex] = useState<number | undefined>(undefined);
 
   const [_, setWebSearchResultsId] = useQueryState(
     WEB_SEARCH_RESULTS_QUERY_PARAM
@@ -1901,11 +1909,54 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const refreshArtifactMetadata = async () => {
+    const currentThreadId = threadData.threadId;
+    if (!currentThreadId || !artifact) return;
+
+    try {
+      // Fetch version metadata
+      const metadataResponse = await fetch(
+        `${API_URL}/api/threads/${currentThreadId}/artifact/versions`
+      );
+      if (metadataResponse.ok) {
+        const metadata = await metadataResponse.json();
+        
+        // Get the latest version index from metadata
+        const latestIndex = metadata.current_index;
+        const currentIndex = artifact.currentIndex;
+        
+        // Update artifact with new metadata
+        setArtifact((prev) => {
+          if (!prev) return prev;
+          
+          // Update metadata
+          return {
+            ...prev,
+            _metadata: metadata,
+          } as Artifact & { _metadata?: any };
+        });
+        
+        // If we have a newer version, load it
+        if (latestIndex && latestIndex !== currentIndex) {
+          await setSelectedArtifact(latestIndex);
+        } else if (latestIndex && latestIndex === currentIndex) {
+          // Even if index is same, refresh the current version to get latest content
+          await setSelectedArtifact(latestIndex);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh artifact metadata:", error);
+    }
+  };
+
   const switchSelectedThread = async (thread: Thread) => {
     // Start loading
     setIsLoadingThread(true);
     setUpdateRenderedArtifactRequired(true);
     setThreadSwitched(true);
+    // Reset diff mode when switching threads to avoid version mismatch issues
+    setIsDiffMode(false);
+    setDiffBaseVersionIndex(undefined);
     // Don't set chatStarted here - wait until we know if thread has content
     // setChatStarted(true);
 
@@ -2192,6 +2243,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       chatStarted,
       artifactUpdateFailed,
       searchEnabled,
+      isDiffMode,
+      diffBaseVersionIndex,
       setSearchEnabled,
       setChatStarted,
       setIsStreaming,
@@ -2205,6 +2258,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       clearState,
       switchSelectedThread,
       setUpdateRenderedArtifactRequired,
+      setIsDiffMode,
+      setDiffBaseVersionIndex,
+      refreshArtifactMetadata,
     },
   };
 

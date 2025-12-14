@@ -57,6 +57,10 @@ export interface TextRendererProps {
   isEditing: boolean;
   isHovering: boolean;
   isInputVisible: boolean;
+  // Optional: Override content to render (for diff mode)
+  contentOverride?: ArtifactMarkdown;
+  // Optional: Disable editing and selection features (for diff mode)
+  readOnly?: boolean;
 }
 
 const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>((props, ref) => {
@@ -86,6 +90,9 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
   const pendingContentRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Don't handle selection in read-only mode
+    if (props.readOnly || props.contentOverride) return;
+
     const selectedText = editor.getSelectedText();
     const selection = editor.getSelection();
 
@@ -120,7 +127,7 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
         });
       })();
     }
-  }, [editor.getSelectedText()]);
+  }, [editor.getSelectedText(), props.readOnly, props.contentOverride]);
 
   useEffect(() => {
     if (!props.isInputVisible) {
@@ -132,6 +139,39 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
   const artifactIdRef = useRef<string | undefined>(undefined);
   
   useEffect(() => {
+    // If contentOverride is provided, use it instead of GraphContext artifact
+    if (props.contentOverride) {
+      const fullMarkdown = props.contentOverride.fullMarkdown || "";
+      
+      // Skip if content hasn't changed
+      if (lastRenderedContentRef.current === fullMarkdown && 
+          lastRenderedIndexRef.current === props.contentOverride.index) {
+        return;
+      }
+      
+      if (isUpdatingRef.current) {
+        return;
+      }
+      
+      isUpdatingRef.current = true;
+      
+      const performUpdate = async (content: string, index: number) => {
+        try {
+          const markdownAsBlocks = await editor.tryParseMarkdownToBlocks(content);
+          editor.replaceBlocks(editor.document, markdownAsBlocks);
+          lastRenderedContentRef.current = content;
+          lastRenderedIndexRef.current = index;
+        } catch (parseError) {
+          console.error("TextRenderer: Error parsing markdown:", parseError);
+        } finally {
+          isUpdatingRef.current = false;
+        }
+      };
+      
+      performUpdate(fullMarkdown, props.contentOverride.index);
+      return;
+    }
+
     if (!artifact) {
       console.log("[TextRenderer] No artifact");
       // Reset refs when artifact is cleared
@@ -228,7 +268,7 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
       isUpdatingRef.current = false;
       pendingContentRef.current = null;
     }
-  }, [artifact, updateRenderedArtifactRequired, isStreaming]);
+  }, [artifact, updateRenderedArtifactRequired, isStreaming, props.contentOverride]);
 
   useEffect(() => {
     if (isRawView) {
@@ -254,7 +294,10 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
   const isComposition = useRef(false);
 
   const onChange = async () => {
+    // Don't allow editing in read-only mode or when contentOverride is provided
     if (
+      props.readOnly ||
+      props.contentOverride ||
       isStreaming ||
       manuallyUpdatingArtifact ||
       updateRenderedArtifactRequired
@@ -332,9 +375,9 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
 
   return (
     <div ref={ref} className="w-full h-full mt-2 flex flex-col border-t-[1px] border-gray-200 overflow-y-auto py-5 relative">
-      {props.isHovering && artifact && (
+      {props.isHovering && !props.readOnly && artifact && (
         <div className="absolute flex gap-2 top-2 right-4 z-10">
-          <CopyText currentArtifactContent={getArtifactContent(artifact)} />
+          <CopyText currentArtifactContent={props.contentOverride || getArtifactContent(artifact)} />
           <ViewRawText isRawView={isRawView} setIsRawView={setIsRawView} />
         </div>
       )}
@@ -370,7 +413,8 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
             onCompositionEndCapture={() => (isComposition.current = false)}
             onChange={onChange}
             editable={
-              !isStreaming || props.isEditing || !manuallyUpdatingArtifact
+              !props.readOnly &&
+              (!isStreaming || props.isEditing || !manuallyUpdatingArtifact)
             }
             editor={editor}
             className={cn(

@@ -4,14 +4,24 @@ import { Forward } from "lucide-react";
 interface NavigateArtifactHistoryProps {
   isBackwardsDisabled: boolean;
   isForwardDisabled: boolean;
-  setSelectedArtifact: (prevState: number) => void;
+  setSelectedArtifact: (index: number) => void;
   currentArtifactIndex: number;
   totalArtifactVersions: number;
+  previousIndex?: number | null; // Previous version index (if available)
+  nextIndex?: number | null; // Next version index (if available)
 }
 
 export function NavigateArtifactHistory(props: NavigateArtifactHistoryProps) {
-  const prevTooltip = `Previous (${props.currentArtifactIndex - 1}/${props.totalArtifactVersions})`;
-  const nextTooltip = `Next (${props.currentArtifactIndex + 1}/${props.totalArtifactVersions})`;
+  // Use provided indices if available, otherwise calculate (for backward compatibility)
+  const prevIndex = props.previousIndex !== undefined ? props.previousIndex : props.currentArtifactIndex - 1;
+  const nextIndex = props.nextIndex !== undefined ? props.nextIndex : props.currentArtifactIndex + 1;
+  
+  const prevTooltip = prevIndex !== null && prevIndex !== undefined
+    ? `Previous (${prevIndex}/${props.totalArtifactVersions})`
+    : "Previous";
+  const nextTooltip = nextIndex !== null && nextIndex !== undefined
+    ? `Next (${nextIndex}/${props.totalArtifactVersions})`
+    : "Next";
 
   return (
     <div className="flex items-center justify-center gap-1">
@@ -21,8 +31,8 @@ export function NavigateArtifactHistory(props: NavigateArtifactHistoryProps) {
         variant="ghost"
         delayDuration={400}
         onClick={() => {
-          if (!props.isBackwardsDisabled) {
-            props.setSelectedArtifact(props.currentArtifactIndex - 1);
+          if (!props.isBackwardsDisabled && prevIndex !== null && prevIndex !== undefined) {
+            props.setSelectedArtifact(prevIndex);
           }
         }}
         disabled={props.isBackwardsDisabled}
@@ -39,8 +49,8 @@ export function NavigateArtifactHistory(props: NavigateArtifactHistoryProps) {
         side="right"
         delayDuration={400}
         onClick={() => {
-          if (!props.isForwardDisabled) {
-            props.setSelectedArtifact(props.currentArtifactIndex + 1);
+          if (!props.isForwardDisabled && nextIndex !== null && nextIndex !== undefined) {
+            props.setSelectedArtifact(nextIndex);
           }
         }}
         disabled={props.isForwardDisabled}
