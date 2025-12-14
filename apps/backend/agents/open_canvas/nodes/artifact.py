@@ -190,7 +190,30 @@ async def update_highlighted_text_node(state: OpenCanvasState, config: RunnableC
         raise ValueError("Selected text not found in current content")
     
     new_full_markdown = full_markdown.replace(markdown_block, response_content)
-    new_curr_index = len(contents) + 1
+    
+    # Get the actual maximum version index from storage, not from state
+    # because state may only contain the latest version
+    from api.threads.store import thread_store
+    
+    configurable = config.get("configurable", {}) if config else {}
+    thread_id = configurable.get("thread_id")
+    
+    if thread_id:
+        try:
+            metadata = thread_store.get_artifact_metadata(thread_id)
+            if metadata and metadata.get("version_indices"):
+                # Get the maximum version index from metadata
+                max_index = max(metadata["version_indices"])
+                new_curr_index = max_index + 1
+            else:
+                # Fallback to len(contents) + 1 if metadata not available
+                new_curr_index = len(contents) + 1
+        except Exception:
+            # Fallback to len(contents) + 1 if error
+            new_curr_index = len(contents) + 1
+    else:
+        # Fallback to len(contents) + 1 if no thread_id
+        new_curr_index = len(contents) + 1
     
     updated_artifact_content = {
         **prev_content,
@@ -294,7 +317,8 @@ async def rewrite_artifact_node(state: OpenCanvasState, config: RunnableConfig) 
         state,
         current_artifact_content,
         artifact_meta,
-        artifact_content_text
+        artifact_content_text,
+        config
     )
     
     contents = artifact.get("contents", [])
@@ -522,8 +546,30 @@ async def custom_action_node(state: OpenCanvasState, config: RunnableConfig) -> 
         return {}
     
     # Create new artifact content
+    # Get the actual maximum version index from storage, not from state
+    # because state may only contain the latest version
+    from api.threads.store import thread_store
+    
     contents = artifact.get("contents", [])
-    new_index = len(contents) + 1
+    configurable = config.get("configurable", {}) if config else {}
+    thread_id = configurable.get("thread_id")
+    
+    if thread_id:
+        try:
+            metadata = thread_store.get_artifact_metadata(thread_id)
+            if metadata and metadata.get("version_indices"):
+                # Get the maximum version index from metadata
+                max_index = max(metadata["version_indices"])
+                new_index = max_index + 1
+            else:
+                # Fallback to len(contents) + 1 if metadata not available
+                new_index = len(contents) + 1
+        except Exception:
+            # Fallback to len(contents) + 1 if error
+            new_index = len(contents) + 1
+    else:
+        # Fallback to len(contents) + 1 if no thread_id
+        new_index = len(contents) + 1
     
     new_artifact_content = {
         **current_artifact_content,

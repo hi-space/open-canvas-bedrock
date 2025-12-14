@@ -109,6 +109,14 @@ export function ArtifactHeader(props: ArtifactHeaderProps) {
           isArtifactSaved={isArtifactSaved}
           artifactUpdateFailed={artifactUpdateFailed}
           content={props.currentArtifactContent}
+          versionInfo={
+            metadata && metadata.totalVersions > 0
+              ? {
+                  currentVersion: props.currentArtifactContent.index,
+                  totalVersions: metadata.totalVersions,
+                }
+              : undefined
+          }
         />
       </div>
       <div className="flex gap-2 items-end mt-[10px] mr-[6px]">

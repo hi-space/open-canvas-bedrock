@@ -50,7 +50,7 @@ export function useArtifactVersionLoader(
 
       try {
         const response = await fetch(
-          `${API_URL}/api/threads/${threadId}/artifact/versions/${versionIndex}`
+          `${API_URL}/api/threads/${threadId}/artifact?version=${versionIndex}`
         );
 
         if (!response.ok) {

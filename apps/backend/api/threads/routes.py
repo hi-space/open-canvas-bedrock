@@ -2,6 +2,7 @@
 FastAPI routes for thread management.
 Implements LangGraph SDK compatible thread endpoints.
 """
+from typing import Optional
 from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
 from api.threads.models import (
@@ -72,6 +73,53 @@ async def update_thread_state_endpoint(thread_id: str, request: ThreadUpdateRequ
     return updated_thread
 
 
+@router.get("/{thread_id}/artifact")
+async def get_artifact_endpoint(thread_id: str, version: Optional[int] = None):
+    """Get artifact for a thread.
+    
+    Args:
+        thread_id: Thread ID
+        version: Optional version index. If not provided, returns the latest version.
+    
+    Returns:
+        Artifact dict with the specified version, or latest if version is not provided.
+    """
+    if version is not None:
+        # Validate version exists before fetching
+        metadata = get_artifact_metadata(thread_id)
+        if metadata is None:
+            raise NotFoundError("Artifact", f"for thread {thread_id}")
+        
+        # Check if requested version exists
+        version_indices = metadata.get("version_indices", [])
+        if version not in version_indices:
+            # Provide helpful error message with available versions
+            available_versions = ", ".join(map(str, version_indices)) if version_indices else "none"
+            raise NotFoundError(
+                "Artifact version",
+                f"{version} for thread {thread_id}. Available versions: {available_versions}"
+            )
+        
+        # Get specific version
+        artifact = get_artifact_version(thread_id, version)
+        if artifact is None:
+            # This shouldn't happen if metadata is correct, but handle it gracefully
+            raise NotFoundError(
+                "Artifact version",
+                f"{version} for thread {thread_id}"
+            )
+        return artifact
+    else:
+        # Get latest version
+        thread = get_thread(thread_id)
+        if not thread:
+            raise NotFoundError("Thread", thread_id)
+        artifact = thread.get("values", {}).get("artifact")
+        if artifact is None:
+            raise NotFoundError("Artifact", f"for thread {thread_id}")
+        return artifact
+
+
 @router.get("/{thread_id}/artifact/versions")
 async def get_artifact_versions_endpoint(thread_id: str):
     """Get artifact version metadata (version list, current_index, etc.) without full content."""
@@ -79,15 +127,3 @@ async def get_artifact_versions_endpoint(thread_id: str):
     if metadata is None:
         raise NotFoundError("Artifact", f"for thread {thread_id}")
     return metadata
-
-
-@router.get("/{thread_id}/artifact/versions/{version_index}")
-async def get_artifact_version_endpoint(thread_id: str, version_index: int):
-    """Get a specific artifact version for a thread."""
-    artifact = get_artifact_version(thread_id, version_index)
-    if artifact is None:
-        raise NotFoundError(
-            "Artifact version",
-            f"{version_index} for thread {thread_id}"
-        )
-    return artifact

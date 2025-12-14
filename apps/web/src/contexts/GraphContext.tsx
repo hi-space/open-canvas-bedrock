@@ -324,6 +324,21 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     });
   }, [threadData.threadId]);
 
+  // Helper function to normalize artifact indices to numbers
+  const normalizeArtifactIndices = (artifact: Artifact): Artifact => {
+    return {
+      currentIndex: typeof artifact.currentIndex === 'string' 
+        ? parseInt(artifact.currentIndex, 10) 
+        : (typeof artifact.currentIndex === 'number' ? artifact.currentIndex : 1),
+      contents: artifact.contents.map((c) => ({
+        ...c,
+        index: typeof c.index === 'string' 
+          ? parseInt(c.index, 10) 
+          : (typeof c.index === 'number' ? c.index : 1),
+      })),
+    };
+  };
+
   const updateArtifact = async (
     artifactToUpdate: Artifact,
     threadId: string
@@ -332,6 +347,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     if (isStreaming) return;
 
     try {
+      // Normalize artifact: ensure all indices are numbers, not strings
+      const normalizedArtifact = normalizeArtifactIndices(artifactToUpdate);
+
+      // Save only the versions currently in contents array
+      // Backend stores each version separately, so we don't need to fetch all versions
       const response = await fetch(`${API_URL}/api/threads/${threadId}/state`, {
         method: "POST",
         headers: {
@@ -339,7 +359,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({
           values: {
-            artifact: artifactToUpdate,
+            artifact: normalizedArtifact,
           },
         }),
       });
@@ -353,7 +373,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       const savedArtifact = updatedThread?.values?.artifact;
       
       // Use the saved artifact from server response, or fallback to what we sent
-      const artifactToSave = savedArtifact || artifactToUpdate;
+      const artifactToSave = savedArtifact || normalizedArtifact;
       
       // Create a deep copy to avoid reference issues
       lastSavedArtifact.current = JSON.parse(JSON.stringify(artifactToSave));
@@ -458,7 +478,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             },
           }),
         });
-        console.log("User message saved immediately:", newMessages.map((m: any) => m.id));
       } catch (error) {
         console.error("Failed to save user message immediately:", error);
         // Continue anyway - we'll try to save again after streaming
@@ -495,14 +514,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       webSearchEnabled: searchEnabled,
     };
 
-    console.log("[GraphContext] streamMessage - input.highlightedText:", {
-      highlightedText: input.highlightedText,
-      isUndefined: input.highlightedText === undefined,
-      isNull: input.highlightedText === null,
-      type: typeof input.highlightedText,
-      value: input.highlightedText,
-      stringified: JSON.stringify(input.highlightedText),
-    });
     // Add check for multiple defined fields
     const fieldsToCheck = [
       input.highlightedText,
@@ -1035,14 +1046,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             // Log messages from on_chain_end event
             if (data?.output) {
               const output = data.output;
-              
-              // Log messages if present
-              if (output.messages && Array.isArray(output.messages)) {
-                console.log(`[on_chain_end] ${langgraphNode} - Messages:`, output.messages);
-              }
-              
-              // Log output data for debugging
-              console.log(`[on_chain_end] ${langgraphNode} - Output:`, output);
             }
 
             // Handle intermediate node results for UI display
@@ -1219,10 +1222,18 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     // Always use text type
                     const contentType: "text" = "text";
                     
+                    // Normalize index to number
+                    const normalizedIndex = typeof content.index === 'string' 
+                      ? parseInt(content.index, 10) 
+                      : (typeof content.index === 'number' ? content.index : idx + 1);
+                    
                     // Ensure content has required fields based on type
                     // Use dynamically determined values from backend if available
                     const prevContent = artifact
-                      ? artifact.contents.find((c) => c.index === (content.index || idx + 1) - 1)
+                      ? artifact.contents.find((c) => {
+                          const cIndex = typeof c.index === 'string' ? parseInt(c.index, 10) : c.index;
+                          return cIndex === normalizedIndex - 1;
+                        })
                       : undefined;
                     
                     // Use title from output.title (from generateTitle) if available and current title is "Untitled"
@@ -1233,7 +1244,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     
                     return {
                       ...content,
-                      index: content.index || idx + 1,
+                      index: normalizedIndex,
                       type: "text" as const,
                       // Use generated title if available, otherwise use content title or "Untitled"
                       title: shouldUseGeneratedTitle 
@@ -1244,17 +1255,43 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   });
                 }
                 
-                // Create deep copy to ensure React detects the change
-                const artifactCopy = JSON.parse(JSON.stringify(artifactToSet));
-                setArtifact(artifactCopy);
-                finalArtifact = artifactCopy;
+                // Normalize artifact indices before setting
+                const normalizedArtifact = normalizeArtifactIndices(artifactToSet);
+                
+                // Merge with existing artifact: keep existing contents and append new versions
+                setArtifact((prev) => {
+                  if (!prev) {
+                    // No existing artifact, use the new one as-is
+                    const artifactCopy = JSON.parse(JSON.stringify(normalizedArtifact));
+                    finalArtifact = artifactCopy;
+                    return artifactCopy;
+                  }
+                  
+                  // Merge: keep existing contents and add new versions
+                  const existingIndices = new Set(prev.contents.map((c) => c.index));
+                  const newContents = normalizedArtifact.contents.filter(
+                    (c) => !existingIndices.has(c.index)
+                  );
+                  
+                  // Append new versions to existing contents
+                  const mergedContents = [...prev.contents, ...newContents];
+                  
+                  const mergedArtifact: Artifact = {
+                    ...normalizedArtifact,
+                    contents: mergedContents,
+                    currentIndex: normalizedArtifact.currentIndex,
+                  };
+                  
+                  const artifactCopy = JSON.parse(JSON.stringify(mergedArtifact));
+                  finalArtifact = artifactCopy;
+                  return artifactCopy;
+                });
+                
                 // Trigger artifact rendering update
                 setUpdateRenderedArtifactRequired(true);
                 if (!firstTokenReceived) {
                   setFirstTokenReceived(true);
                 }
-              } else {
-                console.log(`[FINAL] No artifact in open_canvas output`);
               }
               
               // Parse messages if present
@@ -1332,7 +1369,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     
                     // Skip messages that are from generateArtifact node
                     if (artifactMessageIds.has(id)) {
-                      console.log("Skipping generateArtifact message (canvas only):", id);
                       continue;
                     }
                     
@@ -1417,7 +1453,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     
                     // Skip messages that are from generateArtifact node
                     if (artifactMessageIds.has(id)) {
-                      console.log("Skipping generateArtifact message (canvas only):", id);
                       continue;
                     }
                     
@@ -1439,14 +1474,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                               (contentStart.length > 100 && 
                                artifactStart.length > 100 &&
                                contentStart.substring(0, 100) === artifactStart.substring(0, 100))) {
-                            console.log("Skipping message with artifact content (canvas only):", id);
                             continue;
                           }
                           
                           // Also check if message content is a substring of artifact (artifact is longer)
                           if (artifactText.length > content.trim().length * 0.8 && 
                               artifactText.includes(content.trim().substring(0, Math.min(200, content.trim().length)))) {
-                            console.log("Skipping message that matches artifact substring (canvas only):", id);
                             continue;
                           }
                         }
@@ -1496,7 +1529,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       // OPTIMISTIC UI: Skip user messages that were just sent
                       // These are already in the UI from the optimistic update
                       if (m instanceof HumanMessage && justSentUserMessageIds.has(m.id)) {
-                        console.log("Skipping user message (already in UI from optimistic update):", m.id);
                         return false;
                       }
                       
@@ -1512,7 +1544,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                             const msgStart = msgContent.trim().substring(0, compareLength).trim();
                             const artifactStart = artifactText.substring(0, compareLength).trim();
                             if (msgStart === artifactStart) {
-                              console.log("Final filter: Skipping message with artifact content:", m.id);
                               return false;
                             }
                           }
@@ -1722,7 +1753,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           const requestBody = {
             values: {
               messages: serializedMessages,
-              ...(artifactToSave && { artifact: artifactToSave }),
             },
           };
           
@@ -1739,10 +1769,18 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             console.error(`Failed to update thread state: ${response.status} ${response.statusText}`, errorText.substring(0, 200));
             throw new Error(`Failed to update thread state: ${response.status} ${response.statusText}`);
           }
+          
+          // Save artifact separately using updateArtifact to ensure all versions are merged
+          if (artifactToSave) {
+            await updateArtifact(artifactToSave, currentThreadId);
+          }
         } catch (saveError) {
           console.error("Failed to save messages and artifact to thread:", saveError);
           // Don't show error to user as this is a background operation
         }
+      } else if (currentThreadId && artifactToSave) {
+        // If no messages but artifact exists, still save the artifact
+        await updateArtifact(artifactToSave, currentThreadId);
       }
     } catch (e: any) {
       console.error("Failed to call API", e);
@@ -1806,27 +1844,45 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
     // Fetch the specific version from server
     try {
+      // First, validate version exists in metadata to avoid unnecessary requests
+      const metadataResponse = await fetch(
+        `${API_URL}/api/threads/${currentThreadId}/artifact/versions`
+      );
+      if (metadataResponse.ok) {
+        const metadata = await metadataResponse.json();
+        const versionIndices = metadata.version_indices || [];
+        if (!versionIndices.includes(index)) {
+          toast({
+            title: "Error",
+            description: `Artifact version ${index} does not exist. Available versions: ${versionIndices.join(", ")}`,
+            variant: "destructive",
+            duration: 5000,
+          });
+          return;
+        }
+      }
+
       const response = await fetch(
-        `${API_URL}/api/threads/${currentThreadId}/artifact/versions/${index}`
+        `${API_URL}/api/threads/${currentThreadId}/artifact?version=${index}`
       );
       if (!response.ok) {
         if (response.status === 404) {
-          // Version doesn't exist, check if it's in metadata
-          setArtifact((prev) => {
-            if (!prev) return prev;
-            const metadata = (prev as any)._metadata;
-            if (metadata && metadata.version_indices) {
-              const validIndices = metadata.version_indices;
-              if (!validIndices.includes(index)) {
-                toast({
-                  title: "Error",
-                  description: `Artifact version ${index} does not exist. Available versions: ${validIndices.join(", ")}`,
-                  variant: "destructive",
-                  duration: 5000,
-                });
-              }
+          // Version doesn't exist
+          const errorText = await response.text();
+          let errorMessage = `Artifact version ${index} does not exist`;
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.detail) {
+              errorMessage = errorData.detail;
             }
-            return prev;
+          } catch {
+            // Use default message if parsing fails
+          }
+          toast({
+            title: "Error",
+            description: errorMessage,
+            variant: "destructive",
+            duration: 5000,
           });
         } else {
           throw new Error(`Failed to fetch artifact version ${index}: ${response.statusText}`);
@@ -1846,17 +1902,34 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         const newContent = versionArtifact.contents?.[0];
         
         if (newContent) {
+          // Normalize index to number
+          const normalizedNewIndex = typeof newContent.index === 'string' 
+            ? parseInt(newContent.index, 10) 
+            : (typeof newContent.index === 'number' ? newContent.index : index);
+          
+          // Normalize existing contents indices for comparison
+          const normalizedExistingContents = existingContents.map((c: any) => ({
+            ...c,
+            index: typeof c.index === 'string' ? parseInt(c.index, 10) : c.index,
+          }));
+          
           // Check if this version already exists
-          const existingIndex = existingContents.findIndex((c: any) => c.index === index);
+          const existingIndex = normalizedExistingContents.findIndex((c: any) => c.index === normalizedNewIndex);
           let updatedContents;
           
           if (existingIndex >= 0) {
             // Replace existing version
-            updatedContents = [...existingContents];
-            updatedContents[existingIndex] = newContent;
+            updatedContents = [...normalizedExistingContents];
+            updatedContents[existingIndex] = {
+              ...newContent,
+              index: normalizedNewIndex,
+            };
           } else {
             // Add new version
-            updatedContents = [...existingContents, newContent];
+            updatedContents = [...normalizedExistingContents, {
+              ...newContent,
+              index: normalizedNewIndex,
+            }];
           }
 
           const newArtifact = {
@@ -2003,18 +2076,26 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     const castThreadValues = fullThread.values as Record<string, any>;
     if (castThreadValues?.artifact) {
       try {
-        const artifact = castThreadValues.artifact as Artifact;
+        let artifact = castThreadValues.artifact as Artifact;
+        // Normalize artifact indices to numbers
+        artifact = normalizeArtifactIndices(artifact);
         // The artifact from server now contains only the latest version
-        // Ensure currentIndex is set correctly
+        // Normalize indices and ensure currentIndex is set correctly
         if (artifact.contents && artifact.contents.length > 0) {
-          const contentIndex = artifact.contents[0]?.index || artifact.currentIndex || 1;
+          // Normalize all indices to numbers
+          const normalizedContents = artifact.contents.map((c: any) => ({
+            ...c,
+            index: typeof c.index === 'string' ? parseInt(c.index, 10) : (typeof c.index === 'number' ? c.index : 1),
+          }));
+          const contentIndex = normalizedContents[0]?.index || (typeof artifact.currentIndex === 'string' ? parseInt(artifact.currentIndex, 10) : artifact.currentIndex) || 1;
           castValues.artifact = {
             ...artifact,
             currentIndex: contentIndex,
+            contents: normalizedContents,
           };
         } else {
           console.warn("Artifact has no contents, using as-is");
-          castValues.artifact = artifact;
+          castValues.artifact = normalizeArtifactIndices(artifact);
         }
         
         // Fetch version metadata to know total versions
@@ -2073,7 +2154,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     
     // If no messages, set empty array and return
     if (!castValues?.messages || castValues.messages.length === 0) {
-      console.log("No messages in thread, setting empty message array");
       setMessages([]);
       return;
     }
@@ -2105,7 +2185,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           if (!id || typeof id !== "string" || id.trim().length === 0) {
             // Generate a unique ID if missing or invalid
             id = `msg-${thread.thread_id}-${index}-${uuidv4()}`;
-            console.log(`Generated ID for message at index ${index}:`, id);
           } else {
             id = id.trim();
           }
@@ -2181,7 +2260,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         return true;
       });
     
-    console.log(`Loaded ${messagesWithIds.length} messages for thread ${thread.thread_id}`);
     
     // If we had messages but none were successfully parsed, warn the user
     if (castValues.messages.length > 0 && messagesWithIds.length === 0) {
@@ -2211,7 +2289,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     const hasArtifact = !!castValues.artifact;
     const shouldStartChat = hasMessages || hasArtifact;
     
-    console.log(`Thread ${thread.thread_id} - hasMessages: ${hasMessages}, hasArtifact: ${hasArtifact}, setChatStarted: ${shouldStartChat}`);
     setChatStarted(shouldStartChat);
     } catch (error) {
       console.error("Error in switchSelectedThread:", error);

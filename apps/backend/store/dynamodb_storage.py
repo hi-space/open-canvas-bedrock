@@ -841,10 +841,33 @@ class DynamoDBThreadStorage:
                 )
             else:
                 # Save each version separately
+                # Only save the versions that are in the contents array
+                # This allows partial updates (e.g., only saving new version)
                 updated_at = datetime.utcnow().isoformat()
                 
-                for content in contents:
-                    version_index = content.get("index", 1)
+                saved_indices = []
+                for i, content in enumerate(contents):
+                    if not isinstance(content, dict):
+                        continue
+                    
+                    version_index_raw = content.get("index")
+                    
+                    # Try to convert to int if it's a string or other numeric type
+                    if version_index_raw is None:
+                        continue
+                    elif isinstance(version_index_raw, str):
+                        try:
+                            version_index = int(version_index_raw)
+                        except (ValueError, TypeError):
+                            continue
+                    elif isinstance(version_index_raw, (int, float)):
+                        version_index = int(version_index_raw)
+                    else:
+                        continue
+                    
+                    if version_index < 1:
+                        continue
+                    
                     # Create a single-version artifact for this version
                     version_artifact = {
                         "currentIndex": version_index,
@@ -852,19 +875,32 @@ class DynamoDBThreadStorage:
                     }
                     artifact_str = json.dumps(version_artifact)
                     
-                    self.artifacts_table.put_item(
-                        Item={
-                            "thread_id": thread_id,
-                            "version_index": version_index,
-                            "artifact_data": artifact_str,
-                            "updated_at": updated_at,
-                        }
-                    )
+                    # Validate artifact_data size (DynamoDB has 400KB item size limit)
+                    artifact_size = len(artifact_str.encode('utf-8'))
+                    if artifact_size > 400 * 1024:
+                        raise ValueError(f"Artifact version {version_index} is too large ({artifact_size} bytes, max 400KB)")
+                    
+                    try:
+                        self.artifacts_table.put_item(
+                            Item={
+                                "thread_id": thread_id,
+                                "version_index": version_index,
+                                "artifact_data": artifact_str,
+                                "updated_at": updated_at,
+                            }
+                        )
+                        saved_indices.append(version_index)
+                    except ClientError as put_error:
+                        raise
             
             # Update thread updated_at
             self.update_thread_metadata(thread_id, {})
         except ClientError as e:
-            raise Exception(f"DynamoDB error: {str(e)}")
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_message = e.response.get("Error", {}).get("Message", str(e))
+            raise Exception(f"DynamoDB error ({error_code}): {error_message}")
+        except Exception as e:
+            raise
     
     def delete_thread_artifact(self, thread_id: str) -> bool:
         """Delete artifact for a thread (all versions)."""

@@ -1,10 +1,10 @@
 import { useGraphContext } from "@/contexts/GraphContext";
 import { useToast } from "@/hooks/use-toast";
 import { ProgrammingLanguageOptions } from "@/shared/types";
-import { ThreadPrimitive } from "@assistant-ui/react";
+import { ThreadPrimitive, useExternalStoreRuntime, useExternalMessageConverter, AssistantRuntimeProvider } from "@assistant-ui/react";
 import { Thread as ThreadType } from "@langchain/langgraph-sdk";
 import { ArrowDownIcon, PanelRightOpen, SquarePen } from "lucide-react";
-import { Dispatch, FC, SetStateAction } from "react";
+import { Dispatch, FC, SetStateAction, useMemo } from "react";
 import { ReflectionsDialog } from "../reflections-dialog/ReflectionsDialog";
 import { useLangSmithLinkToolUI } from "../tool-hooks/LangSmithLinkToolUI";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
@@ -15,11 +15,19 @@ import ModelSelector from "./model-selector";
 import { ThreadHistory } from "./thread-history";
 import { ThreadWelcome } from "./welcome";
 import { useUserContext } from "@/contexts/UserContext";
-import { useThreadContext } from "@/contexts/ThreadProvider";
 import { useAssistantContext } from "@/contexts/AssistantContext";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
 import useLocalStorage from "@/hooks/useLocalStorage";
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { convertLangchainMessages, serializeLangChainMessage } from "@/lib/convert_messages";
+import { CompositeAttachmentAdapter, SimpleTextAttachmentAdapter, AppendMessage } from "@assistant-ui/react";
+import { AudioAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/audio";
+import { VideoAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/video";
+import { PDFAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/pdf";
+import { ImageAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/image";
+import { v4 as uuidv4 } from "uuid";
+import { useThreadContext } from "@/contexts/ThreadProvider";
 
 const ThreadScrollToBottom: FC = () => {
   return (
@@ -50,14 +58,13 @@ export interface ThreadProps {
 
 export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
   const {
-    setChatStarted,
     hasChatStarted,
     handleQuickStart,
     switchSelectedThreadCallback,
   } = props;
   const { toast } = useToast();
   const {
-    graphData: { clearState, runId, feedbackSubmitted, setFeedbackSubmitted, isLoadingThread },
+    graphData: { clearState, runId, feedbackSubmitted, setFeedbackSubmitted, isLoadingThread, messages, isStreaming, streamMessage, setMessages, setIsStreaming, setChatStarted: setChatStartedFromContext },
   } = useGraphContext();
   const { selectedAssistant } = useAssistantContext();
   const {
@@ -77,6 +84,89 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
   // Render the LangSmith trace link
   useLangSmithLinkToolUI();
 
+  const { getUserThreads } = useThreadContext();
+
+  // Handle new messages from Composer
+  const onNew = async (message: AppendMessage): Promise<void> => {
+    // Explicitly check for false and not ! since this does not provide a default value
+    // so we should assume undefined is true.
+    if (message.startRun === false) return;
+
+    if (message.content?.[0]?.type !== "text") {
+      toast({
+        title: "Only text messages are supported",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+
+    setChatStartedFromContext(true);
+    setIsStreaming(true);
+
+    try {
+      const humanMessage = new HumanMessage({
+        content: message.content[0].text,
+        id: uuidv4(),
+        additional_kwargs: {},
+      });
+
+      setMessages((prevMessages) => [...prevMessages, humanMessage]);
+
+      await streamMessage({
+        messages: [serializeLangChainMessage(humanMessage)],
+      });
+    } finally {
+      setIsStreaming(false);
+      // Re-fetch threads so that the current thread's title is updated.
+      // Silently fail if getUserThreads fails
+      getUserThreads().catch((e) => {
+        console.warn("Failed to refresh thread list after message:", e);
+      });
+    }
+  };
+
+  // Filter and validate messages before passing to assistant-ui
+  // This prevents "Entry not available in the store" errors
+  const validMessages = useMemo(() => {
+    return messages.filter((msg): msg is BaseMessage => {
+      // Ensure message exists and has a valid ID
+      if (!msg) return false;
+      if (!msg.id || typeof msg.id !== "string" || msg.id.trim().length === 0) {
+        console.warn("Filtering out message without valid ID:", msg);
+        return false;
+      }
+      // Ensure message has content
+      if (msg.content === undefined || msg.content === null) {
+        console.warn("Filtering out message without content:", msg.id);
+        return false;
+      }
+      return true;
+    });
+  }, [messages]);
+
+  const threadMessages = useExternalMessageConverter<BaseMessage>({
+    callback: convertLangchainMessages,
+    messages: validMessages,
+    isRunning: isStreaming,
+    joinStrategy: "none",
+  });
+
+  const runtime = useExternalStoreRuntime({
+    messages: threadMessages,
+    isRunning: isStreaming,
+    onNew,
+    adapters: {
+      attachments: new CompositeAttachmentAdapter([
+        new SimpleTextAttachmentAdapter(),
+        new AudioAttachmentAdapter(),
+        new VideoAttachmentAdapter(),
+        new PDFAttachmentAdapter(),
+        new ImageAttachmentAdapter(),
+      ]),
+    },
+  });
+
   const handleNewSession = async () => {
     // Authentication disabled - allow new session without user
     // Remove the threadId param from the URL
@@ -85,11 +175,12 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
     setModelName(modelName);
     setModelConfig(modelName, modelConfig);
     clearState();
-    setChatStarted(false);
+    setChatStartedFromContext(false);
   };
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-full w-full">
+    <AssistantRuntimeProvider runtime={runtime}>
+      <ThreadPrimitive.Root className="flex flex-col h-full w-full">
       <div className="pr-3 pl-6 pt-3 pb-2 flex flex-row gap-4 items-center justify-between">
         <div className="flex items-center justify-start gap-2 text-gray-600">
           <ThreadHistory
@@ -188,7 +279,7 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
                   <Checkbox
                     id="expand-accordions"
                     checked={expandNodeAccordions}
-                    onCheckedChange={setExpandNodeAccordions}
+                    onCheckedChange={(checked) => setExpandNodeAccordions(checked === true)}
                   />
                   <Label
                     htmlFor="expand-accordions"
@@ -208,5 +299,6 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
         </div>
       </div>
     </ThreadPrimitive.Root>
+    </AssistantRuntimeProvider>
   );
 };

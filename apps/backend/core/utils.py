@@ -214,6 +214,37 @@ def is_artifact_markdown_content(content: Any) -> bool:
     )
 
 
+def extract_latest_artifact_version(artifact: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Extract only the latest version from artifact to reduce data transfer between nodes.
+    
+    Args:
+        artifact: Artifact dict with contents array containing multiple versions
+        
+    Returns:
+        Artifact dict with only the latest version in contents array, or None if artifact is invalid
+    """
+    if not artifact or not isinstance(artifact, dict):
+        return artifact
+    
+    contents = artifact.get("contents", [])
+    if not contents or not isinstance(contents, list):
+        # If no contents array, return as is (backward compatibility)
+        return artifact
+    
+    if len(contents) == 0:
+        return artifact
+    
+    # Find the latest version (highest index)
+    latest_content = max(contents, key=lambda c: c.get("index", 0) if isinstance(c, dict) else 0)
+    latest_index = latest_content.get("index", 1) if isinstance(latest_content, dict) else 1
+    
+    # Return artifact with only the latest version
+    return {
+        "currentIndex": latest_index,
+        "contents": [latest_content],
+    }
+
+
 def get_artifact_content(artifact: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Get current artifact content from artifact."""
     if not artifact:

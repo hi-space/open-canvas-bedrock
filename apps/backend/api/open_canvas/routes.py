@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional, AsyncIterator
 import json
 from agents.open_canvas.graph import graph
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from core.utils import extract_latest_artifact_version
 
 router = APIRouter()
 
@@ -184,10 +185,13 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
     # Convert message dicts to LangChain message objects
     langchain_messages = convert_messages_to_langchain(request.messages)
     
+    # Extract only the latest artifact version to reduce data transfer between nodes
+    artifact = extract_latest_artifact_version(request.artifact)
+    
     state = {
         "messages": langchain_messages,
         "_messages": langchain_messages,
-        "artifact": request.artifact,
+        "artifact": artifact,
         "next": request.next,
         "highlightedText": request.highlightedText,
         "language": request.language,

@@ -162,12 +162,36 @@ def create_new_artifact_content(
     state: OpenCanvasState,
     current_artifact_content: Dict[str, Any],
     artifact_meta: Dict[str, Any],
-    new_content: str
+    new_content: str,
+    config: Any = None
 ) -> Dict[str, Any]:
     """Create new artifact content from meta and new content."""
+    from api.threads.store import thread_store
+    
     artifact = state.get("artifact")
     contents = artifact.get("contents", []) if artifact else []
-    new_index = len(contents) + 1
+    
+    # Get the actual maximum version index from storage, not from state
+    # because state may only contain the latest version
+    configurable = config.get("configurable", {}) if config else {}
+    thread_id = configurable.get("thread_id")
+    
+    if thread_id:
+        try:
+            metadata = thread_store.get_artifact_metadata(thread_id)
+            if metadata and metadata.get("version_indices"):
+                # Get the maximum version index from metadata
+                max_index = max(metadata["version_indices"])
+                new_index = max_index + 1
+            else:
+                # Fallback to len(contents) + 1 if metadata not available
+                new_index = len(contents) + 1
+        except Exception:
+            # Fallback to len(contents) + 1 if error
+            new_index = len(contents) + 1
+    else:
+        # Fallback to len(contents) + 1 if no thread_id
+        new_index = len(contents) + 1
     
     base_content = {
         "index": new_index,
