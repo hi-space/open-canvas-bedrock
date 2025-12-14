@@ -100,6 +100,77 @@ const WebSearchMessageComponent = ({ message }: { message: MessageState }) => {
 
 const WebSearchMessage = React.memo(WebSearchMessageComponent);
 
+const NodeProgressMessageComponent = ({
+  message,
+}: {
+  message: MessageState;
+}): React.ReactElement => {
+  const { id, content } = message;
+  let contentText = "";
+  if (typeof content === "string") {
+    contentText = content;
+  } else {
+    const firstItem = content?.[0];
+    if (firstItem?.type === "text") {
+      contentText = firstItem.text;
+    }
+  }
+
+  if (contentText === "") {
+    return <></>;
+  }
+
+  // Extract node description from content (format: **Node Description**\n\nContent)
+  const parts = contentText.split("\n\n");
+  const nodeDescription = parts[0]?.replace(/\*\*/g, "") || "Processing";
+  const nodeContent = parts.slice(1).join("\n\n") || contentText;
+
+  // Generate color based on node name for consistency (muted, subtle colors)
+  const getNodeColor = (nodeName: string): string => {
+    const colors = [
+      "text-gray-600",
+      "text-slate-600",
+      "text-zinc-600",
+      "text-neutral-600",
+      "text-stone-600",
+    ];
+    let hash = 0;
+    for (let i = 0; i < nodeName.length; i++) {
+      hash = nodeName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const nodeColor = getNodeColor(nodeDescription);
+
+  return (
+    <div className="w-full max-w-2xl py-2">
+      <Accordion
+        defaultValue={`accordion-${id}`}
+        type="single"
+        collapsible
+        className="w-full"
+      >
+        <AccordionItem value={`accordion-${id}`} className="border-none">
+          <AccordionTrigger className={`text-sm font-medium ${nodeColor} hover:no-underline py-2 px-0`}>
+            <span className="flex items-center gap-2">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-40"></span>
+              {nodeDescription}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pt-2 pb-0 px-0">
+            <div className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-lg p-4 border border-gray-200">
+              {nodeContent}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  );
+};
+
+const NodeProgressMessage = React.memo(NodeProgressMessageComponent);
+
 export const AssistantMessage: FC<AssistantMessageProps> = ({
   runId,
   feedbackSubmitted,
@@ -109,6 +180,7 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
   const { isLast } = message;
   const isThinkingMessage = message.id.startsWith("thinking-");
   const isWebSearchMessage = message.id.startsWith("web-search-results-");
+  const isNodeProgressMessage = message.id.startsWith("node-progress-");
 
   if (isThinkingMessage) {
     return <ThinkingAssistantMessage message={message} />;
@@ -116,6 +188,10 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
 
   if (isWebSearchMessage) {
     return <WebSearchMessage message={message} />;
+  }
+
+  if (isNodeProgressMessage) {
+    return <NodeProgressMessage message={message} />;
   }
 
   return (

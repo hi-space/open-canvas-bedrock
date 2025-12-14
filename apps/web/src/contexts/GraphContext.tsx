@@ -588,6 +588,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       let thinkingMessageId = "";
 
       let eventCount = 0;
+      // Track node progress content for intermediate results
+      const nodeProgressContent: Record<string, string> = {};
+      
       // Track messages during streaming to save them later
       // IMPORTANT: Use fullMessages (which includes new user messages) instead of stale `messages` state
       // Convert fullMessages to BaseMessage objects for tracking
@@ -701,6 +704,60 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             // Skip empty chunks (Bedrock sends many empty chunks)
             if (!content || content.length === 0) {
               continue;
+            }
+
+            // Handle intermediate node progress for nodes that stream content
+            // Show progress for all nodes except the final open_canvas graph node
+            if (langgraphNode !== "open_canvas" && content) {
+              // Accumulate content for this node
+              if (!nodeProgressContent[langgraphNode]) {
+                nodeProgressContent[langgraphNode] = "";
+              }
+              nodeProgressContent[langgraphNode] += content;
+
+              // Create or update progress message
+              const nodeProgressMessageId = `node-progress-${langgraphNode}-${runId || "temp"}`;
+              const accumulatedContent = nodeProgressContent[langgraphNode];
+              
+              if (accumulatedContent.trim().length > 0) {
+                const formattedContent = `**${langgraphNode}**\n\n${accumulatedContent}`;
+                
+                setMessages((prev) => {
+                  const existingProgressMessage = prev.find(
+                    (m) => m.id?.startsWith(`node-progress-${langgraphNode}-`)
+                  );
+                  
+                  if (existingProgressMessage) {
+                    // Update existing message
+                    const updated = prev.map((m) => {
+                      if (m.id === existingProgressMessage.id) {
+                        return new AIMessage({
+                          ...m,
+                          content: formattedContent,
+                        });
+                      }
+                      return m;
+                    });
+                    finalMessages = updated;
+                    return updated;
+                  } else {
+                    // Add new message
+                    const updated = [
+                      ...prev,
+                      new AIMessage({
+                        id: nodeProgressMessageId,
+                        content: formattedContent,
+                        additional_kwargs: {
+                          nodeProgress: true,
+                          nodeName: langgraphNode,
+                        },
+                      }),
+                    ];
+                    finalMessages = updated;
+                    return updated;
+                  }
+                });
+              }
             }
            
             // These are generating new messages to insert to the chat window.
@@ -932,6 +989,122 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               
               // Log output data for debugging
               console.log(`[on_chain_end] ${langgraphNode} - Output:`, output);
+            }
+
+            // Handle intermediate node results for UI display
+            // Show all node outputs that have content (except the final open_canvas graph node)
+            if (langgraphNode !== "open_canvas" && data?.output) {
+              const output = data.output;
+              
+              // Debug logging
+              console.log(`[Node Progress] ${langgraphNode} - Checking output:`, {
+                hasMessages: !!output.messages,
+                messagesLength: output.messages?.length || 0,
+                hasContent: !!output.content,
+                outputKeys: Object.keys(output || {}),
+              });
+              
+              // Check if output has content that should be displayed
+              let contentToDisplay: string | null = null;
+              
+              // Check for messages with content
+              if (output.messages && Array.isArray(output.messages) && output.messages.length > 0) {
+                const lastMessage = output.messages[output.messages.length - 1];
+                if (lastMessage) {
+                  let msgContent: string | null = null;
+                  
+                  if (typeof lastMessage === "string") {
+                    const contentMatch = lastMessage.match(/content=['"](.*?)['"]/);
+                    msgContent = contentMatch ? contentMatch[1] : null;
+                  } else if (lastMessage && typeof lastMessage === "object") {
+                    msgContent = typeof lastMessage.content === "string" 
+                      ? lastMessage.content 
+                      : String(lastMessage.content || "");
+                  }
+                  
+                  // Only show content if it's meaningful (not empty, not just metadata)
+                  if (msgContent && msgContent.trim().length > 0 && msgContent.trim().length < 5000) {
+                    contentToDisplay = msgContent.trim();
+                    console.log(`[Node Progress] ${langgraphNode} - Found content in messages:`, contentToDisplay.substring(0, 100));
+                  }
+                }
+              }
+              
+              // Also check for direct content in output
+              if (!contentToDisplay && output.content) {
+                const outputContent = typeof output.content === "string" 
+                  ? output.content 
+                  : String(output.content || "");
+                if (outputContent.trim().length > 0 && outputContent.trim().length < 5000) {
+                  contentToDisplay = outputContent.trim();
+                  console.log(`[Node Progress] ${langgraphNode} - Found direct content:`, contentToDisplay?.substring(0, 100) || "");
+                }
+              }
+              
+              // Check for other possible content fields
+              if (!contentToDisplay) {
+                // Try to find any string content in the output
+                for (const [key, value] of Object.entries(output)) {
+                  if (key !== "messages" && key !== "artifact" && typeof value === "string" && value.trim().length > 0 && value.trim().length < 5000) {
+                    contentToDisplay = value.trim();
+                    console.log(`[Node Progress] ${langgraphNode} - Found content in field ${key}:`, contentToDisplay.substring(0, 100));
+                    break;
+                  }
+                }
+              }
+              
+              // If we have content to display, create a progress message
+              if (contentToDisplay && contentToDisplay.trim().length > 0) {
+                console.log(`[Node Progress] ${langgraphNode} - Creating progress message with content length:`, contentToDisplay.length);
+                const nodeProgressMessageId = `node-progress-${langgraphNode}-${uuidv4()}`;
+                
+                // Use the original node name
+                const nodeDescription = langgraphNode;
+                
+                // Create a formatted message with node description and content
+                const formattedContent = `**${nodeDescription}**\n\n${contentToDisplay}`;
+                
+                setMessages((prev) => {
+                  // Check if we already have a progress message for this node in this run
+                  const existingProgressMessage = prev.find(
+                    (m) => m.id?.startsWith(`node-progress-${langgraphNode}-`)
+                  );
+                  
+                  if (existingProgressMessage) {
+                    // Update existing message
+                    const updated = prev.map((m) => {
+                      if (m.id === existingProgressMessage.id) {
+                        return new AIMessage({
+                          ...m,
+                          content: formattedContent,
+                        });
+                      }
+                      return m;
+                    });
+                    finalMessages = updated;
+                    return updated;
+                  } else {
+                    // Add new message
+                    const updated = [
+                      ...prev,
+                      new AIMessage({
+                        id: nodeProgressMessageId,
+                        content: formattedContent,
+                        additional_kwargs: {
+                          nodeProgress: true,
+                          nodeName: langgraphNode,
+                        },
+                      }),
+                    ];
+                    finalMessages = updated;
+                    return updated;
+                  }
+                });
+              } else {
+                console.log(`[Node Progress] ${langgraphNode} - No content to display`);
+              }
+            } else if (langgraphNode !== "open_canvas") {
+              console.log(`[Node Progress] ${langgraphNode} - Skipped: no output`);
             }
             
             // Handle final output from open_canvas graph
