@@ -26,6 +26,7 @@ import { Button } from "../ui/button";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
 import { Globe } from "lucide-react";
 import { useQueryState } from "nuqs";
+import { TextHighlight } from "@/shared/types";
 
 interface AssistantMessageProps {
   runId: string | undefined;
@@ -146,13 +147,28 @@ export const UserMessage: FC = () => {
   // Return null if message is not available yet (prevents rendering issues on first message)
   if (!humanMessage) return null;
 
+  // Check if this message has highlighted text
+  const highlightedText = humanMessage.additional_kwargs?.highlightedText as
+    | TextHighlight
+    | undefined;
+  const selectedText = highlightedText?.selectedText;
+
   return (
     <MessagePrimitive.Root className="grid w-full max-w-2xl auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] gap-y-2 py-4">
       <ContextDocumentsUI
         message={humanMessage}
         className="col-start-2 row-start-1"
       />
-      <div className="bg-muted text-foreground col-start-2 row-start-2 max-w-xl break-words rounded-3xl px-5 py-2.5">
+      {selectedText && (
+        <div className="bg-blue-50 border border-blue-200 text-foreground col-start-2 row-start-2 max-w-xl break-words rounded-lg px-4 py-2 text-sm text-gray-600 italic">
+          {selectedText}
+        </div>
+      )}
+      <div
+        className={`bg-muted text-foreground col-start-2 ${
+          selectedText ? "row-start-3" : "row-start-2"
+        } max-w-xl break-words rounded-3xl px-5 py-2.5`}
+      >
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>

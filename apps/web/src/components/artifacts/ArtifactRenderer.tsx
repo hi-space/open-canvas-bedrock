@@ -2,6 +2,7 @@ import { serializeLangChainMessage } from "@/lib/convert_messages";
 import { cn } from "@/lib/utils";
 import {
   Artifact,
+  ArtifactCode,
   ArtifactMarkdown,
 } from "@/shared/types";
 import { EditorView } from "@codemirror/view";
@@ -169,6 +170,11 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     const humanMessage = new HumanMessage({
       content,
       id: uuidv4(),
+      additional_kwargs: selectedBlocks
+        ? {
+            highlightedText: selectedBlocks,
+          }
+        : {},
     });
 
     setMessages((prevMessages) => [...prevMessages, humanMessage]);
