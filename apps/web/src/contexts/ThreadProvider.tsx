@@ -7,7 +7,7 @@ import {
 } from "@/shared/models";
 import { CustomModelConfig } from "@/shared/types";
 import { Thread } from "@langchain/langgraph-sdk";
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useUserContext } from "./UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryState } from "nuqs";
@@ -46,6 +46,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
     useState<ALL_MODEL_NAMES>(DEFAULT_MODEL_NAME);
   const [createThreadLoading, setCreateThreadLoading] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const getUserThreadsRequestRef = useRef<Promise<void> | null>(null);
 
   const [modelConfigs, setModelConfigs] = useState<
     Record<ALL_MODEL_NAMES, CustomModelConfig>
@@ -218,48 +219,60 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const getUserThreads = async () => {
+    // Request deduplication: if a request is already in progress, return the existing promise
+    if (getUserThreadsRequestRef.current) {
+      return getUserThreadsRequestRef.current;
+    }
+
     // Authentication disabled - get all threads without user filter
     setIsUserThreadsLoading(true);
-    try {
-      // Search without user filter - get all threads
-      // If search fails (e.g., no threads exist), return empty array
+    
+    const requestPromise = (async () => {
       try {
-        const response = await fetch(`${API_URL}/api/threads/search`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            limit: 100,
-          }),
-        });
+        // Search without user filter - get all threads
+        // If search fails (e.g., no threads exist), return empty array
+        try {
+          const response = await fetch(`${API_URL}/api/threads/search`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              limit: 100,
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`Failed to search threads: ${response.statusText}`);
-        }
+          if (!response.ok) {
+            throw new Error(`Failed to search threads: ${response.statusText}`);
+          }
 
-        const userThreads = await response.json();
-        if (Array.isArray(userThreads) && userThreads.length > 0) {
-          // Filter all threads to only show those with content
-          // This prevents empty threads from appearing in the history
-          const filteredThreads = userThreads.filter(
-            (thread) => thread.values && Object.keys(thread.values).length > 0
-          );
-          setUserThreads(filteredThreads);
-        } else {
+          const userThreads = await response.json();
+          if (Array.isArray(userThreads) && userThreads.length > 0) {
+            // Filter all threads to only show those with content
+            // This prevents empty threads from appearing in the history
+            const filteredThreads = userThreads.filter(
+              (thread) => thread.values && Object.keys(thread.values).length > 0
+            );
+            setUserThreads(filteredThreads);
+          } else {
+            setUserThreads([]);
+          }
+        } catch (searchError) {
+          // If search fails (404 or other errors), just set empty array
+          console.warn("Failed to search threads, returning empty list:", searchError);
           setUserThreads([]);
         }
-      } catch (searchError) {
-        // If search fails (404 or other errors), just set empty array
-        console.warn("Failed to search threads, returning empty list:", searchError);
+      } catch (e) {
+        console.error("Error in getUserThreads:", e);
         setUserThreads([]);
+      } finally {
+        setIsUserThreadsLoading(false);
+        getUserThreadsRequestRef.current = null; // Clear the ref when done
       }
-    } catch (e) {
-      console.error("Error in getUserThreads:", e);
-      setUserThreads([]);
-    } finally {
-      setIsUserThreadsLoading(false);
-    }
+    })();
+
+    getUserThreadsRequestRef.current = requestPromise;
+    return requestPromise;
   };
 
   const deleteThread = async (id: string, clearMessages: () => void) => {

@@ -206,12 +206,13 @@ export function ThreadHistoryComponent(props: ThreadHistoryProps) {
 
   useEffect(() => {
     // Authentication disabled - load threads without user check
-    if (typeof window == "undefined" || userThreads.length) return;
+    if (typeof window == "undefined" || userThreads.length > 0 || isUserThreadsLoading) return;
 
     getUserThreads().catch((e) => {
       console.warn("Failed to load thread history:", e);
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const handleDeleteThread = async (id: string) => {
     // Authentication disabled - allow delete without user

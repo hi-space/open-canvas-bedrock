@@ -95,8 +95,8 @@ async def generate_title_node(
 
 # Build graph
 builder = StateGraph(TitleGenerationState)
-builder.add_node("title", generate_title_node)
-builder.add_edge(START, "title")
+builder.add_node("generateThreadTitle", generate_title_node)
+builder.add_edge(START, "generateThreadTitle")
 
 graph = builder.compile()
 graph.name = "thread_title"

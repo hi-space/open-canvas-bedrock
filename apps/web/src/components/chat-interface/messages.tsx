@@ -116,14 +116,27 @@ const NodeProgressMessageComponent = ({
     }
   }
 
-  if (contentText === "") {
+  // Extract node description from content (format: **Node Description**\n\nContent)
+  // If content is empty, try to get node name from additional_kwargs
+  let nodeDescription = "Processing";
+  let nodeContent = "";
+  
+  if (contentText) {
+    const parts = contentText.split("\n\n");
+    nodeDescription = parts[0]?.replace(/\*\*/g, "") || "Processing";
+    nodeContent = parts.slice(1).join("\n\n");
+  } else {
+    // If no content, try to get node name from additional_kwargs
+    const additionalKwargs = (message as any).additional_kwargs;
+    if (additionalKwargs?.nodeName) {
+      nodeDescription = additionalKwargs.nodeName;
+    }
+  }
+  
+  // If still no description and no content, don't render
+  if (!nodeDescription || nodeDescription === "Processing") {
     return <></>;
   }
-
-  // Extract node description from content (format: **Node Description**\n\nContent)
-  const parts = contentText.split("\n\n");
-  const nodeDescription = parts[0]?.replace(/\*\*/g, "") || "Processing";
-  const nodeContent = parts.slice(1).join("\n\n") || contentText;
 
   // Generate color based on node name for consistency (muted, subtle colors)
   const getNodeColor = (nodeName: string): string => {
@@ -204,6 +217,11 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
 
   if (isNodeProgressMessage) {
     return <NodeProgressMessage message={message} />;
+  }
+
+  // Additional safety check - ensure message content is available
+  if (!message.content) {
+    return null;
   }
 
   return (

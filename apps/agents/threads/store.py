@@ -102,18 +102,18 @@ class ThreadStore:
         
         Includes first message for each thread to enable title display in UI.
         Use get() to retrieve full thread with all messages and artifact.
+        
+        Optimized to avoid N+1 queries by including first_message in search_threads result.
         """
         threads = self._storage.search_threads(limit)
         # Convert to LangGraph SDK compatible format
         result = []
         for t in threads:
-            thread_id = t["thread_id"]
-            # Get first message for title display
-            messages = self._storage.get_thread_messages(thread_id)
-            first_message = messages[0] if messages else None
+            # Use first_message from search result to avoid N+1 queries
+            first_message = t.get("first_message")
             
             thread_dict = {
-                "thread_id": thread_id,
+                "thread_id": t["thread_id"],
                 "metadata": t.get("metadata", {}),
                 "values": {
                     "messages": [first_message] if first_message else []

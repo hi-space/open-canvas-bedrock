@@ -613,7 +613,10 @@ class DynamoDBThreadStorage:
             raise Exception(f"DynamoDB error: {str(e)}")
     
     def search_threads(self, limit: int = 100) -> List[Dict]:
-        """Search threads sorted by updated_at descending."""
+        """Search threads sorted by updated_at descending.
+        
+        Includes first message for each thread to avoid N+1 queries.
+        """
         try:
             # Scan all threads (DynamoDB doesn't support sorting in query)
             response = self.threads_table.scan(Limit=limit * 2)  # Get more to sort
@@ -622,11 +625,23 @@ class DynamoDBThreadStorage:
             for item in response.get("Items", []):
                 metadata_str = item.get("metadata", "{}")
                 metadata = json.loads(metadata_str) if isinstance(metadata_str, str) else metadata_str
+                
+                # Extract first message from messages field to avoid N+1 queries
+                first_message = None
+                messages_str = item.get("messages", "[]")
+                try:
+                    messages = json.loads(messages_str) if isinstance(messages_str, str) else messages_str
+                    if isinstance(messages, list) and len(messages) > 0:
+                        first_message = messages[0]
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                
                 threads.append({
                     "thread_id": item["thread_id"],
                     "metadata": metadata,
                     "created_at": item.get("created_at"),
                     "updated_at": item.get("updated_at"),
+                    "first_message": first_message,  # Include first message to avoid N+1 queries
                 })
             
             # Sort by updated_at descending

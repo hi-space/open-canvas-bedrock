@@ -216,8 +216,24 @@ class MemoryThreadStorage:
         return True
     
     def search_threads(self, limit: int = 100) -> List[Dict]:
-        """Search threads sorted by updated_at descending."""
-        threads = list(self._threads.values())
+        """Search threads sorted by updated_at descending.
+        
+        Includes first message for each thread to avoid N+1 queries.
+        """
+        threads = []
+        for thread in self._threads.values():
+            # Extract first message to avoid N+1 queries
+            messages = thread.get("messages", [])
+            first_message = messages[0] if messages else None
+            
+            threads.append({
+                "thread_id": thread["thread_id"],
+                "metadata": thread.get("metadata", {}),
+                "created_at": thread.get("created_at"),
+                "updated_at": thread.get("updated_at"),
+                "first_message": first_message,  # Include first message to avoid N+1 queries
+            })
+        
         threads.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
         return threads[:limit]
     

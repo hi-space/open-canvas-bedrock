@@ -542,6 +542,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           modelConfig: modelConfig,
           userId: userData.user?.id || "anonymous",
           open_canvas_assistant_id: assistantsData.selectedAssistant?.assistant_id,
+          thread_id: currentThreadId,
         },
       };
 
@@ -659,6 +660,23 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           if (!runId && runId_) {
             runId = runId_;
             setRunId(runId);
+            
+            // Update existing "temp" node progress messages with actual runId
+            setMessages((prev) => {
+              const updated = prev.map((m) => {
+                if (m.id?.startsWith("node-progress-") && m.id.includes("-temp")) {
+                  // Replace "-temp" with actual runId
+                  const newId = m.id.replace("-temp", `-${runId}`);
+                  return new AIMessage({
+                    ...m,
+                    id: newId,
+                  });
+                }
+                return m;
+              });
+              finalMessages = updated;
+              return updated;
+            });
           }
 
           // Process different event types
@@ -715,6 +733,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               nodeProgressContent[langgraphNode] += content;
 
               // Create or update progress message
+              // Use actual runId if available, otherwise use "temp" (will be updated when runId is set)
               const nodeProgressMessageId = `node-progress-${langgraphNode}-${runId || "temp"}`;
               const accumulatedContent = nodeProgressContent[langgraphNode];
               
@@ -722,16 +741,43 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 const formattedContent = `**${langgraphNode}**\n\n${accumulatedContent}`;
                 
                 setMessages((prev) => {
-                  const existingProgressMessage = prev.find(
-                    (m) => m.id?.startsWith(`node-progress-${langgraphNode}-`)
+                  // Find message by exact ID match first
+                  let existingProgressMessage = prev.find(
+                    (m) => m.id === nodeProgressMessageId
                   );
                   
+                  // If not found and we don't have runId yet, look for "temp" version
+                  // But only if it's from this run (check additional_kwargs for nodeProgress flag)
+                  if (!existingProgressMessage && !runId) {
+                    existingProgressMessage = prev.find(
+                      (m) => m.id === `node-progress-${langgraphNode}-temp` &&
+                             m.additional_kwargs?.nodeProgress === true &&
+                             m.additional_kwargs?.nodeName === langgraphNode
+                    );
+                  }
+                  
+                  // If we have runId but message has "temp", look for temp version to update
+                  if (!existingProgressMessage && runId) {
+                    existingProgressMessage = prev.find(
+                      (m) => m.id === `node-progress-${langgraphNode}-temp` &&
+                             m.additional_kwargs?.nodeProgress === true &&
+                             m.additional_kwargs?.nodeName === langgraphNode
+                    );
+                  }
+                  
                   if (existingProgressMessage) {
-                    // Update existing message
+                    // Update existing message - also update ID if runId was just set
                     const updated = prev.map((m) => {
-                      if (m.id === existingProgressMessage.id) {
+                      if (m.id && m.id === existingProgressMessage.id) {
+                        // If runId is now available and message has "temp", update the ID
+                        const shouldUpdateId = runId && m.id.includes("-temp");
+                        const newId = shouldUpdateId 
+                          ? `node-progress-${langgraphNode}-${runId}`
+                          : m.id;
+                        
                         return new AIMessage({
                           ...m,
+                          id: newId,
                           content: formattedContent,
                         });
                       }
@@ -740,7 +786,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     finalMessages = updated;
                     return updated;
                   } else {
-                    // Add new message
+                    // Add new message - this is a new node that hasn't been seen before in this run
                     const updated = [
                       ...prev,
                       new AIMessage({
@@ -749,6 +795,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         additional_kwargs: {
                           nodeProgress: true,
                           nodeName: langgraphNode,
+                          ...(runId && { runId }),
                         },
                       }),
                     ];
@@ -991,9 +1038,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
 
             // Handle intermediate node results for UI display
-            // Show all node outputs that have content (except the final open_canvas graph node)
-            if (langgraphNode !== "open_canvas" && data?.output) {
-              const output = data.output;
+            // Show all nodes (except the final open_canvas graph node)
+            // Display node name even if there's no output
+            if (langgraphNode !== "open_canvas") {
+              const output = data?.output || {};
               
               // Check if output has content that should be displayed
               let contentToDisplay: string | null = null;
@@ -1041,58 +1089,114 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 }
               }
               
-              // If we have content to display, create a progress message
-              if (contentToDisplay && contentToDisplay.trim().length > 0) {
-                const nodeProgressMessageId = `node-progress-${langgraphNode}-${uuidv4()}`;
+              // Always show node name, even if there's no content
+              // Use actual runId if available, otherwise use "temp" (will be updated when runId is set)
+              const nodeProgressMessageId = `node-progress-${langgraphNode}-${runId || "temp"}`;
+              const nodeDescription = langgraphNode;
+              
+              // Create formatted content: node name + content (if available)
+              const formattedContent = contentToDisplay && contentToDisplay.trim().length > 0
+                ? `**${nodeDescription}**\n\n${contentToDisplay}`
+                : `**${nodeDescription}**`;
+              
+              setMessages((prev) => {
+                // Find message by exact ID match first
+                let existingProgressMessage = prev.find(
+                  (m) => m.id === nodeProgressMessageId
+                );
                 
-                // Use the original node name
-                const nodeDescription = langgraphNode;
-                
-                // Create a formatted message with node description and content
-                const formattedContent = `**${nodeDescription}**\n\n${contentToDisplay}`;
-                
-                setMessages((prev) => {
-                  // Check if we already have a progress message for this node in this run
-                  const existingProgressMessage = prev.find(
-                    (m) => m.id?.startsWith(`node-progress-${langgraphNode}-`)
+                // If not found and we don't have runId yet, look for "temp" version
+                // But only if it's from this run (check additional_kwargs for nodeProgress flag)
+                if (!existingProgressMessage && !runId) {
+                  existingProgressMessage = prev.find(
+                    (m) => m.id === `node-progress-${langgraphNode}-temp` &&
+                           m.additional_kwargs?.nodeProgress === true &&
+                           m.additional_kwargs?.nodeName === langgraphNode
                   );
-                  
-                  if (existingProgressMessage) {
-                    // Update existing message
-                    const updated = prev.map((m) => {
-                      if (m.id === existingProgressMessage.id) {
-                        return new AIMessage({
-                          ...m,
-                          content: formattedContent,
-                        });
-                      }
-                      return m;
-                    });
-                    finalMessages = updated;
-                    return updated;
-                  } else {
-                    // Add new message
-                    const updated = [
-                      ...prev,
-                      new AIMessage({
-                        id: nodeProgressMessageId,
+                }
+                
+                // If we have runId but message has "temp", look for temp version to update
+                if (!existingProgressMessage && runId) {
+                  existingProgressMessage = prev.find(
+                    (m) => m.id === `node-progress-${langgraphNode}-temp` &&
+                           m.additional_kwargs?.nodeProgress === true &&
+                           m.additional_kwargs?.nodeName === langgraphNode
+                  );
+                }
+                
+                if (existingProgressMessage) {
+                  // Update existing message - also update ID if runId was just set
+                  const updated = prev.map((m) => {
+                    if (m.id && m.id === existingProgressMessage.id) {
+                      // If runId is now available and message has "temp", update the ID
+                      const shouldUpdateId = runId && m.id.includes("-temp");
+                      const newId = shouldUpdateId 
+                        ? `node-progress-${langgraphNode}-${runId}`
+                        : m.id;
+                      
+                      return new AIMessage({
+                        ...m,
+                        id: newId,
                         content: formattedContent,
-                        additional_kwargs: {
-                          nodeProgress: true,
-                          nodeName: langgraphNode,
-                        },
-                      }),
-                    ];
-                    finalMessages = updated;
-                    return updated;
-                  }
-                });
-              }
+                      });
+                    }
+                    return m;
+                  });
+                  finalMessages = updated;
+                  return updated;
+                } else {
+                  // Add new message - this is a new node that hasn't been seen before in this run
+                  const updated = [
+                    ...prev,
+                    new AIMessage({
+                      id: nodeProgressMessageId,
+                      content: formattedContent,
+                      additional_kwargs: {
+                        nodeProgress: true,
+                        nodeName: langgraphNode,
+                        ...(runId && { runId }),
+                      },
+                    }),
+                  ];
+                  finalMessages = updated;
+                  return updated;
+                }
+              });
             }
             
             // Handle final output from open_canvas graph
             if (langgraphNode === "open_canvas" && data?.output) {
               const output = data.output;
+              
+              // Handle title from generateTitle node (if present in output)
+              if (output.title && threadData.threadId) {
+                // Update thread metadata with the generated title
+                try {
+                  const response = await fetch(
+                    `${API_URL}/api/threads/${threadData.threadId}/state`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        metadata: {
+                          thread_title: output.title,
+                        },
+                      }),
+                    }
+                  );
+
+                  if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(
+                      `Failed to update thread title: ${response.status} ${errorText}`
+                    );
+                  }
+                } catch (error) {
+                  console.error("Failed to update thread title:", error);
+                }
+              }
               
               // Parse artifact if present
               if (output.artifact) {
@@ -1113,12 +1217,20 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       ? artifact.contents.find((c) => c.index === (content.index || idx + 1) - 1)
                       : undefined;
                     
+                    // Use title from output.title (from generateTitle) if available and current title is "Untitled"
+                    const currentTitle = content.title || prevContent?.title;
+                    const shouldUseGeneratedTitle = 
+                      output.title && 
+                      (!currentTitle || currentTitle === "Untitled" || currentTitle === "Generated Artifact");
+                    
                     return {
                       ...content,
                       index: content.index || idx + 1,
                       type: "text" as const,
-                      // Use title from content if available, otherwise "Untitled" (will be updated when thread is loaded)
-                      title: content.title || prevContent?.title || "Untitled",
+                      // Use generated title if available, otherwise use content title or "Untitled"
+                      title: shouldUseGeneratedTitle 
+                        ? output.title 
+                        : (currentTitle || "Untitled"),
                       fullMarkdown: ("fullMarkdown" in content ? content.fullMarkdown : "") || "",
                     };
                   });
@@ -1193,6 +1305,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 
                 // Second pass: parse and add messages, skipping artifact generation messages
                 for (const msg of output.messages) {
+                  // Skip invalid messages early
+                  if (!msg || (typeof msg !== "string" && typeof msg !== "object")) {
+                    continue;
+                  }
+                  
                   let messageObj: BaseMessage;
                   
                   // If message is a string (legacy format), try to parse it
@@ -1347,6 +1464,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     continue; // Skip invalid messages
                   }
                   
+                  // Validate message before adding to parsedMessages
+                  if (!messageObj || !messageObj.id || messageObj.content === undefined || messageObj.content === null) {
+                    console.warn("Skipping invalid message:", messageObj);
+                    continue;
+                  }
+                  
                   parsedMessages.push(messageObj);
                 }
                 
@@ -1448,6 +1571,57 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   finalMessages = updated;
                   return updated;
                 });
+              }
+            }
+
+            // Handle generateTitle node output - save as thread title
+            if (langgraphNode === "generateTitle" && data?.output) {
+              const output = data.output as { title?: string };
+              const title = output?.title;
+              
+              if (title && threadData.threadId) {
+                // Update thread metadata with the generated title
+                try {
+                  const response = await fetch(
+                    `${API_URL}/api/threads/${threadData.threadId}/state`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        metadata: {
+                          thread_title: title,
+                        },
+                      }),
+                    }
+                  );
+
+                  if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(
+                      `Failed to update thread title: ${response.status} ${errorText}`
+                    );
+                  } else {
+                    // Optionally update artifact title if it's "Untitled"
+                    if (artifact && artifact.contents && artifact.contents.length > 0) {
+                      const currentTitle = artifact.contents[0]?.title;
+                      if (!currentTitle || currentTitle === "Untitled" || currentTitle === "Generated Artifact") {
+                        setArtifact((prev) => {
+                          if (!prev) return prev;
+                          return {
+                            ...prev,
+                            contents: prev.contents.map((content, idx) => 
+                              idx === 0 ? { ...content, title } : content
+                            ),
+                          };
+                        });
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error("Failed to update thread title:", error);
+                }
               }
             }
 

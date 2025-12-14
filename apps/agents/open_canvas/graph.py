@@ -266,8 +266,13 @@ async def reflect_node(
 
 
 async def clean_state_node(state: OpenCanvasState) -> Dict[str, Any]:
-    """Clean state after processing."""
-    return {
+    """Clean state after processing and determine next route.
+    
+    This node cleans up state and determines the next routing decision
+    to avoid unnecessary conditional edge function calls.
+    """
+    # Clean state
+    cleaned_state = {
         "next": None,
         "highlightedText": None,
         "language": None,
@@ -277,6 +282,36 @@ async def clean_state_node(state: OpenCanvasState) -> Dict[str, Any]:
         "customQuickActionId": None,
         "webSearchEnabled": None,
     }
+    
+    # Determine routing decision inline to avoid separate conditional function call
+    messages = state.get("messages", [])
+    artifact = state.get("artifact")
+    
+    # Count user messages (HumanMessage) to detect first conversation
+    from langchain_core.messages import HumanMessage
+    user_message_count = sum(1 for msg in messages if isinstance(msg, HumanMessage))
+    
+    # Determine next route based on same logic as conditionally_generate_title
+    # but do it here to avoid extra function call
+    if artifact and user_message_count == 1:
+        # First user message with artifact - generate title
+        cleaned_state["_next_route"] = "generateTitle"
+    elif len(messages) <= 4:
+        # First conversation - generate title
+        cleaned_state["_next_route"] = "generateTitle"
+    else:
+        # Check if summarization is needed
+        _messages = state.get("_messages", state.get("messages", []))
+        total_chars = sum(
+            len(msg.content) if isinstance(msg.content, str) else len(str(msg.content))
+            for msg in _messages
+        )
+        if total_chars > CHARACTER_MAX:
+            cleaned_state["_next_route"] = "summarizer"
+        else:
+            cleaned_state["_next_route"] = END
+    
+    return cleaned_state
 
 
 def simple_token_calculator(state: OpenCanvasState) -> Literal["summarizer", "END"]:
@@ -292,11 +327,34 @@ def simple_token_calculator(state: OpenCanvasState) -> Literal["summarizer", "EN
 
 
 def conditionally_generate_title(state: OpenCanvasState) -> Literal["generateTitle", "summarizer", "END"]:
-    """Conditionally route to title generation."""
+    """Conditionally route to title generation.
+    
+    Generate title if:
+    1. It's the first conversation (messages <= 4, accounting for user message + artifact message + followup message), OR
+    2. An artifact exists and it's still early in the conversation (first user interaction)
+    
+    Otherwise, check if summarization is needed or go to END.
+    """
     messages = state.get("messages", [])
-    if len(messages) > 2:
-        return simple_token_calculator(state)
-    return "generateTitle"
+    artifact = state.get("artifact")
+    
+    # Count user messages (HumanMessage) to detect first conversation
+    # First conversation has exactly 1 user message
+    from langchain_core.messages import HumanMessage
+    user_message_count = sum(1 for msg in messages if isinstance(msg, HumanMessage))
+    
+    # If artifact exists and it's the first user message, always generate title
+    # This ensures title is generated when artifact is first created
+    if artifact and user_message_count == 1:
+        return "generateTitle"
+    
+    # If it's the first conversation (messages <= 4 to account for artifact + followup), generate title
+    # This covers cases without artifact too
+    if len(messages) <= 4:
+        return "generateTitle"
+    
+    # Otherwise, check if summarization is needed
+    return simple_token_calculator(state)
 
 
 async def generate_title_node(
@@ -306,15 +364,13 @@ async def generate_title_node(
     """Generate title for conversation.
     
     Based on origin implementation, this should:
-    1. Skip if messages.length > 2 (not first human-AI conversation)
-    2. Try to generate title, but continue even if it fails
-    3. Map thread_id to open_canvas_thread_id for thread_title graph
+    1. Try to generate title, but continue even if it fails
+    2. Map thread_id to open_canvas_thread_id for thread_title graph
+    
+    Note: The routing decision is made in cleanState node, so we don't need
+    to check message count here.
     """
-    # Skip if it's not first human-AI conversation (should never occur in practice
-    # due to the conditional edge which is called before this node)
     messages = state.get("messages", [])
-    if len(messages) > 2:
-        return {}
     
     # Map thread_id to open_canvas_thread_id for thread_title graph
     configurable = config.get("configurable", {}) if config else {}
@@ -340,6 +396,11 @@ async def generate_title_node(
     # Try to generate title, but continue even if it fails (origin pattern)
     try:
         result = await thread_title_graph.ainvoke(title_state, config=title_config)
+        # Extract title from result and return it in output
+        # StateGraph.ainvoke returns the final state, which should include the title
+        title = result.get("title") if isinstance(result, dict) else None
+        if title:
+            return {"title": title}
     except Exception as e:
         # Log error but continue without failing (origin pattern)
         import sys
@@ -975,7 +1036,7 @@ builder.add_conditional_edges(
 builder.add_edge("reflect", "cleanState")
 builder.add_conditional_edges(
     "cleanState",
-    conditionally_generate_title,
+    lambda state: state.get("_next_route", END),
     {
         END: END,
         "generateTitle": "generateTitle",

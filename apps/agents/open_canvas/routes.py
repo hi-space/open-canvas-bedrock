@@ -89,6 +89,14 @@ def format_event_log(event_type: str, event_name: str, event: Dict[str, Any]) ->
     if event_type == "on_chat_model_stream":
         # Skip logging for streaming events
         return None
+    
+    if event_type == "on_chain_stream":
+        # Skip logging for chain streaming events
+        return None
+    
+    if event_type == "on_chat_model_end":
+        # Skip logging for chat model end events
+        return None
 
     elif event_type == "on_chain_start":
         # Show input for chain start
@@ -105,6 +113,11 @@ def format_event_log(event_type: str, event_name: str, event: Dict[str, Any]) ->
         data = event.get("data", {})
         output = data.get("output")
         if output:
+            # For generateTitle node, show title explicitly
+            if event_name == "generateTitle" and isinstance(output, dict):
+                title = output.get("title")
+                if title:
+                    return f"{base_info} | output: {{'title': '{title}'}}"
             output_str = str(output)
             if len(output_str) > 150:
                 output_str = output_str[:150] + "..."

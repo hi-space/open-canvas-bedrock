@@ -15,3 +15,4 @@ async def get_models():
         "defaultModelName": DEFAULT_MODEL_NAME,
         "defaultModelConfig": DEFAULT_MODEL_CONFIG,
     }
+

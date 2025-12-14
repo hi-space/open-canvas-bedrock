@@ -246,6 +246,48 @@ BEDROCK_MODELS: List[ModelConfigurationParams] = [
         "category": "Amazon",
     },
     {
+        "name": "us.meta.llama4-maverick-17b-instruct-v1:0",
+        "label": "Llama 4 Maverick 17B Instruct",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 2048,
+                "default": 512,
+                "current": 512,
+            },
+        },
+        "isNew": False,
+        "category": "Meta",
+    },
+    {
+        "name": "us.meta.llama4-scout-17b-instruct-v1:0",
+        "label": "Llama 4 Scout 17B Instruct",
+        "config": {
+            "provider": "bedrock",
+            "temperatureRange": {
+                "min": 0,
+                "max": 1,
+                "default": 0.5,
+                "current": 0.5,
+            },
+            "maxTokens": {
+                "min": 1,
+                "max": 2048,
+                "default": 512,
+                "current": 512,
+            },
+        },
+        "isNew": False,
+        "category": "Meta",
+    },
+    {
         "name": "us.meta.llama3-3-70b-instruct-v1:0",
         "label": "Llama 3.3 70B Instruct",
         "config": {

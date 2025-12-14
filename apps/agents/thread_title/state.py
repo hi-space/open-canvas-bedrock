@@ -10,4 +10,5 @@ class TitleGenerationState(TypedDict):
     """State for title generation."""
     messages: Annotated[List[BaseMessage], add_messages]
     artifact: Optional[Any]
+    title: Optional[str]
 
