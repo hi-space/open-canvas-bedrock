@@ -1,40 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Code, BookA } from "lucide-react";
+import { Code } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "@/components/ui/assistant-ui/tooltip-icon-button";
-import { PortToLanguageOptions } from "./PortToLanguage";
-import { ProgrammingLanguageOptions } from "@/shared/types";
-import { GraphInput } from "@/shared/types";
-
-type SharedComponentProps = {
-  handleClose: () => void;
-  streamMessage: (params: GraphInput) => Promise<void>;
-  language: ProgrammingLanguageOptions;
-};
-
-type ToolbarOption = {
-  id: string;
-  tooltip: string;
-  icon: React.ReactNode;
-  component: ((props: SharedComponentProps) => React.ReactNode) | null;
-};
 
 export interface CodeToolbarProps {
-  streamMessage: (params: GraphInput) => Promise<void>;
+  streamMessage: (params: any) => Promise<void>;
   isTextSelected: boolean;
-  language: ProgrammingLanguageOptions;
+  language: string;
 }
 
-const toolbarOptions: ToolbarOption[] = [
-  {
-    id: "portLanguage",
-    tooltip: "Port language",
-    icon: <BookA className="w-[26px] h-[26px]" />,
-    component: (
-      props: SharedComponentProps & { language: ProgrammingLanguageOptions }
-    ) => <PortToLanguageOptions {...props} />,
-  },
-];
+const toolbarOptions: any[] = [];
 
 export function CodeToolBar(props: CodeToolbarProps) {
   const { streamMessage } = props;
@@ -71,12 +46,6 @@ export function CodeToolBar(props: CodeToolbarProps) {
     optionId: string
   ) => {
     event.stopPropagation();
-
-    if (optionId === "portLanguage") {
-      setActiveOption(optionId);
-      return;
-    }
-
     setIsExpanded(false);
     setActiveOption(null);
   };

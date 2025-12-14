@@ -176,7 +176,19 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
   feedbackSubmitted,
   setFeedbackSubmitted,
 }) => {
-  const message = useMessage();
+  let message;
+  try {
+    message = useMessage();
+  } catch (error) {
+    // Handle "Entry not available in the store" error gracefully
+    console.warn("AssistantMessage: Failed to get message from store", error);
+    return null;
+  }
+  
+  if (!message || !message.id) {
+    return null;
+  }
+  
   const { isLast } = message;
   const isThinkingMessage = message.id.startsWith("thinking-");
   const isWebSearchMessage = message.id.startsWith("web-search-results-");
@@ -217,7 +229,15 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
 };
 
 export const UserMessage: FC = () => {
-  const msg = useMessage(getExternalStoreMessage<HumanMessage>);
+  let msg;
+  try {
+    msg = useMessage(getExternalStoreMessage<HumanMessage>);
+  } catch (error) {
+    // Handle "Entry not available in the store" error gracefully
+    console.warn("UserMessage: Failed to get message from store", error);
+    return null;
+  }
+  
   const humanMessage = Array.isArray(msg) ? msg[0] : msg;
 
   // Return null if message is not available yet (prevents rendering issues on first message)

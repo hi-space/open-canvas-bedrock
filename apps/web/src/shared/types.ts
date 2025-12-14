@@ -204,7 +204,6 @@ export interface GraphInput {
   regenerateWithEmojis?: boolean;
   readingLevel?: ReadingLevelOptions;
 
-  portLanguage?: ProgrammingLanguageOptions;
   customQuickActionId?: string;
 
   webSearchEnabled?: boolean;

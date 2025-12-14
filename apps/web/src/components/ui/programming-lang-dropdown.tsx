@@ -11,7 +11,7 @@ import { Button } from "./button";
 import { TooltipIconButton } from "./assistant-ui/tooltip-icon-button";
 
 interface ProgrammingLanguageListProps {
-  handleSubmit: (portLanguage: ProgrammingLanguageOptions) => Promise<void>;
+  handleSubmit: (language: ProgrammingLanguageOptions) => Promise<void>;
 }
 
 export function ProgrammingLanguageList(
@@ -109,7 +109,7 @@ const LANGUAGES: Array<{ label: string; key: ProgrammingLanguageOptions }> = [
 export const ProgrammingLanguagesDropdown = ({
   handleSubmit,
 }: {
-  handleSubmit: (portLanguage: ProgrammingLanguageOptions) => void;
+  handleSubmit: (language: ProgrammingLanguageOptions) => void;
 }) => {
   return (
     <DropdownMenu>

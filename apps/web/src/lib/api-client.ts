@@ -9,7 +9,6 @@ export interface ApiRequest {
   regenerateWithEmojis?: boolean;
   readingLevel?: string;
   highlightedText?: any;
-  portLanguage?: string;
   customQuickActionId?: string;
   webSearchEnabled?: boolean;
   webSearchResults?: any[];
@@ -231,7 +230,6 @@ export async function* streamAgent(
     regenerateWithEmojis: input.regenerateWithEmojis,
     readingLevel: input.readingLevel,
     highlightedText: input.highlightedText,
-    portLanguage: input.portLanguage,
     customQuickActionId: input.customQuickActionId,
     webSearchEnabled: input.webSearchEnabled,
     webSearchResults: input.webSearchResults,
@@ -248,7 +246,6 @@ export async function* streamAgent(
     regenerateWithEmojis: requestBody.regenerateWithEmojis,
     readingLevel: requestBody.readingLevel,
     highlightedText: requestBody.highlightedText,
-    portLanguage: requestBody.portLanguage,
     customQuickActionId: requestBody.customQuickActionId,
     webSearchEnabled: requestBody.webSearchEnabled,
     hasMessages: (requestBody.messages?.length || 0) > 0,

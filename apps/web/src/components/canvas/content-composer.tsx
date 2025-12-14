@@ -17,7 +17,7 @@ import {
 } from "@assistant-ui/react";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { Thread as ThreadType } from "@langchain/langgraph-sdk";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Toaster } from "../ui/toaster";
 import { Thread } from "@/components/chat-interface";
@@ -125,9 +125,28 @@ export function ContentComposerChatInterfaceComponent(
     }
   }
 
+  // Filter and validate messages before passing to assistant-ui
+  // This prevents "Entry not available in the store" errors
+  const validMessages = useMemo(() => {
+    return messages.filter((msg): msg is BaseMessage => {
+      // Ensure message exists and has a valid ID
+      if (!msg) return false;
+      if (!msg.id || typeof msg.id !== "string" || msg.id.trim().length === 0) {
+        console.warn("Filtering out message without valid ID:", msg);
+        return false;
+      }
+      // Ensure message has content
+      if (msg.content === undefined || msg.content === null) {
+        console.warn("Filtering out message without content:", msg.id);
+        return false;
+      }
+      return true;
+    });
+  }, [messages]);
+
   const threadMessages = useExternalMessageConverter<BaseMessage>({
     callback: convertLangchainMessages,
-    messages,
+    messages: validMessages,
     isRunning,
     joinStrategy: "none",
   });

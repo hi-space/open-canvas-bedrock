@@ -21,7 +21,6 @@ class OpenCanvasRequest(BaseModel):
     regenerateWithEmojis: Optional[bool] = None
     readingLevel: Optional[str] = None
     highlightedText: Optional[Dict[str, Any]] = None
-    portLanguage: Optional[str] = None
     customQuickActionId: Optional[str] = None
     webSearchEnabled: Optional[bool] = None
     webSearchResults: Optional[List[Dict[str, Any]]] = None
@@ -165,7 +164,6 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
     print(f"  regenerateWithEmojis: {request.regenerateWithEmojis}", file=sys.stderr, flush=True)
     print(f"  readingLevel: {request.readingLevel}", file=sys.stderr, flush=True)
     print(f"  highlightedText: {'present' if request.highlightedText else None}", file=sys.stderr, flush=True)
-    print(f"  portLanguage: {request.portLanguage}", file=sys.stderr, flush=True)
     print(f"  customQuickActionId: {request.customQuickActionId}", file=sys.stderr, flush=True)
     print(f"  webSearchEnabled: {request.webSearchEnabled}", file=sys.stderr, flush=True)
     print("=============================================", file=sys.stderr, flush=True)
@@ -183,7 +181,6 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
         "artifactLength": request.artifactLength,
         "regenerateWithEmojis": request.regenerateWithEmojis,
         "readingLevel": request.readingLevel,
-        "portLanguage": request.portLanguage,
         "customQuickActionId": request.customQuickActionId,
         "webSearchEnabled": request.webSearchEnabled,
         "webSearchResults": request.webSearchResults,

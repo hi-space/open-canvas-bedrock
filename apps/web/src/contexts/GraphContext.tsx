@@ -502,7 +502,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       input.artifactLength,
       input.regenerateWithEmojis,
       input.readingLevel,
-      input.portLanguage,
       input.customQuickActionId,
     ];
 
@@ -996,14 +995,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             if (langgraphNode !== "open_canvas" && data?.output) {
               const output = data.output;
               
-              // Debug logging
-              console.log(`[Node Progress] ${langgraphNode} - Checking output:`, {
-                hasMessages: !!output.messages,
-                messagesLength: output.messages?.length || 0,
-                hasContent: !!output.content,
-                outputKeys: Object.keys(output || {}),
-              });
-              
               // Check if output has content that should be displayed
               let contentToDisplay: string | null = null;
               
@@ -1025,7 +1016,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   // Only show content if it's meaningful (not empty, not just metadata)
                   if (msgContent && msgContent.trim().length > 0 && msgContent.trim().length < 5000) {
                     contentToDisplay = msgContent.trim();
-                    console.log(`[Node Progress] ${langgraphNode} - Found content in messages:`, contentToDisplay.substring(0, 100));
                   }
                 }
               }
@@ -1037,7 +1027,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   : String(output.content || "");
                 if (outputContent.trim().length > 0 && outputContent.trim().length < 5000) {
                   contentToDisplay = outputContent.trim();
-                  console.log(`[Node Progress] ${langgraphNode} - Found direct content:`, contentToDisplay?.substring(0, 100) || "");
                 }
               }
               
@@ -1047,7 +1036,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 for (const [key, value] of Object.entries(output)) {
                   if (key !== "messages" && key !== "artifact" && typeof value === "string" && value.trim().length > 0 && value.trim().length < 5000) {
                     contentToDisplay = value.trim();
-                    console.log(`[Node Progress] ${langgraphNode} - Found content in field ${key}:`, contentToDisplay.substring(0, 100));
                     break;
                   }
                 }
@@ -1055,7 +1043,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               
               // If we have content to display, create a progress message
               if (contentToDisplay && contentToDisplay.trim().length > 0) {
-                console.log(`[Node Progress] ${langgraphNode} - Creating progress message with content length:`, contentToDisplay.length);
                 const nodeProgressMessageId = `node-progress-${langgraphNode}-${uuidv4()}`;
                 
                 // Use the original node name
@@ -1100,11 +1087,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     return updated;
                   }
                 });
-              } else {
-                console.log(`[Node Progress] ${langgraphNode} - No content to display`);
               }
-            } else if (langgraphNode !== "open_canvas") {
-              console.log(`[Node Progress] ${langgraphNode} - Skipped: no output`);
             }
             
             // Handle final output from open_canvas graph
@@ -1520,39 +1503,59 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       // This matches the original implementation structure
       if (currentThreadId && messagesToSave.length > 0) {
         try {
+          // Filter out node-progress messages - these are UI-only and shouldn't be saved
+          const messagesToSerialize = messagesToSave.filter(
+            (msg) => !msg.id?.startsWith("node-progress-")
+          );
+          
           // Convert messages to serializable format - use LangChain format (type field)
-          const serializedMessages = messagesToSave.map((msg) => {
-            const serialized = serializeLangChainMessage(msg);
-            // Remove large document data from additional_kwargs before saving
-            // Documents are already converted to context messages, so we only need metadata
-            if (serialized.additional_kwargs?.documents && Array.isArray(serialized.additional_kwargs.documents)) {
-              serialized.additional_kwargs = {
-                ...serialized.additional_kwargs,
-                documents: serialized.additional_kwargs.documents.map((doc: any) => ({
-                  name: doc.name,
-                  type: doc.type,
-                  // Don't include the large 'data' field to avoid storage issues
-                })),
+          const serializedMessages = messagesToSerialize.map((msg) => {
+            try {
+              const serialized = serializeLangChainMessage(msg);
+              // Remove large document data from additional_kwargs before saving
+              // Documents are already converted to context messages, so we only need metadata
+              if (serialized.additional_kwargs?.documents && Array.isArray(serialized.additional_kwargs.documents)) {
+                serialized.additional_kwargs = {
+                  ...serialized.additional_kwargs,
+                  documents: serialized.additional_kwargs.documents.map((doc: any) => ({
+                    name: doc.name,
+                    type: doc.type,
+                    // Don't include the large 'data' field to avoid storage issues
+                  })),
+                };
+              }
+              return serialized;
+            } catch (serializeError) {
+              console.error("Failed to serialize message:", msg, serializeError);
+              // Return a safe fallback instead of breaking the entire save
+              return {
+                type: "ai",
+                content: typeof msg.content === "string" ? msg.content : String(msg.content || ""),
+                id: msg.id || `msg-${Date.now()}-${Math.random()}`,
+                additional_kwargs: {},
               };
             }
-            return serialized;
           });
+          
+          const requestBody = {
+            values: {
+              messages: serializedMessages,
+              ...(artifactToSave && { artifact: artifactToSave }),
+            },
+          };
           
           const response = await fetch(`${API_URL}/api/threads/${currentThreadId}/state`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              values: {
-                messages: serializedMessages,
-                ...(artifactToSave && { artifact: artifactToSave }),
-              },
-            }),
+            body: JSON.stringify(requestBody),
           });
 
           if (!response.ok) {
-            throw new Error(`Failed to update thread state: ${response.statusText}`);
+            const errorText = await response.text();
+            console.error(`Failed to update thread state: ${response.status} ${response.statusText}`, errorText.substring(0, 200));
+            throw new Error(`Failed to update thread state: ${response.status} ${response.statusText}`);
           }
         } catch (saveError) {
           console.error("Failed to save messages and artifact to thread:", saveError);

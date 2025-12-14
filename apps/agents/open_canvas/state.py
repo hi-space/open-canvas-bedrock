@@ -17,7 +17,6 @@ class OpenCanvasState(TypedDict):
     artifactLength: Optional[str]
     regenerateWithEmojis: Optional[bool]
     readingLevel: Optional[str]
-    portLanguage: Optional[str]
     customQuickActionId: Optional[str]
     webSearchEnabled: Optional[bool]
     webSearchResults: Optional[List[dict]]

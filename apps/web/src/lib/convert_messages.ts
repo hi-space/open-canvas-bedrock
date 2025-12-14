@@ -44,14 +44,33 @@ function getMessageContentOrThrow(message: unknown): string {
 export const convertLangchainMessages: useExternalMessageConverter.Callback<
   BaseMessage
 > = (message): Message | Message[] => {
-  const content = getMessageContentOrThrow(message);
-  
+  // Validate message exists - return safe fallback instead of throwing
+  if (!message) {
+    console.error("convertLangchainMessages: message is null or undefined");
+    const fallbackId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return {
+      role: "user",
+      id: fallbackId,
+      content: [{ type: "text", text: "" }],
+    };
+  }
+
   // Ensure message has a valid ID
   const messageId = message.id && typeof message.id === "string" && message.id.trim()
     ? message.id.trim()
     : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  switch (message.getType()) {
+  let content: string;
+  try {
+    content = getMessageContentOrThrow(message);
+  } catch (error) {
+    console.error("convertLangchainMessages: Failed to get message content", error, message);
+    // Return a safe fallback message instead of throwing
+    content = "";
+  }
+
+  try {
+    switch (message.getType()) {
     case "system":
       return {
         role: "system",
@@ -112,8 +131,22 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
         result: content,
       };
     default:
-      console.error(message);
-      throw new Error(`Unsupported message type: ${message.getType()}`);
+      console.error("convertLangchainMessages: Unsupported message type", message);
+      // Return a safe fallback instead of throwing to prevent crashes
+      return {
+        role: "user",
+        id: messageId,
+        content: [{ type: "text", text: content || "" }],
+      };
+    }
+  } catch (error) {
+    console.error("convertLangchainMessages: Error converting message", error, message);
+    // Return a safe fallback message to prevent crashes
+    return {
+      role: "user",
+      id: messageId,
+      content: [{ type: "text", text: content || "" }],
+    };
   }
 };
 
