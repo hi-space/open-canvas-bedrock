@@ -289,5 +289,5 @@ Continuously learns by analyzing conversations and artifacts.
 
 ## 📚 Related Documentation
 
-- [Agents Detailed Documentation](./apps/agents/README.md): Backend architecture and API
+- [Backend Detailed Documentation](./apps/backend/README.md): Backend architecture and API
 - [Web Detailed Documentation](./apps/web/README.md): Frontend structure and components

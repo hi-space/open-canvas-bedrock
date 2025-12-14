@@ -1,2 +1,0 @@
-"""Threads management module."""
-

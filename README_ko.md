@@ -287,5 +287,5 @@ Open Canvas는 AI 에이전트와의 협업을 통해 문서를 생성하고 개
 
 ## 📚 관련 문서
 
-- [Agents 상세 문서](./apps/agents/README.md): 백엔드 아키텍처 및 API
+- [Backend 상세 문서](./apps/backend/README.md): 백엔드 아키텍처 및 API
 - [Web 상세 문서](./apps/web/README.md): 프론트엔드 구조 및 컴포넌트
