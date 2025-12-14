@@ -64,7 +64,6 @@ def create_thread_storage() -> BaseThreadStorage:
     Environment variables:
         STORAGE_TYPE: "memory" or "dynamodb" (default: "memory")
         STORAGE_THREADS_TABLE_NAME: DynamoDB table name for threads (default: "open_canvas_threads")
-        STORAGE_MESSAGES_TABLE_NAME: DynamoDB table name for messages (default: "open_canvas_thread_messages")
         STORAGE_ARTIFACTS_TABLE_NAME: DynamoDB table name for artifacts (default: "open_canvas_thread_artifacts")
         AWS_DEFAULT_REGION: AWS region for DynamoDB (default: "us-east-1")
     
@@ -75,12 +74,10 @@ def create_thread_storage() -> BaseThreadStorage:
     
     if storage_type == "dynamodb":
         threads_table = os.getenv("STORAGE_THREADS_TABLE_NAME", "open_canvas_threads")
-        messages_table = os.getenv("STORAGE_MESSAGES_TABLE_NAME", "open_canvas_thread_messages")
         artifacts_table = os.getenv("STORAGE_ARTIFACTS_TABLE_NAME", "open_canvas_thread_artifacts")
         region_name = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         return DynamoDBThreadStorage(
             threads_table_name=threads_table,
-            messages_table_name=messages_table,
             artifacts_table_name=artifacts_table,
             region_name=region_name
         )

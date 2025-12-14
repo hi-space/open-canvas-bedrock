@@ -162,14 +162,12 @@ class MemoryEntityStorage(BaseEntityStorage):
 
 
 class MemoryThreadStorage:
-    """In-memory storage backend for normalized thread storage."""
+    """In-memory storage backend for thread storage with messages stored inline."""
     
     def __init__(self):
         """Initialize in-memory thread storage."""
-        # threads: {thread_id: {metadata, created_at, updated_at}}
+        # threads: {thread_id: {metadata, messages, created_at, updated_at}}
         self._threads: Dict[str, Dict] = {}
-        # messages: {thread_id: [message1, message2, ...]}
-        self._messages: Dict[str, List[Dict]] = {}
         # artifacts: {thread_id: {version_index: artifact_data}}
         self._artifacts: Dict[str, Dict[int, Dict]] = {}
     
@@ -179,16 +177,25 @@ class MemoryThreadStorage:
         thread = {
             "thread_id": thread_id,
             "metadata": metadata or {},
+            "messages": [],  # Initialize with empty messages list
             "created_at": now,
             "updated_at": now,
         }
         self._threads[thread_id] = thread
-        self._messages[thread_id] = []
         return thread
     
     def get_thread(self, thread_id: str) -> Optional[Dict]:
-        """Get thread metadata."""
-        return self._threads.get(thread_id)
+        """Get thread metadata (messages are retrieved separately via get_thread_messages)."""
+        thread = self._threads.get(thread_id)
+        if thread is None:
+            return None
+        # Return thread without messages for consistency with API
+        return {
+            "thread_id": thread["thread_id"],
+            "metadata": thread.get("metadata", {}),
+            "created_at": thread.get("created_at"),
+            "updated_at": thread.get("updated_at"),
+        }
     
     def update_thread_metadata(self, thread_id: str, metadata: Dict) -> Optional[Dict]:
         """Update thread metadata."""
@@ -204,8 +211,6 @@ class MemoryThreadStorage:
         """Delete thread and all associated data."""
         if thread_id in self._threads:
             del self._threads[thread_id]
-        if thread_id in self._messages:
-            del self._messages[thread_id]
         if thread_id in self._artifacts:
             del self._artifacts[thread_id]
         return True
@@ -218,9 +223,10 @@ class MemoryThreadStorage:
     
     def get_thread_messages(self, thread_id: str) -> List[Dict]:
         """Get all messages for a thread."""
-        messages = self._messages.get(thread_id, [])
-        # Return messages with role field only (standard format: user/assistant/system)
-        return messages
+        thread = self._threads.get(thread_id)
+        if thread is None:
+            return []
+        return thread.get("messages", [])
     
     def set_thread_messages(self, thread_id: str, messages: List[Dict]) -> None:
         """Set all messages for a thread (replaces existing)."""
@@ -258,9 +264,13 @@ class MemoryThreadStorage:
             
             normalized_messages.append(normalized_msg)
         
-        self._messages[thread_id] = normalized_messages
-        if thread_id in self._threads:
-            self._threads[thread_id]["updated_at"] = datetime.utcnow().isoformat()
+        # Create thread if it doesn't exist
+        if thread_id not in self._threads:
+            self.create_thread(thread_id, {})
+        
+        # Update messages in thread
+        self._threads[thread_id]["messages"] = normalized_messages
+        self._threads[thread_id]["updated_at"] = datetime.utcnow().isoformat()
     
     def get_thread_artifact(self, thread_id: str) -> Optional[Dict]:
         """Get artifact for a thread (backward compatibility - returns latest version only)."""

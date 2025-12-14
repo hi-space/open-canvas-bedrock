@@ -420,17 +420,15 @@ class DynamoDBEntityStorage(BaseEntityStorage):
 
 
 class DynamoDBThreadStorage:
-    """DynamoDB storage backend for normalized thread storage."""
+    """DynamoDB storage backend for thread storage with messages stored inline."""
     
     def __init__(self, threads_table_name: str = "open_canvas_threads", 
-                 messages_table_name: str = "open_canvas_thread_messages",
                  artifacts_table_name: str = "open_canvas_thread_artifacts",
                  region_name: Optional[str] = None):
         """Initialize DynamoDB thread storage.
         
         Args:
-            threads_table_name: Name of the threads table
-            messages_table_name: Name of the messages table
+            threads_table_name: Name of the threads table (contains metadata and messages)
             artifacts_table_name: Name of the artifacts table
             region_name: AWS region name (defaults to AWS_DEFAULT_REGION env var)
         """
@@ -438,14 +436,12 @@ class DynamoDBThreadStorage:
             raise ImportError("boto3 is required for DynamoDB storage. Install it with: pip install boto3")
         
         self.threads_table_name = threads_table_name
-        self.messages_table_name = messages_table_name
         self.artifacts_table_name = artifacts_table_name
         self.region_name = region_name or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         
         # Initialize DynamoDB client
         self.dynamodb = boto3.resource("dynamodb", region_name=self.region_name)
         self.threads_table = self.dynamodb.Table(threads_table_name)
-        self.messages_table = self.dynamodb.Table(messages_table_name)
         self.artifacts_table = self.dynamodb.Table(artifacts_table_name)
         
         self._init_tables()
@@ -454,7 +450,6 @@ class DynamoDBThreadStorage:
         """Initialize DynamoDB tables if they don't exist."""
         for table_name, table in [
             (self.threads_table_name, self.threads_table),
-            (self.messages_table_name, self.messages_table),
             (self.artifacts_table_name, self.artifacts_table),
         ]:
             try:
@@ -477,25 +472,11 @@ class DynamoDBThreadStorage:
         """Create DynamoDB table."""
         try:
             if table_name == self.threads_table_name:
-                # Threads table: thread_id as partition key
+                # Threads table: thread_id as partition key, contains metadata and messages
                 self.dynamodb.create_table(
                     TableName=table_name,
                     KeySchema=[{"AttributeName": "thread_id", "KeyType": "HASH"}],
                     AttributeDefinitions=[{"AttributeName": "thread_id", "AttributeType": "S"}],
-                    BillingMode="PAY_PER_REQUEST",
-                )
-            elif table_name == self.messages_table_name:
-                # Messages table: thread_id as partition key, message_index as sort key
-                self.dynamodb.create_table(
-                    TableName=table_name,
-                    KeySchema=[
-                        {"AttributeName": "thread_id", "KeyType": "HASH"},
-                        {"AttributeName": "message_index", "KeyType": "RANGE"},
-                    ],
-                    AttributeDefinitions=[
-                        {"AttributeName": "thread_id", "AttributeType": "S"},
-                        {"AttributeName": "message_index", "AttributeType": "N"},
-                    ],
                     BillingMode="PAY_PER_REQUEST",
                 )
             elif table_name == self.artifacts_table_name:
@@ -522,12 +503,14 @@ class DynamoDBThreadStorage:
         """Create a new thread."""
         now = datetime.utcnow().isoformat()
         metadata_str = json.dumps(metadata or {})
+        messages_str = json.dumps([])  # Initialize with empty messages list
         
         try:
             self.threads_table.put_item(
                 Item={
                     "thread_id": thread_id,
                     "metadata": metadata_str,
+                    "messages": messages_str,
                     "created_at": now,
                     "updated_at": now,
                 }
@@ -543,7 +526,7 @@ class DynamoDBThreadStorage:
         }
     
     def get_thread(self, thread_id: str) -> Optional[Dict]:
-        """Get thread metadata."""
+        """Get thread metadata (messages are retrieved separately via get_thread_messages)."""
         try:
             response = self.threads_table.get_item(
                 Key={"thread_id": thread_id}
@@ -567,48 +550,46 @@ class DynamoDBThreadStorage:
     
     def update_thread_metadata(self, thread_id: str, metadata: Dict) -> Optional[Dict]:
         """Update thread metadata."""
-        existing = self.get_thread(thread_id)
-        if existing is None:
-            return None
-        
-        updated_metadata = {**existing.get("metadata", {}), **metadata}
-        updated_at = datetime.utcnow().isoformat()
-        metadata_str = json.dumps(updated_metadata)
-        
         try:
+            # Get existing thread to preserve messages
+            response = self.threads_table.get_item(
+                Key={"thread_id": thread_id}
+            )
+            
+            if "Item" not in response:
+                return None
+            
+            item = response["Item"]
+            existing_metadata_str = item.get("metadata", "{}")
+            existing_metadata = json.loads(existing_metadata_str) if isinstance(existing_metadata_str, str) else existing_metadata_str
+            existing_messages_str = item.get("messages", "[]")
+            
+            updated_metadata = {**existing_metadata, **metadata}
+            updated_at = datetime.utcnow().isoformat()
+            metadata_str = json.dumps(updated_metadata)
+            
             self.threads_table.put_item(
                 Item={
                     "thread_id": thread_id,
                     "metadata": metadata_str,
-                    "created_at": existing.get("created_at"),
+                    "messages": existing_messages_str,  # Preserve existing messages
+                    "created_at": item.get("created_at"),
                     "updated_at": updated_at,
                 }
             )
+            
+            return {
+                "thread_id": thread_id,
+                "metadata": updated_metadata,
+                "created_at": item.get("created_at"),
+                "updated_at": updated_at,
+            }
         except ClientError as e:
             raise Exception(f"DynamoDB error: {str(e)}")
-        
-        return {
-            "thread_id": thread_id,
-            "metadata": updated_metadata,
-            "created_at": existing.get("created_at"),
-            "updated_at": updated_at,
-        }
     
     def delete_thread(self, thread_id: str) -> bool:
         """Delete thread and all associated data."""
         try:
-            # Delete all messages
-            response = self.messages_table.query(
-                KeyConditionExpression=Key("thread_id").eq(thread_id)
-            )
-            for item in response.get("Items", []):
-                self.messages_table.delete_item(
-                    Key={
-                        "thread_id": thread_id,
-                        "message_index": item["message_index"],
-                    }
-                )
-            
             # Delete all artifact versions
             artifacts_response = self.artifacts_table.query(
                 KeyConditionExpression=Key("thread_id").eq(thread_id)
@@ -621,7 +602,7 @@ class DynamoDBThreadStorage:
                     }
                 )
             
-            # Delete thread
+            # Delete thread (messages are stored inline, so no separate deletion needed)
             response = self.threads_table.delete_item(
                 Key={"thread_id": thread_id},
                 ReturnValues="ALL_OLD",
@@ -657,50 +638,32 @@ class DynamoDBThreadStorage:
     def get_thread_messages(self, thread_id: str) -> List[Dict]:
         """Get all messages for a thread."""
         try:
-            response = self.messages_table.query(
-                KeyConditionExpression=Key("thread_id").eq(thread_id),
-                ScanIndexForward=True,  # Sort by message_index ascending
+            response = self.threads_table.get_item(
+                Key={"thread_id": thread_id}
             )
             
-            messages = []
-            for item in response.get("Items", []):
-                message = {
-                    "role": item.get("role"),  # Standard format: user/assistant/system
-                    "content": item.get("content"),
-                }
-                message_data_str = item.get("message_data")
-                if message_data_str:
-                    try:
-                        message_data = json.loads(message_data_str) if isinstance(message_data_str, str) else message_data_str
-                        message.update(message_data)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                messages.append(message)
+            if "Item" not in response:
+                return []
             
-            return messages
+            item = response["Item"]
+            messages_str = item.get("messages", "[]")
+            
+            try:
+                messages = json.loads(messages_str) if isinstance(messages_str, str) else messages_str
+                return messages if isinstance(messages, list) else []
+            except (json.JSONDecodeError, TypeError):
+                return []
         except ClientError as e:
             raise Exception(f"DynamoDB error: {str(e)}")
     
     def set_thread_messages(self, thread_id: str, messages: List[Dict]) -> None:
         """Set all messages for a thread (replaces existing)."""
         try:
-            # Delete existing messages
-            existing = self.messages_table.query(
-                KeyConditionExpression=Key("thread_id").eq(thread_id)
-            )
-            for item in existing.get("Items", []):
-                self.messages_table.delete_item(
-                    Key={
-                        "thread_id": thread_id,
-                        "message_index": item["message_index"],
-                    }
-                )
-            
-            # Insert new messages
-            now = datetime.utcnow().isoformat()
-            for index, msg in enumerate(messages):
-                # Use role field (standard format: user/assistant/system)
-                # If role is not present, convert from type for backward compatibility
+            # Normalize messages (convert type to role for backward compatibility)
+            normalized_messages = []
+            for msg in messages:
+                normalized_msg = {**msg}
+                
                 role = msg.get("role")
                 if not role:
                     # Backward compatibility: convert type to role
@@ -713,34 +676,49 @@ class DynamoDBThreadStorage:
                         "user": "user",
                     }
                     msg_type = msg.get("type", "user")
-                    role = type_to_role.get(msg_type, "user")
+                    normalized_msg["role"] = type_to_role.get(msg_type, "user")
                 
                 # Ensure role is in standard format
-                if role not in ["user", "assistant", "system", "tool"]:
-                    # Normalize role
+                if normalized_msg.get("role") not in ["user", "assistant", "system", "tool"]:
                     role_mapping = {
                         "human": "user",
                         "ai": "assistant",
                     }
-                    role = role_mapping.get(role, "user")
+                    normalized_msg["role"] = role_mapping.get(normalized_msg.get("role"), "user")
                 
-                content = msg.get("content", "")
-                message_data = {k: v for k, v in msg.items() if k not in ["role", "type", "content"]}
-                message_data_str = json.dumps(message_data) if message_data else None
+                # Remove type field to avoid duplication
+                if "type" in normalized_msg:
+                    del normalized_msg["type"]
                 
-                self.messages_table.put_item(
-                    Item={
-                        "thread_id": thread_id,
-                        "message_index": index,
-                        "role": role,
-                        "content": content,
-                        "message_data": message_data_str,
-                        "created_at": now,
-                    }
+                normalized_messages.append(normalized_msg)
+            
+            # Get existing thread to preserve metadata
+            response = self.threads_table.get_item(
+                Key={"thread_id": thread_id}
+            )
+            
+            if "Item" not in response:
+                # Thread doesn't exist, create it
+                self.create_thread(thread_id, {})
+                response = self.threads_table.get_item(
+                    Key={"thread_id": thread_id}
                 )
             
-            # Update thread updated_at
-            self.update_thread_metadata(thread_id, {})
+            item = response["Item"]
+            metadata_str = item.get("metadata", "{}")
+            messages_str = json.dumps(normalized_messages)
+            updated_at = datetime.utcnow().isoformat()
+            
+            # Update thread with new messages
+            self.threads_table.put_item(
+                Item={
+                    "thread_id": thread_id,
+                    "metadata": metadata_str,
+                    "messages": messages_str,
+                    "created_at": item.get("created_at"),
+                    "updated_at": updated_at,
+                }
+            )
         except ClientError as e:
             raise Exception(f"DynamoDB error: {str(e)}")
     
