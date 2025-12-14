@@ -271,10 +271,10 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
     });
     if (id === threadId) {
       clearMessages();
-      // Create a new thread. Use .then to avoid blocking the UI.
-      // Once completed, `createThread` will re-fetch all user
-      // threads to update UI.
-      void createThread();
+      // Immediately clear the threadId to prevent UI from staying on deleted thread
+      // Don't create a new thread automatically - let user start a new conversation
+      // when they send a message (streamMessage will create a thread if needed)
+      setThreadId(null);
     }
     try {
       const response = await fetch(`${API_URL}/api/threads/${id}`, {
