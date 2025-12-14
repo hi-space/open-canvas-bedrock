@@ -27,6 +27,7 @@ import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
 import { Globe } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { TextHighlight } from "@/shared/types";
+import useLocalStorage from "@/hooks/useLocalStorage";
 
 interface AssistantMessageProps {
   runId: string | undefined;
@@ -40,6 +41,11 @@ const ThinkingAssistantMessageComponent = ({
   message: MessageState;
 }): React.ReactElement => {
   const { id, content } = message;
+  const [expandNodeAccordions] = useLocalStorage<boolean>(
+    "expandNodeAccordions",
+    false
+  );
+  
   let contentText = "";
   if (typeof content === "string") {
     contentText = content;
@@ -56,7 +62,7 @@ const ThinkingAssistantMessageComponent = ({
 
   return (
     <Accordion
-      defaultValue={`accordion-${id}`}
+      defaultValue={expandNodeAccordions ? `accordion-${id}` : undefined}
       type="single"
       collapsible
       className="w-full"
@@ -106,6 +112,11 @@ const NodeProgressMessageComponent = ({
   message: MessageState;
 }): React.ReactElement => {
   const { id, content } = message;
+  const [expandNodeAccordions] = useLocalStorage<boolean>(
+    "expandNodeAccordions",
+    false
+  );
+  
   let contentText = "";
   if (typeof content === "string") {
     contentText = content;
@@ -159,7 +170,7 @@ const NodeProgressMessageComponent = ({
   return (
     <div className="w-full max-w-2xl py-2">
       <Accordion
-        defaultValue={`accordion-${id}`}
+        defaultValue={expandNodeAccordions ? `accordion-${id}` : undefined}
         type="single"
         collapsible
         className="w-full"

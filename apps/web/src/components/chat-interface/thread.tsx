@@ -17,6 +17,9 @@ import { ThreadWelcome } from "./welcome";
 import { useUserContext } from "@/contexts/UserContext";
 import { useThreadContext } from "@/contexts/ThreadProvider";
 import { useAssistantContext } from "@/contexts/AssistantContext";
+import { Checkbox } from "../ui/checkbox";
+import { Label } from "../ui/label";
+import useLocalStorage from "@/hooks/useLocalStorage";
 
 const ThreadScrollToBottom: FC = () => {
   return (
@@ -66,6 +69,10 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
     setThreadId,
   } = useThreadContext();
   const { user } = useUserContext();
+  const [expandNodeAccordions, setExpandNodeAccordions] = useLocalStorage<boolean>(
+    "expandNodeAccordions",
+    false
+  );
 
   // Render the LangSmith trace link
   useLangSmithLinkToolUI();
@@ -169,13 +176,28 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
         <div className="w-full max-w-2xl">
           {hasChatStarted && (
             <div className="flex flex-col space-y-2">
-              <ModelSelector
-                modelName={modelName}
-                setModelName={setModelName}
-                modelConfig={modelConfig}
-                setModelConfig={setModelConfig}
-                modelConfigs={modelConfigs}
-              />
+              <div className="flex items-center justify-between gap-4">
+                <ModelSelector
+                  modelName={modelName}
+                  setModelName={setModelName}
+                  modelConfig={modelConfig}
+                  setModelConfig={setModelConfig}
+                  modelConfigs={modelConfigs}
+                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="expand-accordions"
+                    checked={expandNodeAccordions}
+                    onCheckedChange={setExpandNodeAccordions}
+                  />
+                  <Label
+                    htmlFor="expand-accordions"
+                    className="text-sm text-gray-600 cursor-pointer"
+                  >
+                    Detail
+                  </Label>
+                </div>
+              </div>
               <Composer
                 chatStarted={true}
                 userId={props.userId}
