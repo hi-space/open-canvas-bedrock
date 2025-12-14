@@ -20,12 +20,8 @@ class OpenCanvasRequest(BaseModel):
     artifactLength: Optional[str] = None
     regenerateWithEmojis: Optional[bool] = None
     readingLevel: Optional[str] = None
-    highlightedCode: Optional[Dict[str, Any]] = None
     highlightedText: Optional[Dict[str, Any]] = None
-    addComments: Optional[bool] = None
-    addLogs: Optional[bool] = None
     portLanguage: Optional[str] = None
-    fixBugs: Optional[bool] = None
     customQuickActionId: Optional[str] = None
     webSearchEnabled: Optional[bool] = None
     webSearchResults: Optional[List[Dict[str, Any]]] = None
@@ -168,12 +164,8 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
     print(f"  artifactLength: {request.artifactLength}", file=sys.stderr, flush=True)
     print(f"  regenerateWithEmojis: {request.regenerateWithEmojis}", file=sys.stderr, flush=True)
     print(f"  readingLevel: {request.readingLevel}", file=sys.stderr, flush=True)
-    print(f"  highlightedCode: {'present' if request.highlightedCode else None}", file=sys.stderr, flush=True)
     print(f"  highlightedText: {'present' if request.highlightedText else None}", file=sys.stderr, flush=True)
-    print(f"  addComments: {request.addComments}", file=sys.stderr, flush=True)
-    print(f"  addLogs: {request.addLogs}", file=sys.stderr, flush=True)
     print(f"  portLanguage: {request.portLanguage}", file=sys.stderr, flush=True)
-    print(f"  fixBugs: {request.fixBugs}", file=sys.stderr, flush=True)
     print(f"  customQuickActionId: {request.customQuickActionId}", file=sys.stderr, flush=True)
     print(f"  webSearchEnabled: {request.webSearchEnabled}", file=sys.stderr, flush=True)
     print("=============================================", file=sys.stderr, flush=True)
@@ -186,16 +178,12 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
         "_messages": langchain_messages,
         "artifact": request.artifact,
         "next": request.next,
-        "highlightedCode": request.highlightedCode,
         "highlightedText": request.highlightedText,
         "language": request.language,
         "artifactLength": request.artifactLength,
         "regenerateWithEmojis": request.regenerateWithEmojis,
         "readingLevel": request.readingLevel,
-        "addComments": request.addComments,
-        "addLogs": request.addLogs,
         "portLanguage": request.portLanguage,
-        "fixBugs": request.fixBugs,
         "customQuickActionId": request.customQuickActionId,
         "webSearchEnabled": request.webSearchEnabled,
         "webSearchResults": request.webSearchResults,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircleCode, Code, ScrollText, Bug, BookA } from "lucide-react";
+import { Code, BookA } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "@/components/ui/assistant-ui/tooltip-icon-button";
 import { PortToLanguageOptions } from "./PortToLanguage";
@@ -27,30 +27,12 @@ export interface CodeToolbarProps {
 
 const toolbarOptions: ToolbarOption[] = [
   {
-    id: "addComments",
-    tooltip: "Add comments",
-    icon: <MessageCircleCode className="w-[26px] h-[26px]" />,
-    component: null,
-  },
-  {
-    id: "addLogs",
-    tooltip: "Add logs",
-    icon: <ScrollText className="w-[26px] h-[26px]" />,
-    component: null,
-  },
-  {
     id: "portLanguage",
     tooltip: "Port language",
     icon: <BookA className="w-[26px] h-[26px]" />,
     component: (
       props: SharedComponentProps & { language: ProgrammingLanguageOptions }
     ) => <PortToLanguageOptions {...props} />,
-  },
-  {
-    id: "fixBugs",
-    tooltip: "Fix bugs",
-    icon: <Bug className="w-[26px] h-[26px]" />,
-    component: null,
   },
 ];
 
@@ -97,19 +79,6 @@ export function CodeToolBar(props: CodeToolbarProps) {
 
     setIsExpanded(false);
     setActiveOption(null);
-    if (optionId === "addComments") {
-      await streamMessage({
-        addComments: true,
-      });
-    } else if (optionId === "addLogs") {
-      await streamMessage({
-        addLogs: true,
-      });
-    } else if (optionId === "fixBugs") {
-      await streamMessage({
-        fixBugs: true,
-      });
-    }
   };
 
   const handleClose = () => {

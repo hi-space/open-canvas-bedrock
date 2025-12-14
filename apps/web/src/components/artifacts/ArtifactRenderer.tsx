@@ -121,11 +121,13 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
             left = Math.min(0, firstRect.left - contentRect.left);
           }
 
-          setSelectionBox({
+          const newSelectionBox = {
             top: lastRect.bottom - contentRect.top,
             left: left,
             text: selectedText,
-          });
+          };
+          console.log("[ArtifactRenderer] Setting selectionBox:", newSelectionBox);
+          setSelectionBox(newSelectionBox);
           setIsInputVisible(false);
           setIsSelectionActive(true);
         } else {
@@ -137,6 +139,7 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
   }, []);
 
   const handleCleanupState = () => {
+    console.log("[ArtifactRenderer] handleCleanupState called - clearing selectionBox");
     setIsInputVisible(false);
     setSelectionBox(undefined);
     setSelectionIndexes(undefined);
@@ -172,12 +175,6 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     handleCleanupState();
     await streamMessage({
       messages: [serializeLangChainMessage(humanMessage)],
-      ...(selectionIndexes && {
-        highlightedCode: {
-          startCharIndex: selectionIndexes.start,
-          endCharIndex: selectionIndexes.end,
-        },
-      }),
     });
   };
 

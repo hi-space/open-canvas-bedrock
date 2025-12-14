@@ -82,8 +82,8 @@ export const AskOpenCanvas = forwardRef<HTMLDivElement, AskOpenCanvasProps>(
           isInputVisible ? "rounded-3xl" : "rounded-md"
         )}
         style={{
-          top: `${selectionBox.top + 65}px`,
-          left: `${selectionBox.left}px`,
+          top: selectionBox ? `${selectionBox.top + 65}px` : "0px",
+          left: selectionBox ? `${selectionBox.left}px` : "0px",
           width: isInputVisible ? "400px" : "250px",
           marginLeft: isInputVisible ? "0" : "150px",
         }}

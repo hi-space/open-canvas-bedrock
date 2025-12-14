@@ -8,12 +8,8 @@ export interface ApiRequest {
   artifactLength?: string;
   regenerateWithEmojis?: boolean;
   readingLevel?: string;
-  highlightedCode?: any;
   highlightedText?: any;
-  addComments?: boolean;
-  addLogs?: boolean;
   portLanguage?: string;
-  fixBugs?: boolean;
   customQuickActionId?: string;
   webSearchEnabled?: boolean;
   webSearchResults?: any[];
@@ -74,6 +70,8 @@ export async function callReflection(
     },
   };
 
+  console.log("[callReflection] Request body:", JSON.stringify(requestBody, null, 2));
+
   const response = await fetch(`${API_URL}/api/reflection/reflect`, {
     method: "POST",
     headers: {
@@ -109,6 +107,8 @@ export async function callThreadTitle(
       },
     },
   };
+
+  console.log("[callThreadTitle] Request body:", JSON.stringify(requestBody, null, 2));
 
   const response = await fetch(`${API_URL}/api/thread-title/generate`, {
     method: "POST",
@@ -146,6 +146,8 @@ export async function callSummarizer(
     },
   };
 
+  console.log("[callSummarizer] Request body:", JSON.stringify(requestBody, null, 2));
+
   const response = await fetch(`${API_URL}/api/summarizer/summarize`, {
     method: "POST",
     headers: {
@@ -179,6 +181,8 @@ export async function callWebSearch(
       },
     },
   };
+
+  console.log("[callWebSearch] Request body:", JSON.stringify(requestBody, null, 2));
 
   const response = await fetch(`${API_URL}/api/web-search/search`, {
     method: "POST",
@@ -226,12 +230,8 @@ export async function* streamAgent(
     artifactLength: input.artifactLength,
     regenerateWithEmojis: input.regenerateWithEmojis,
     readingLevel: input.readingLevel,
-    highlightedCode: input.highlightedCode,
     highlightedText: input.highlightedText,
-    addComments: input.addComments,
-    addLogs: input.addLogs,
     portLanguage: input.portLanguage,
-    fixBugs: input.fixBugs,
     customQuickActionId: input.customQuickActionId,
     webSearchEnabled: input.webSearchEnabled,
     webSearchResults: input.webSearchResults,
@@ -247,12 +247,8 @@ export async function* streamAgent(
     artifactLength: requestBody.artifactLength,
     regenerateWithEmojis: requestBody.regenerateWithEmojis,
     readingLevel: requestBody.readingLevel,
-    highlightedCode: requestBody.highlightedCode ? "present" : undefined,
-    highlightedText: requestBody.highlightedText ? "present" : undefined,
-    addComments: requestBody.addComments,
-    addLogs: requestBody.addLogs,
+    highlightedText: requestBody.highlightedText,
     portLanguage: requestBody.portLanguage,
-    fixBugs: requestBody.fixBugs,
     customQuickActionId: requestBody.customQuickActionId,
     webSearchEnabled: requestBody.webSearchEnabled,
     hasMessages: (requestBody.messages?.length || 0) > 0,

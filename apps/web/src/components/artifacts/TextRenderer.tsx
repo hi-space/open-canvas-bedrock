@@ -147,7 +147,6 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
     
     // If this is a different artifact, reset the refs to force update
     if (artifactIdRef.current !== artifactId) {
-      console.log("[TextRenderer] Different artifact detected, resetting refs");
       lastRenderedContentRef.current = "";
       lastRenderedIndexRef.current = -1;
       artifactIdRef.current = artifactId;
@@ -158,7 +157,6 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
     
     // If updateRenderedArtifactRequired is true, reset updating flags to allow update
     if (updateRenderedArtifactRequired && isUpdatingRef.current) {
-      console.log("[TextRenderer] Force update requested, resetting update flags");
       isUpdatingRef.current = false;
       pendingContentRef.current = null;
     }
@@ -166,7 +164,6 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
     // Always update when artifact changes, even during streaming
     // Only skip if manually updating to avoid conflicts
     if (manuallyUpdatingArtifact) {
-      console.log("[TextRenderer] Manually updating, skipping");
       return;
     }
 
@@ -198,11 +195,9 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
         // If we're trying to update to a different index, cancel current update and start new one
         if (lastRenderedIndexRef.current !== currentIndex || 
             (pendingContentRef.current && pendingContentRef.current !== fullMarkdown)) {
-          console.log("[TextRenderer] Cancelling current update, starting new one");
           isUpdatingRef.current = false;
           pendingContentRef.current = null;
         } else {
-          console.log("[TextRenderer] Already updating same content, skipping");
           return;
         }
       }
@@ -224,13 +219,6 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
         } finally {
           // Clear the updating flag
           isUpdatingRef.current = false;
-          
-          // Check if artifact has changed while we were updating
-          // If so, trigger a new update
-          if (artifact && artifact.currentIndex !== index) {
-            console.log("[TextRenderer] Artifact index changed during update, will trigger new update");
-            // The useEffect will trigger again because artifact changed
-          }
         }
       };
       

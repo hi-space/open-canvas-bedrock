@@ -289,7 +289,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     
     threadData.getThread(threadData.threadId).then((thread) => {
       if (thread) {
-        console.log("Loading thread from URL:", threadData.threadId);
         switchSelectedThread(thread);
         return;
       }
@@ -468,6 +467,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
     // TODO: update to properly pass the highlight data back
     // one field for highlighted text, and one for code
+    console.log("[GraphContext] streamMessage - selectedBlocks:", {
+      selectedBlocks,
+      isUndefined: selectedBlocks === undefined,
+      isNull: selectedBlocks === null,
+      type: typeof selectedBlocks,
+      value: selectedBlocks,
+      stringified: JSON.stringify(selectedBlocks),
+    });
+    
     const input = {
       ...DEFAULT_INPUTS,
       artifact,
@@ -478,6 +486,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       }),
       webSearchEnabled: searchEnabled,
     };
+
+    console.log("[GraphContext] streamMessage - input.highlightedText:", {
+      highlightedText: input.highlightedText,
+      isUndefined: input.highlightedText === undefined,
+      isNull: input.highlightedText === null,
+      type: typeof input.highlightedText,
+      value: input.highlightedText,
+      stringified: JSON.stringify(input.highlightedText),
+    });
     // Add check for multiple defined fields
     const fieldsToCheck = [
       input.highlightedText,
@@ -485,9 +502,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       input.artifactLength,
       input.regenerateWithEmojis,
       input.readingLevel,
-      input.addComments,
-      input.addLogs,
-      input.fixBugs,
       input.portLanguage,
       input.customQuickActionId,
     ];
@@ -1675,9 +1689,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       setMessages([]);
       return;
     }
-    
-    console.log(`Processing ${castValues.messages.length} messages from thread ${thread.thread_id}`);
-    
+        
     // Ensure all messages have valid IDs before setting
     const messagesWithIds = castValues.messages
       .map((msg: Record<string, any>, index: number) => {

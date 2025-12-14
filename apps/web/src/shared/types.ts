@@ -90,11 +90,6 @@ export type ReadingLevelOptions =
   | "college"
   | "phd";
 
-export interface CodeHighlight {
-  startCharIndex: number;
-  endCharIndex: number;
-}
-
 export interface ArtifactMarkdown {
   index: number;
   type: "text";
@@ -198,7 +193,6 @@ export type SearchResult = DocumentInterface<ExaMetadata>;
 export interface GraphInput {
   messages?: Record<string, any>[];
 
-  highlightedCode?: CodeHighlight;
   highlightedText?: TextHighlight;
 
   artifact?: Artifact;
@@ -210,10 +204,7 @@ export interface GraphInput {
   regenerateWithEmojis?: boolean;
   readingLevel?: ReadingLevelOptions;
 
-  addComments?: boolean;
-  addLogs?: boolean;
   portLanguage?: ProgrammingLanguageOptions;
-  fixBugs?: boolean;
   customQuickActionId?: string;
 
   webSearchEnabled?: boolean;
