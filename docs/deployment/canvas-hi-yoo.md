@@ -1,5 +1,30 @@
 # canvas.hi-yoo.com deployment
 
+## Automated releases
+
+Every merge to `main` deploys through `.github/workflows/deploy.yml`; release
+from that path only, not from a local working tree. Pull requests run the tests
+without AWS access.
+
+1. Backend, deployment-script and web tests (pytest, vitest, typecheck, lint).
+2. Frontend and backend images build on x86-64 runners, the agent image on an
+   ARM64 runner. The agent container must answer `/ping` before it is pushed,
+   which catches modules missing from `deploy/Dockerfile.agent`.
+3. `deploy/release.py` changes only the ECS task definition images and the
+   AgentCore runtime image and lifecycle, through change sets that it rejects
+   when any other resource would change or be replaced. It then checks the ECS
+   rollout, target health, runtime `READY` and the Cognito redirects, and
+   restores the previous images if a check fails.
+
+AWS access is the OIDC role `open-canvas-github-deploy`, trusted only for the
+repository's `production` environment, which accepts deployments from `main`.
+CloudFormation runs as the CDK execution role. The backend's private build
+context (diagram skills and the LinkedIn style guide) is a checksummed archive
+under `open-canvas-build/` in the CDK assets bucket; the `production`
+environment variables `AWS_DEPLOY_ROLE_ARN`, `SKILLS_BUNDLE_S3_URI` and
+`SKILLS_BUNDLE_SHA256` point to it. Workflow logs are public: they show image
+digests and resource status only.
+
 ## Current release: HTML canvas and bounded revisions, 2026-10-25
 
 The workspace generates static HTML/CSS from project sources, previews new

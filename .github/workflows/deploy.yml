@@ -1,0 +1,168 @@
+# Test every pull request; deploy each merge to main to canvas.hi-yoo.com.
+#
+# AWS access uses GitHub OIDC with a role trusted only for the `production`
+# environment, which accepts deployments from main alone. Logs are public:
+# commands print digests and resource status, never configuration values.
+name: Test and deploy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # One production release at a time; a newer merge waits, never cancels one.
+  group: ${{ github.event_name == 'pull_request' && format('test-{0}', github.ref) || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: 913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/backend/requirements.lock.txt
+      - run: pip install -r apps/backend/requirements.lock.txt
+      - name: Backend tests
+        working-directory: apps/backend
+        run: python -m pytest -q tests
+      - name: Deployment script tests
+        working-directory: deploy
+        run: python -m pytest -q test_release.py agentcore
+
+  web-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: yarn
+          cache-dependency-path: apps/web/yarn.lock
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn test
+      - run: yarn typecheck
+      - run: yarn lint
+
+  images:
+    if: github.event_name != 'pull_request'
+    needs: [backend-tests, web-tests]
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - component: frontend
+            dockerfile: deploy/Dockerfile.web
+            runner: ubuntu-latest
+          - component: backend
+            dockerfile: deploy/Dockerfile.backend
+            runner: ubuntu-latest
+          # AgentCore runs ARM64 images; build natively instead of emulating.
+          - component: agent
+            dockerfile: deploy/Dockerfile.agent
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Fetch the private build context
+        if: matrix.component == 'backend'
+        # Diagram skills and the personal style guide stay out of this public repository.
+        env:
+          SKILLS_BUNDLE_S3_URI: ${{ vars.SKILLS_BUNDLE_S3_URI }}
+          SKILLS_BUNDLE_SHA256: ${{ vars.SKILLS_BUNDLE_SHA256 }}
+        run: |
+          aws s3 cp "$SKILLS_BUNDLE_S3_URI" "$RUNNER_TEMP/skills.tar.gz" --only-show-errors
+          echo "$SKILLS_BUNDLE_SHA256  $RUNNER_TEMP/skills.tar.gz" | sha256sum --check --quiet
+          mkdir "$RUNNER_TEMP/skills"
+          tar -xzf "$RUNNER_TEMP/skills.tar.gz" -C "$RUNNER_TEMP/skills"
+          echo "EXTRA_BUILD_ARGS=--build-context skills=$RUNNER_TEMP/skills" >> "$GITHUB_ENV"
+      - name: Build
+        env:
+          COMPONENT: ${{ matrix.component }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          docker buildx build --load --progress plain $EXTRA_BUILD_ARGS \
+            -f "$DOCKERFILE" -t "$ECR_REPOSITORY:gha-$GITHUB_SHA-$COMPONENT" .
+      - name: Smoke-test the agent image
+        if: matrix.component == 'agent'
+        # Fails on import errors (for example a module missing from the image)
+        # before anything reaches AgentCore.
+        run: |
+          docker run -d --name agent -p 8080:8080 "$ECR_REPOSITORY:gha-$GITHUB_SHA-agent"
+          for attempt in $(seq 30); do
+            if curl -fsS http://127.0.0.1:8080/ping | grep -q '"Healthy"'; then exit 0; fi
+            sleep 2
+          done
+          docker logs agent
+          exit 1
+      - name: Push
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          image="$ECR_REPOSITORY:gha-$GITHUB_SHA-$COMPONENT"
+          docker push --quiet "$image"
+          digest=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" \
+            | grep "^$ECR_REPOSITORY@sha256:" | head -1)
+          test -n "$digest"
+          echo "$digest" > "digest-$COMPONENT.txt"
+          echo "$COMPONENT: $digest"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-${{ matrix.component }}
+          path: digest-${{ matrix.component }}.txt
+          retention-days: 30
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: images
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: pip install boto3==1.43.118
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          merge-multiple: true
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Release
+        run: |
+          python deploy/release.py \
+            --frontend-image "$(cat digest-frontend.txt)" \
+            --backend-image "$(cat digest-backend.txt)" \
+            --agent-image "$(cat digest-agent.txt)" \
+            --source-commit "$GITHUB_SHA"
