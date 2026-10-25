@@ -1,5 +1,6 @@
 """The release script changes only images and the runtime lifecycle, and refuses anything else."""
 import ast
+import json
 from pathlib import Path
 import unittest
 
@@ -90,6 +91,36 @@ class ReleaseTests(unittest.TestCase):
         ):
             with self.subTest(bad=bad), self.assertRaises(release.ReleaseError):
                 release.check_changes(stack, [bad])
+
+    def test_references_reevaluated_from_a_release_resource_are_allowed(self):
+        # ApiWorkspacePolicy references Runtime.AgentRuntimeArn, so CloudFormation
+        # lists it whenever the runtime changes, although its template is unchanged.
+        reevaluated = change("AWS::IAM::Policy", "ApiWorkspacePolicy")
+        reevaluated["ResourceChange"]["Details"] = [{
+            "ChangeSource": "ResourceAttribute", "Evaluation": "Dynamic",
+            "CausingEntity": "Runtime.AgentRuntimeArn", "Target": {"Attribute": "Properties", "Name": "PolicyDocument"},
+        }]
+        runtime = change("AWS::BedrockAgentCore::Runtime", "Runtime")
+        self.assertEqual(release.check_changes(release.WORKSPACE_STACK, [reevaluated, runtime]),
+                         ["ApiWorkspacePolicy", "Runtime"])
+
+        def variant(**detail):
+            item = json.loads(json.dumps(reevaluated))
+            item["ResourceChange"]["Details"][0].update(detail)
+            return item
+
+        direct = variant(ChangeSource="DirectModification", Evaluation="Static", CausingEntity=None)
+        other_cause = variant(CausingEntity="Bucket.Arn")
+        replaced = json.loads(json.dumps(reevaluated))
+        replaced["ResourceChange"]["Replacement"] = "Conditional"
+        mixed = json.loads(json.dumps(reevaluated))
+        mixed["ResourceChange"]["Details"].append(direct["ResourceChange"]["Details"][0])
+        for bad in (direct, other_cause, replaced, mixed):
+            with self.subTest(bad=bad["ResourceChange"]["Details"]), self.assertRaises(release.ReleaseError):
+                release.check_changes(release.WORKSPACE_STACK, [bad, runtime])
+        # A reevaluation without the release resource changing is not expected either.
+        with self.assertRaises(release.ReleaseError):
+            release.check_changes(release.WORKSPACE_STACK, [reevaluated])
 
     def test_templates_cannot_gain_or_lose_resources_or_sections(self):
         before = application()
