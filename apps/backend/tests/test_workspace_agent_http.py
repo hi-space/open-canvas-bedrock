@@ -43,6 +43,26 @@ def test_ping_uses_the_agentcore_health_contract_without_a_changing_timestamp(cl
     assert second.json() == first.json()
 
 
+@pytest.mark.parametrize("outcome", ["completed", "failed"])
+def test_ping_reports_busy_while_an_invocation_runs(client, monkeypatch, outcome):
+    # The runtime's idle timeout is 60 seconds and AgentCore treats "Healthy" as
+    # idle, so a longer model turn is terminated unless ping reports it busy.
+    seen = []
+
+    class SlowModel(ExternalModel):
+        def converse(self, **request):
+            seen.append(client.get("/ping").json())
+            if outcome == "failed":
+                raise TimeoutError("offline")
+            return super().converse(**request)
+
+    monkeypatch.setattr("workspace_agent.agent.boto3.client", lambda *args, **kwargs: SlowModel())
+    result = client.post("/invocations", json=payload())
+    assert result.status_code == (200 if outcome == "completed" else 502)
+    assert seen == [{"status": "HealthyBusy"}]
+    assert client.get("/ping").json() == {"status": "Healthy"}
+
+
 def test_invocations_return_the_runtime_json_contract(client, monkeypatch):
     monkeypatch.setattr("workspace_agent.agent.boto3.client", lambda *args, **kwargs: ExternalModel())
     result = client.post("/invocations", json=payload())

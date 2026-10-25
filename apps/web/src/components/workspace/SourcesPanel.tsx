@@ -14,7 +14,11 @@ import {
   mergeReferences,
   referenceUrl,
 } from "@/lib/workspace/sources";
-import type { SourceReference, WorkspaceDocument } from "@/lib/workspace/types";
+import type {
+  SourceReference,
+  TextSelection,
+  WorkspaceDocument,
+} from "@/lib/workspace/types";
 import styles from "./workspace.module.css";
 
 export function SourcesPanel({
@@ -23,12 +27,16 @@ export function SourcesPanel({
   onAdd,
   onCite,
   onRemove,
+  selection,
+  html = false,
 }: {
   document: WorkspaceDocument;
   hasSelection: boolean;
   onAdd: (source: SourceReference) => void;
   onCite: (source: SourceReference) => void;
   onRemove: (id: string) => void;
+  selection?: TextSelection;
+  html?: boolean;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [url, setUrl] = useState("");
@@ -46,6 +54,17 @@ export function SourcesPanel({
     () => extractReferences(document.content),
     [document.content]
   );
+  const selectedSources = useMemo(() => {
+    const urls = new Set(
+      selection
+        ? extractReferences(selection.text).map((source) => source.url)
+        : []
+    );
+    for (const source of document.sources) {
+      if (selection?.sourceIds?.includes(source.id)) urls.add(source.url);
+    }
+    return urls;
+  }, [document.sources, selection]);
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -162,6 +181,13 @@ export function SourcesPanel({
         <h3>글에 근거를 더하세요.</h3>
         <p>문장 옆에 인용을 남기고, 한 번의 클릭으로 원문을 확인하세요.</p>
       </div>
+      {selection?.nodeId && (
+        <p className={styles.fieldHint}>
+          {selectedSources.size
+            ? `선택한 영역에 연결된 근거 ${selectedSources.size}개를 표시합니다.`
+            : "선택한 영역에 연결된 근거가 없습니다. 참고 자료를 인용해 연결할 수 있어요."}
+        </p>
+      )}
       <button
         className={styles.addSourceButton}
         onClick={() => {
@@ -291,11 +317,13 @@ export function SourcesPanel({
               )}
               <div className={styles.sourceCardFooter}>
                 <span>
-                  {citation
-                    ? `본문 ${citation.count}회 인용`
-                    : source.excerpt
-                      ? "발췌 준비됨"
-                      : "발췌 없음"}
+                  {selectedSources.has(source.url)
+                    ? "선택 영역의 근거"
+                    : citation
+                      ? `본문 ${citation.count}회 인용`
+                      : source.excerpt
+                        ? "발췌 준비됨"
+                        : "발췌 없음"}
                 </span>
                 <button
                   className={styles.textButton}
@@ -318,8 +346,12 @@ export function SourcesPanel({
       {!!references.length && (
         <p className={styles.fieldHint}>
           {hasSelection
-            ? "선택한 문장 바로 뒤에 인용을 넣습니다."
-            : "커서 위치 또는 문서 끝에 인용을 넣습니다."}
+            ? html
+              ? "선택한 영역에 출처를 연결하고 인용 링크를 넣습니다."
+              : "선택한 문장 바로 뒤에 인용을 넣습니다."
+            : html
+              ? "페이지 본문 끝에 인용 링크를 넣습니다."
+              : "커서 위치 또는 문서 끝에 인용을 넣습니다."}
         </p>
       )}
     </div>

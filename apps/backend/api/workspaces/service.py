@@ -9,10 +9,13 @@ import logging
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError, ReadTimeoutError
 from fastapi import HTTPException
 
 from api.writing.models import WritingSource
 from api.workspaces.files import ProjectFiles, now, validate_path
+from api.workspaces.html_documents import html_selection, is_html_path
+from api.workspaces.jobs import JobHeartbeat, job_is_stale
 from api.workspaces.proposals import create_proposal, utf16_offset
 from core.models import get_default_model_name
 
@@ -29,7 +32,9 @@ def invoke_agent(payload):
     client = boto3.client(
         "bedrock-agentcore",
         region_name=os.environ.get("AGENTCORE_REGION", "ap-northeast-2"),
-        config=Config(connect_timeout=10, read_timeout=600, retries={"max_attempts": 0}),
+        # The agent replies within its 720 s deadline; AgentCore ends a
+        # synchronous request at 15 minutes.
+        config=Config(connect_timeout=10, read_timeout=930, retries={"max_attempts": 0}),
     )
     response = client.invoke_agent_runtime(
         agentRuntimeArn=arn, runtimeSessionId=str(uuid.uuid4()),
@@ -61,7 +66,7 @@ def prepare_job(files, request):
         return files.metadata.get(files.namespace, "job:" + previous["jobId"]), None
     records = files.metadata.items(files.namespace)
     active_jobs = [value for key, value in records.items() if key.startswith("job:")
-                   and value["status"] in {"running", "queued"} and now() - value["updatedAt"] < 900000]
+                   and value["status"] in {"running", "queued"} and not job_is_stale(value, now())]
     if active_jobs:
         raise HTTPException(409, "이 프로젝트에서 에이전트가 작업 중입니다. 완료 후 다시 요청해 주세요.")
     selection = None
@@ -81,6 +86,16 @@ def prepare_job(files, request):
         if start >= end or active["content"][start:end] != request.selection.text:
             raise HTTPException(409, "선택 내용이 문서와 다릅니다. 다시 선택해 주세요.")
         selection = {"path": request.activePath, "start": start, "end": end, "text": request.selection.text}
+        if is_html_path(request.activePath):
+            try:
+                resolved = html_selection(active["content"], request.selection.nodeId)
+            except ValueError as error:
+                raise HTTPException(409, str(error)) from error
+            if any(selection[key] != resolved[key] for key in ("start", "end", "text")):
+                raise HTTPException(409, "선택 내용이 HTML 요소 전체와 다릅니다. 다시 선택해 주세요.")
+            selection["nodeId"] = resolved["nodeId"]
+        elif request.selection.nodeId is not None:
+            raise HTTPException(422, "HTML 영역 ID는 HTML 문서에서만 사용할 수 있습니다.")
     history_records = sorted(
         [value for key, value in records.items() if key.startswith("message:")],
         key=lambda item: item["createdAt"],
@@ -110,6 +125,8 @@ def prepare_job(files, request):
         payload["selection"] = selection
     if request.researchGenre:
         payload["researchGenre"] = request.researchGenre
+    if request.outputFormat:
+        payload["outputFormat"] = request.outputFormat
     user_message = {
         "id": str(uuid.uuid4()), "role": "user", "content": request.message,
         "createdAt": now(), "jobId": job["id"],
@@ -161,19 +178,60 @@ def report_progress(files, job_id, status):
     """Long jobs report each step; the update also keeps the job from expiring as stalled."""
     with files.lock():
         job = files.metadata.get(files.namespace, "job:" + job_id)
-        if job and job["status"] == "running":
-            job.update(message=status[:500], updatedAt=now())
+        timestamp = now()
+        if job and job["status"] == "running" and not job_is_stale(job, timestamp):
+            job.update(message=status[:500], updatedAt=timestamp)
             files.metadata.put(files.namespace, "job:" + job_id, job)
+
+
+GENERIC_FAILURE = "에이전트 작업을 완료하지 못했습니다. 원본은 변경되지 않았습니다. 다시 요청해 주세요."
+TIME_LIMIT_FAILURE = (
+    "요청이 길어 제한 시간 안에 끝나지 않았습니다. 원본은 변경되지 않았습니다. "
+    "문서나 범위를 나누어 다시 요청해 주세요."
+)
+
+
+def _failure_detail(error):
+    """Service-authored text only: AWS error messages and our own HTTP statuses carry no request data."""
+    if isinstance(error, ClientError):
+        return ": " + str(error.response.get("Error", {}).get("Message", ""))[:300]
+    if isinstance(error, HTTPException):
+        return f", status={error.status_code}"
+    return ""
+
+
+def failure_reason(error):
+    """The message persisted on a failed job and shown in the workspace chat."""
+    from api.workspaces.research import ResearchError
+
+    if isinstance(error, ResearchError):
+        return str(error)
+    # Our HTTP details are written for people and carry no request data.
+    if isinstance(error, HTTPException) and isinstance(error.detail, str):
+        return error.detail
+    if isinstance(error, ReadTimeoutError) or (
+        isinstance(error, ClientError)
+        and "initialization time exceeded" in str(error.response.get("Error", {}).get("Message", ""))
+    ):
+        return TIME_LIMIT_FAILURE
+    return GENERIC_FAILURE
 
 
 def run_job(owner, workspace, job_id, payload):
     files = ProjectFiles(owner, workspace)
+    heartbeat = None
+    claimed = False
     try:
         with files.lock():
             files.require()
             job = files.metadata.get(files.namespace, "job:" + job_id)
+            if not job or job["status"] != "queued" or job_is_stale(job, now()):
+                return
             job.update(status="running", updatedAt=now())
             files.metadata.put(files.namespace, "job:" + job_id, job)
+            claimed = True
+        heartbeat = JobHeartbeat(files, job_id)
+        heartbeat.start()
         fetched = fetch_requested_sources(payload["message"], payload["sources"])
         combined = {source["id"]: source for source in payload["sources"]}
         for source in fetched:
@@ -209,10 +267,24 @@ def run_job(owner, workspace, job_id, payload):
             raise ValueError("Too many proposals")
         if len({edit.get("path") for edit in edits if isinstance(edit, dict)}) != len(edits):
             raise ValueError("Duplicate file proposals")
+        if payload.get("outputFormat") == "html" and any(
+            not isinstance(edit, dict) or not isinstance(edit.get("path"), str)
+            or not edit["path"].lower().endswith(".html")
+            or edit.get("baseVersion") is not None or edit.get("baseContent") != ""
+            for edit in edits
+        ):
+            raise ValueError("HTML generation must propose new .html files")
         proposals = [create_proposal(
             edit, job_id, payload["message"], list(combined.values()), payload.get("selection"),
         ) for edit in edits]
         with files.lock():
+            job = files.metadata.get(files.namespace, "job:" + job_id)
+            if not job or job["status"] != "running" or job_is_stale(job, now()):
+                return
+            if payload.get("outputFormat") == "html" and any(
+                files.read(proposal["path"], missing=True) is not None for proposal in proposals
+            ):
+                raise ValueError("HTML generation cannot target an existing file")
             # A person can edit the source library while the model is running.
             # Keep their latest records and retain the job's evidence in proposals.
             current_sources = {source["id"]: source for source in sources_from(files.metadata.items(files.namespace))}
@@ -237,15 +309,16 @@ def run_job(owner, workspace, job_id, payload):
             )
             files.metadata.put(files.namespace, "job:" + job_id, job)
     except Exception as error:
-        logger.warning("Workspace job failed (%s)", type(error).__name__)
-        from api.workspaces.research import ResearchError
-        reason = (str(error) if isinstance(error, ResearchError)
-                  else "에이전트 작업을 완료하지 못했습니다. 원본은 변경되지 않았습니다. 다시 요청해 주세요.")
+        logger.warning("Workspace job failed (%s%s)", type(error).__name__, _failure_detail(error))
+        reason = failure_reason(error)
         try:
             with files.lock():
                 job = files.metadata.get(files.namespace, "job:" + job_id)
-                if job:
+                if claimed and job and job["status"] == "running":
                     job.update(status="failed", updatedAt=now(), error=reason)
                     files.metadata.put(files.namespace, "job:" + job_id, job)
         except Exception:
             logger.error("Could not persist workspace job failure")
+    finally:
+        if heartbeat is not None:
+            heartbeat.stop()

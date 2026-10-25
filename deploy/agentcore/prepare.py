@@ -459,7 +459,7 @@ def support_template(agent_image, *, include_runtime=True):
                 "BEDROCK_MODEL_ID": "global.anthropic.claude-opus-5-5",
                 "PYTHONUNBUFFERED": "1",
             },
-            "LifecycleConfiguration": {"IdleRuntimeSessionTimeout": 60, "MaxLifetime": 600},
+            "LifecycleConfiguration": {"IdleRuntimeSessionTimeout": 60, "MaxLifetime": 900},
             "Tags": {"Application": "canvas-writing-workspace"},
         },
     }

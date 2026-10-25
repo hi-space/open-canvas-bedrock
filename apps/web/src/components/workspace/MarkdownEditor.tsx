@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
+import { html } from "@codemirror/lang-html";
 import {
   Decoration,
   EditorView,
@@ -21,6 +22,7 @@ interface Props {
   onChange: (content: string) => void;
   onSelection: (selection: TextSelection) => void;
   reviewFocus?: ReviewFocus;
+  format?: "markdown" | "html";
 }
 
 class ReviewMarker extends WidgetType {
@@ -56,6 +58,7 @@ export default function MarkdownEditor({
   onChange,
   onSelection,
   reviewFocus,
+  format = "markdown",
 }: Props) {
   const [view, setView] = useState<EditorView>();
   const revealedRequest = useRef<number | undefined>(undefined);
@@ -107,10 +110,11 @@ export default function MarkdownEditor({
 
   const extensions = useMemo(
     () => [
-      markdown(),
+      format === "html" ? html() : markdown(),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
-        "aria-label": "문서 Markdown 편집기",
+        "aria-label":
+          format === "html" ? "문서 HTML 편집기" : "문서 Markdown 편집기",
         "aria-multiline": "true",
         spellcheck: "true",
       }),
@@ -162,7 +166,7 @@ export default function MarkdownEditor({
       }),
       focusExtension,
     ],
-    [focusExtension]
+    [focusExtension, format]
   );
 
   return (

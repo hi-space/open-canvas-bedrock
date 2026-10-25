@@ -363,3 +363,172 @@ def test_reference_fetch_refuses_internal_networks_and_non_web_urls(project, url
     with tools_for(root) as tools:
         with pytest.raises(ValueError):
             tools.execute("fetch_reference", {"url": url})
+
+
+def apply(tools, path, *edits, explanation="간결하게 다듬었습니다."):
+    return tools.execute("apply_edits", {
+        "path": path, "explanation": explanation,
+        "edits": [{"find": find, "replace": replace} for find, replace in edits],
+    })
+
+
+def test_targeted_edits_build_the_whole_proposal_from_the_read_snapshot(project):
+    # Output scales with the change, not the document: a 57,000-character
+    # research file cannot be rewritten within one model turn.
+    root, directory = project
+    original = "# 제목\r\n\r\n" + "변경 없는 문단 [1](https://example.com/a).\r\n\r\n" * 2000 + "첫 문장.\r\n끝 문장.\r\n"
+    (directory / "article.md").write_bytes(original.encode("utf-8"))
+    with tools_for(root) as tools:
+        tools.execute("read_file", {"path": "article.md"})
+        result = apply(tools, "article.md", ("# 제목", "# 새 제목"), ("첫 문장.", "고친 문장."))
+        assert result["status"] == "proposed" and result["edits"] == 2
+        proposal = tools.proposals[0]
+        assert proposal["baseContent"] == original
+        assert proposal["proposedContent"] == (
+            original.replace("# 제목", "# 새 제목", 1).replace("첫 문장.", "고친 문장.", 1)
+        )
+    assert (directory / "article.md").read_bytes() == original.encode("utf-8")
+
+
+def test_repeated_targeted_edits_accumulate_on_the_pending_proposal(project):
+    root, directory = project
+    (directory / "article.md").write_text("하나. 둘. 셋.", encoding="utf-8")
+    with tools_for(root) as tools:
+        tools.execute("read_file", {"path": "article.md"})
+        apply(tools, "article.md", ("하나.", "1."))
+        apply(tools, "article.md", ("셋.", "3."))
+        assert [item["proposedContent"] for item in tools.proposals] == ["1. 둘. 3."]
+        assert tools.proposals[0]["baseContent"] == "하나. 둘. 셋."
+
+
+@pytest.mark.parametrize("edits, message", [
+    ([("없는 문장", "x")], "not found"),
+    ([("같은", "x")], "2 times"),
+    ([("같은 문장 하나", "x"), ("문장 하나", "y")], "overlap"),
+])
+def test_ambiguous_or_missing_find_text_is_actionable_and_proposes_nothing(project, edits, message):
+    root, directory = project
+    (directory / "article.md").write_text("같은 문장 하나. 같은 문장 둘.", encoding="utf-8")
+    with tools_for(root) as tools:
+        tools.execute("read_file", {"path": "article.md"})
+        with pytest.raises(ValueError, match=message):
+            apply(tools, "article.md", *edits)
+        assert tools.proposals == []
+
+
+def test_targeted_edits_require_a_read_existing_file(project):
+    root, directory = project
+    (directory / "article.md").write_text("본문.", encoding="utf-8")
+    with tools_for(root) as tools:
+        with pytest.raises(ValueError, match="read_file"):
+            apply(tools, "article.md", ("본문.", "새 본문."))
+        with pytest.raises(ValueError, match="read_file|propose_edit"):
+            apply(tools, "new.md", ("x", "y"))
+        assert tools.proposals == []
+
+
+def test_targeted_edits_keep_citation_and_selection_validation(project):
+    root, directory = project
+    original = "앞 문장 [1](https://example.com/a). 고칠 문장. 뒤 문장."
+    (directory / "article.md").write_text(original, encoding="utf-8")
+    start = original.index("고칠 문장.")
+    with tools_for(root) as tools:
+        tools.execute("read_file", {"path": "article.md"})
+        with pytest.raises(ValueError):
+            apply(tools, "article.md", (" [1](https://example.com/a)", ""))
+    with tools_for(
+        root, activePath="article.md",
+        selection={"path": "article.md", "start": start, "end": start + 6, "text": "고칠 문장."},
+    ) as tools:
+        with pytest.raises(ValueError, match="selection"):
+            apply(tools, "article.md", ("뒤 문장.", "x"))
+        apply(tools, "article.md", ("고칠", "고친"))
+        assert tools.proposals[0]["proposedContent"] == original.replace("고칠", "고친")
+
+
+def revise(tools, path, instruction="간결하게 다듬어 주세요."):
+    return tools.execute("revise_document", {
+        "path": path, "instruction": instruction, "explanation": "문서 전체를 간결하게 다듬었습니다.",
+    })
+
+
+def section_reviser(rewrite):
+    """Rewrites each section synchronously, with the tool's real validation."""
+    def run(sections, instruction, validate):
+        revised, kept = [], []
+        for number, section in enumerate(sections, start=1):
+            core = section.strip()
+            after = rewrite(core)
+            try:
+                validate(core, after)
+                revised.append(section.replace(core, after, 1))
+            except ValueError:
+                revised.append(section)
+                kept.append(number)
+            except Exception as error:  # HTTPException from citation checks
+                if getattr(error, "status_code", None) is None:
+                    raise
+                revised.append(section)
+                kept.append(number)
+        return revised, kept
+    return run
+
+
+def test_revise_document_proposes_the_whole_file_without_reading_it_into_the_transcript(project):
+    root, directory = project
+    paragraphs = [f"문단 {index}은 매우 매우 긴 표현 [{index}](https://example.com/{index}).\n\n" for index in range(400)]
+    original = "# 제목\n\n" + "".join(paragraphs)
+    (directory / "article.md").write_text(original, encoding="utf-8")
+    with tools_for(root) as tools:
+        tools.revise = section_reviser(lambda core: core.replace("매우 매우 긴", "짧은"))
+        result = revise(tools, "article.md")
+        assert result["status"] == "proposed"
+        assert result["sections"] > 1 and result["unchanged"] == []
+        assert tools.proposals[0]["baseContent"] == original
+        assert tools.proposals[0]["proposedContent"] == original.replace("매우 매우 긴", "짧은")
+    assert (directory / "article.md").read_text(encoding="utf-8") == original
+
+
+def test_revise_document_keeps_sections_that_drop_citations_and_reports_them(project):
+    root, directory = project
+    original = "# 제목\n\n" + "일반 문단입니다. " * 300 + "\n\n## 근거\n\n출처 문장 [1](https://example.com/a).\n"
+    (directory / "article.md").write_text(original, encoding="utf-8")
+    with tools_for(root) as tools:
+        tools.revise = section_reviser(
+            lambda core: core.replace(" [1](https://example.com/a)", "").replace("일반 문단입니다.", "일반 문단."),
+        )
+        result = revise(tools, "article.md")
+        assert result["unchanged"] and result["unchanged"] == [result["sections"]]
+        proposed = tools.proposals[0]["proposedContent"]
+        assert "출처 문장 [1](https://example.com/a)." in proposed
+        assert "일반 문단. " in proposed
+
+
+def test_revise_document_rejects_selection_html_missing_and_unchanged_files(project):
+    root, directory = project
+    (directory / "article.md").write_text("본문.", encoding="utf-8")
+    (directory / "page.html").write_text("<p>본문</p>", encoding="utf-8")
+    with tools_for(root) as tools:
+        tools.revise = section_reviser(lambda core: core)
+        for path, message in (("page.html", "HTML"), ("missing.md", "exist"), ("article.md", "No section")):
+            with pytest.raises(ValueError, match=message):
+                revise(tools, path)
+        assert tools.proposals == []
+    with tools_for(
+        root, activePath="article.md",
+        selection={"path": "article.md", "start": 0, "end": 3, "text": "본문."},
+    ) as tools:
+        tools.revise = section_reviser(lambda core: core + "!")
+        with pytest.raises(ValueError, match="selection"):
+            revise(tools, "article.md")
+
+
+def test_revise_document_builds_on_a_pending_proposal_for_the_same_file(project):
+    root, directory = project
+    (directory / "article.md").write_text("하나. 둘.", encoding="utf-8")
+    with tools_for(root) as tools:
+        tools.execute("read_file", {"path": "article.md"})
+        apply(tools, "article.md", ("하나.", "1."))
+        tools.revise = section_reviser(lambda core: core.replace("둘.", "2."))
+        revise(tools, "article.md")
+        assert [item["proposedContent"] for item in tools.proposals] == ["1. 2."]

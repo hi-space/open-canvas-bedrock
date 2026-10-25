@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import DiffMatchPatch from "diff-match-patch";
 import {
   Check,
@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { reviewLocations, reviewedContent } from "@/lib/workspace/review";
 import type { ReviewChange, WorkspaceDocument } from "@/lib/workspace/types";
+import { isHtmlFile } from "@/lib/workspace/files";
+import { HtmlPreview } from "./HtmlPreview";
 import styles from "./workspace.module.css";
+import cloud from "./cloud.module.css";
 
 function DiffText({
   before,
@@ -87,6 +90,25 @@ function ContextualDiff({
   );
 }
 
+function ChangeDiff({ base, change }: { base: string; change: ReviewChange }) {
+  return (
+    <>
+      <div className={styles.changeBefore}>
+        <span className={styles.diffLabel}>수정 전</span>
+        <div>
+          <ContextualDiff base={base} change={change} side="before" />
+        </div>
+      </div>
+      <div className={styles.changeAfter}>
+        <span className={styles.diffLabel}>수정 후</span>
+        <div>
+          <ContextualDiff base={base} change={change} side="after" />
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function ReviewPanel({
   document,
   pending,
@@ -109,6 +131,8 @@ export function ReviewPanel({
   onLocateChange?: (changeId: string) => void;
 }) {
   const proposal = document.proposal;
+  const html = isHtmlFile(document.path);
+  const [comparison, setComparison] = useState<"before" | "after">("after");
   const locations = useMemo(
     () =>
       new Map(
@@ -184,6 +208,42 @@ export function ReviewPanel({
       {proposal.explanation && (
         <p className={styles.explanation}>{proposal.explanation}</p>
       )}
+      {html && (
+        <div className={cloud.htmlReview}>
+          <fieldset className={styles.viewToggle} aria-label="HTML 수정안 비교">
+            <button
+              type="button"
+              aria-pressed={comparison === "before"}
+              onClick={() => setComparison("before")}
+            >
+              수정 전
+            </button>
+            <button
+              type="button"
+              aria-pressed={comparison === "after"}
+              onClick={() => setComparison("after")}
+            >
+              수정 후
+            </button>
+          </fieldset>
+          {comparison === "before" && !proposal.baseContent ? (
+            <p className={styles.emptyHint}>새로 만드는 HTML 페이지입니다.</p>
+          ) : (
+            <HtmlPreview
+              content={
+                comparison === "before"
+                  ? proposal.baseContent
+                  : proposal.proposedContent
+              }
+              compact
+              title={comparison === "before" ? "수정 전 HTML" : "수정 후 HTML"}
+            />
+          )}
+          <p className={cloud.htmlReviewHint}>
+            내용과 디자인을 한 묶음으로 검토하고 승인합니다.
+          </p>
+        </div>
+      )}
       {!!stale && remaining > 0 && (
         <div className={styles.warningBox} role="alert">
           검토 중 원문이나 외부 파일이 변경되었습니다. 현재 내용으로 다시 요청해
@@ -206,14 +266,14 @@ export function ReviewPanel({
             disabled={!!stale || deciding}
             onClick={() => onDecide("all", "accepted")}
           >
-            <CheckCheck size={15} /> 모두 승인
+            <CheckCheck size={15} /> {html ? "변경 승인" : "모두 승인"}
           </button>
           <button
             className={styles.secondaryButton}
             disabled={deciding}
             onClick={() => onDecide("all", "rejected")}
           >
-            모두 거절
+            {html ? "변경 거절" : "모두 거절"}
           </button>
         </div>
       ) : (
@@ -268,26 +328,14 @@ export function ReviewPanel({
                 </span>
               )}
             </div>
-            <div className={styles.changeBefore}>
-              <span className={styles.diffLabel}>수정 전</span>
-              <div>
-                <ContextualDiff
-                  base={proposal.baseContent}
-                  change={change}
-                  side="before"
-                />
-              </div>
-            </div>
-            <div className={styles.changeAfter}>
-              <span className={styles.diffLabel}>수정 후</span>
-              <div>
-                <ContextualDiff
-                  base={proposal.baseContent}
-                  change={change}
-                  side="after"
-                />
-              </div>
-            </div>
+            {html ? (
+              <details className={cloud.htmlSourceDiff}>
+                <summary>HTML 변경 내용 보기</summary>
+                <ChangeDiff base={proposal.baseContent} change={change} />
+              </details>
+            ) : (
+              <ChangeDiff base={proposal.baseContent} change={change} />
+            )}
             <div className={styles.changeActions}>
               {change.decision === "pending" ? (
                 <>

@@ -70,6 +70,166 @@ function service(overrides: Partial<WorkspaceService> = {}): WorkspaceService {
 }
 
 describe("cloud workspace state and captured request context", () => {
+  it("does not invent provenance IDs for a citation extracted from an imported HTML file", async () => {
+    const original =
+      '<p data-oc-id="p">내용 <a href="https://example.org/old">원문</a></p>';
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file("page.html", original)],
+        }),
+        file: async () => file("page.html", original),
+      })
+    );
+    await controller.initialize();
+    controller.cite(
+      "a",
+      "page.html",
+      {
+        id: "link:synthetic",
+        title: "원문",
+        url: "https://example.org/old",
+      },
+      { from: 0, to: original.length, text: original, nodeId: "p" }
+    );
+    const result =
+      controller.getSnapshot().projects.a.documents["page.html"].content;
+    expect(result).not.toContain("data-source-ids");
+    expect(result.match(/href="https:\/\/example.org\/old"/g)).toHaveLength(2);
+  });
+
+  it("requests a new HTML result without changing the active Markdown file", async () => {
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.send("프로젝트 자료로 소개 페이지를 만들어 주세요", {
+      outputFormat: "html",
+    });
+    expect(sent?.outputFormat).toBe("html");
+    expect(sent?.researchGenre).toBeUndefined();
+    expect(sent?.selection).toBeUndefined();
+    expect(controller.getSnapshot().projects.a.documents["a.md"].content).toBe(
+      "original"
+    );
+  });
+
+  it("rejects mixing HTML generation with a selected-passage edit", async () => {
+    const controller = new CloudWorkspaceController(service());
+    await controller.initialize();
+    await expect(
+      controller.send("generate", {
+        outputFormat: "html",
+        selection: { from: 0, to: 8, text: "original" },
+      })
+    ).rejects.toThrow(/생성/);
+  });
+
+  it("sends the canonical HTML version after the server assigns element IDs", async () => {
+    const original = "<main><p>자료</p></main>";
+    const edited = "<main><p>새 자료</p></main>";
+    const canonical =
+      '<main data-oc-id="main"><p data-oc-id="p">새 자료</p></main>';
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file("page.html", original)],
+        }),
+        file: async () => file("page.html", original),
+        save: async () => file("page.html", canonical, "v2"),
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    controller.edit("a", "page.html", edited);
+    await controller.send("더 간결하게");
+    expect(sent?.activeVersion).toBe("v2");
+    expect(
+      controller.getSnapshot().projects.a.documents["page.html"].content
+    ).toBe(canonical);
+  });
+
+  it("does not submit an HTML request against typing that happened during save", async () => {
+    const original = '<main data-oc-id="main">자료</main>';
+    const saved = '<main data-oc-id="main">저장할 자료</main>';
+    const newer = '<main data-oc-id="main">더 새로운 자료</main>';
+    const response = deferred<CloudFile>();
+    let sent = false;
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file("page.html", original)],
+        }),
+        file: async () => file("page.html", original),
+        save: async () => response.promise,
+        chat: async () => {
+          sent = true;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    controller.edit("a", "page.html", saved);
+    const sending = controller.send("다듬기");
+    controller.edit("a", "page.html", newer);
+    response.resolve(file("page.html", saved, "v2"));
+    await expect(sending).rejects.toThrow(/변경/);
+    expect(sent).toBe(false);
+    expect(
+      controller.getSnapshot().projects.a.documents["page.html"].content
+    ).toBe(newer);
+  });
+
+  it("resolves the same selected HTML node after canonical IDs shift source offsets", async () => {
+    const selected = '<p data-oc-id="selected">같은 글 🙂</p>';
+    const original = `<main data-oc-id="main">${selected}</main>`;
+    const edited = original.replace(selected, `<h2>제목</h2>${selected}`);
+    const canonical = edited.replace("<h2>", '<h2 data-oc-id="heading">');
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file("page.html", original)],
+        }),
+        file: async () => file("page.html", original),
+        save: async () => file("page.html", canonical, "v2"),
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    controller.edit("a", "page.html", edited);
+    await controller.send("영역 수정", {
+      selection: {
+        from: edited.indexOf(selected),
+        to: edited.indexOf(selected) + selected.length,
+        text: selected,
+        nodeId: "selected",
+      },
+    });
+    expect(sent?.selection?.nodeId).toBe("selected");
+    expect(sent?.selection?.from).toBe(canonical.indexOf(selected));
+    expect(canonical.slice(sent?.selection?.from, sent?.selection?.to)).toBe(
+      selected
+    );
+  });
+
   it("loads the preferred file when a folder refresh supersedes initial loading", async () => {
     const first = deferred<CloudWorkspaceDetail>();
     const second = deferred<CloudWorkspaceDetail>();

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   decideSync,
+  contentVersion,
+  uploadedSyncBaseline,
   safeSyncDirection,
   validateCloudFile,
   writeRelativeFile,
@@ -9,6 +11,25 @@ import type { SyncDirectoryHandle } from "./cloud-sync";
 import type { LocalFileHandle } from "./types";
 
 describe("three-way folder synchronization", () => {
+  it("downloads canonical IDs after upload and does not invent a conflict for a later remote-only edit", async () => {
+    const local = "<p>원문</p>";
+    const canonical = '<p data-oc-id="p">원문</p>';
+    const saved = {
+      content: canonical,
+      version: await contentVersion(canonical),
+    };
+    const baseline = await uploadedSyncBaseline(local, saved);
+    const localVersion = await contentVersion(local);
+    expect(decideSync(localVersion, saved.version, baseline)).toBe("download");
+    const remoteEdit = await contentVersion(
+      '<p data-oc-id="p">승인한 수정</p>'
+    );
+    expect(decideSync(localVersion, remoteEdit, baseline)).toBe("download");
+    expect(
+      decideSync(await contentVersion("<p>로컬 수정</p>"), remoteEdit, baseline)
+    ).toBe("conflict");
+  });
+
   it("includes only unambiguous changes in a batch, leaving divergence and deletion for a decision", () => {
     expect(safeSyncDirection("upload")).toBe("upload");
     expect(safeSyncDirection("download")).toBe("download");

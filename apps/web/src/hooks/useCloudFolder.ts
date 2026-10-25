@@ -11,6 +11,7 @@ import {
   decideSync,
   readRelativeContent,
   safeSyncDirection,
+  uploadedSyncBaseline,
   validateCloudFile,
   writeRelativeFile,
   type SyncDirectoryHandle,
@@ -282,7 +283,7 @@ export function useCloudFolder(
           local,
           remote?.version ?? null
         );
-        version = saved.version;
+        version = await uploadedSyncBaseline(local, saved);
       } else {
         if (!remote) throw new Error("다운로드할 클라우드 파일이 없습니다.");
         await writeRelativeFile(folder.handle, row.path, remote.content, local);

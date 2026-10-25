@@ -8,6 +8,9 @@ from fastapi import HTTPException
 from api.writing.models import WritingRequest, WritingResponse, WritingSource
 from api.writing.service import _validate_citations
 from api.workspaces.files import now, validate_content, validate_path, version
+from api.workspaces.html_documents import (
+    html_citation_text, html_source_ids, is_html_path, prepare_html, replace_html_selection, validate_html,
+)
 from api.workspaces.persistence import write_json
 
 
@@ -53,7 +56,9 @@ def changes_for(before, after):
     } for index, (start, end, new_start, new_end) in enumerate(groups)]
 
 
-def citation_check(before, after, sources, explanation="승인한 변경"):
+def citation_check(before, after, sources, explanation="승인한 변경", *, html_document=False):
+    if html_document:
+        before, after = html_citation_text(before), html_citation_text(after)
     _validate_citations(
         WritingRequest(document=before, instruction="기존 출처 보존", sources=[
             WritingSource.model_validate(source) for source in sources
@@ -78,8 +83,8 @@ def create_proposal(edit, job_id, instruction, sources, selection=None):
     explanation = edit["explanation"]
     if not isinstance(explanation, str) or not explanation.strip() or len(explanation) > 4000:
         raise ValueError("Invalid explanation")
-    citation_check(before, after, sources, explanation)
-    changes = changes_for(before, after)
+    replacement = None
+    prefix = ""
     if selection is not None:
         if path != selection["path"]:
             raise ValueError("A selected-text request cannot edit another file")
@@ -92,11 +97,36 @@ def create_proposal(edit, job_id, instruction, sources, selection=None):
         if len(after) < len(prefix) + len(suffix):
             raise ValueError("Proposal overlaps the selection boundary")
         replacement = after[len(prefix):len(after) - len(suffix) if suffix else len(after)]
+    if is_html_path(path):
+        if before:
+            validate_html(before)
+        source_ids = {source["id"] for source in sources} | html_source_ids(before)
+        if selection is not None:
+            after = replace_html_selection(before, selection, replacement, source_ids)
+            replacement = after[len(prefix):len(after) - len(suffix) if suffix else len(after)]
+        else:
+            after = prepare_html(after)
+            validate_html(after, source_ids)
+        validate_content(after)
+        # A tag, its content, inline styles and provenance are one review unit.
+        # Preserve an empty base for new files so their preview shows generated HTML.
+        changes = [] if before == after else [{
+            "id": "c0",
+            "from": len(prefix.encode("utf-16-le")) // 2,
+            "to": len((prefix + selection["text"] if selection else before).encode("utf-16-le")) // 2,
+            "before": selection["text"] if selection else before,
+            "after": replacement if selection else after,
+            "decision": "pending",
+        }]
+    elif selection is not None:
         changes = changes_for(selection["text"], replacement)
         offset = len(prefix.encode("utf-16-le")) // 2
         for change in changes:
             change["from"] += offset
             change["to"] += offset
+    else:
+        changes = changes_for(before, after)
+    citation_check(before, after, sources, explanation, html_document=is_html_path(path))
     return {
         "id": str(uuid.uuid4()), "jobId": job_id, "path": path, "kind": "ai",
         "instruction": instruction, "explanation": explanation, "baseContent": before,
@@ -169,8 +199,25 @@ def apply_decisions(files, proposal_id, decisions):
         if current_version != proposal["appliedVersion"]:
             raise HTTPException(409, "수정안 이후 원본이 변경되었습니다. 최신 문서로 다시 요청해 주세요.")
         accepted_content = assembled(next_proposal)
+        if is_html_path(proposal["path"]):
+            try:
+                if len(next_proposal["changes"]) != 1:
+                    raise ValueError("HTML changes must be atomic")
+                allowed_sources = (
+                    {source["id"] for source in proposal["sources"]}
+                    | html_source_ids(proposal["baseContent"])
+                )
+                validate_html(accepted_content, allowed_sources)
+                if prepare_html(accepted_content) != accepted_content:
+                    raise ValueError("HTML proposal IDs must already be canonical")
+                validate_content(accepted_content)
+            except ValueError as error:
+                raise HTTPException(409, "HTML 수정안이 유효하지 않습니다. 문서 전체를 다시 검토해 주세요.") from error
         try:
-            citation_check(proposal["baseContent"], accepted_content, proposal["sources"])
+            citation_check(
+                proposal["baseContent"], accepted_content, proposal["sources"],
+                html_document=is_html_path(proposal["path"]),
+            )
         except HTTPException:
             raise HTTPException(409, "이 변경만 반영하면 출처가 사라집니다. 관련 변경을 함께 승인해 주세요.") from None
         next_proposal["appliedVersion"] = version(accepted_content)

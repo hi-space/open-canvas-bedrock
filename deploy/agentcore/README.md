@@ -24,6 +24,7 @@ application-level mount or invocation.
 | Explicit `platformVersion` is not enabled for this account | verified | Creation with `V1` was rejected; the account's existing `READY` runtime has no `platformVersion` field. |
 | The existing HTML bucket has no versioning enabled | verified | It remains untouched. S3 Files requires versioning [5], so use a separate bucket. |
 | Native clients share close-to-open filesystem consistency | documented | Guide [2]. Both interactive readers use mounts; they do not wait for bucket synchronization. |
+| A session reporting `Healthy` is ended by the 60-second idle timeout even mid-request | verified | 2026-10-25: invocations longer than 60 s lost their session, were retried once and failed with "Runtime initialization time exceeded". `/ping` reports `HealthyBusy` while an invocation runs. |
 
 The separate `CanvasWorkspaceStack` owns:
 
@@ -41,7 +42,8 @@ The separate `CanvasWorkspaceStack` owns:
   and Bedrock Runtime. A free S3 gateway endpoint serves both route tables.
 - An ARM64 AgentCore runtime using the account's default platform, an immutable image digest, and IAM inbound
   authentication. It mounts only the read-only access point. Its idle timeout
-  is 60 seconds and maximum lifetime is 600 seconds.
+  is 60 seconds and maximum lifetime is 900 seconds, covering the agent's 720-second
+  job limit inside AgentCore's 15-minute synchronous request limit.
 - An isolated `canvas-writing-workspaces` DynamoDB table with `namespace` and
   `key` string keys, on-demand billing, encryption, point-in-time recovery,
   deletion protection, and retain policies.

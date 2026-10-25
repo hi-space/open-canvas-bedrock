@@ -14,11 +14,16 @@ from pydantic import ValidationError
 
 from api.writing.models import WritingRequest, WritingResponse, WritingSource, validate_source_url
 from api.writing.service import _validate_citations
+from api.workspaces.html_documents import (
+    html_citation_text, html_selection, html_source_ids, is_html_path, prepare_html,
+    replace_html_selection, validate_html,
+)
 from workspace_agent.models import (
     Invocation, MAX_FILES, MAX_FILE_BYTES, MAX_PATH_DEPTH, MAX_PROPOSALS,
     MAX_PROPOSAL_CONTEXT, MAX_READ_CONTEXT, MAX_SOURCE_CONTEXT, TOOL_ARGUMENTS,
     valid_content, valid_path,
 )
+from workspace_agent.revise import MAX_SECTIONS, split_sections
 
 
 class ToolError(ValueError):
@@ -50,6 +55,8 @@ class WorkspaceTools:
         self._read_chars = sum(len(source.excerpt or "") for source in self.sources)
         self._fetch_count = 0
         self._files_fd: int | None = None
+        # Set by the agent loop: rewrites sections with the model (see revise.py).
+        self.revise = None
 
     def __enter__(self):
         descriptor = None
@@ -66,6 +73,15 @@ class WorkspaceTools:
                 selection = self.request.selection
                 if selection is not None and snapshot.content[selection.start:selection.end] != selection.text:
                     raise ToolError("The selection no longer matches this file. Select it again.")
+                if selection is not None and is_html_path(selection.path):
+                    try:
+                        resolved = html_selection(snapshot.content, selection.nodeId)
+                    except ValueError as error:
+                        raise ToolError(str(error)) from error
+                    if any(getattr(selection, key) != resolved[key] for key in ("start", "end", "text", "nodeId")):
+                        raise ToolError("The selection must match one complete HTML element.")
+                elif selection is not None and selection.nodeId is not None:
+                    raise ToolError("HTML node IDs can only select HTML files.")
             return self
         except OSError as error:
             self.__exit__(None, None, None)
@@ -98,7 +114,7 @@ class WorkspaceTools:
                 parent = child
             descriptor = os.open(components[-1], _FILE_FLAGS, dir_fd=parent)
             if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                raise ToolError("Only regular Markdown and TXT files can be read.")
+                raise ToolError("Only regular Markdown, TXT, and HTML files can be read.")
             yield descriptor
         except FileNotFoundError:
             raise
@@ -287,6 +303,10 @@ class WorkspaceTools:
         if self.request.selection is not None and path != self.request.selection.path:
             raise ToolError("A selection request can propose edits only to its selected file.")
         snapshot = self._snapshots.get(path)
+        if self.request.outputFormat == "html" and (
+            not path.lower().endswith(".html") or snapshot is not None or self._file_exists(path)
+        ):
+            raise ToolError("HTML generation must propose a NEW .html file; existing files are context only.")
         if snapshot is None and self._file_exists(path):
             raise ToolError("Call read_file for an existing file before proposing its replacement.")
         if snapshot is None:
@@ -306,21 +326,33 @@ class WorkspaceTools:
             if selected is not None else replacement
         )
         try:
+            if is_html_path(path):
+                allowed_sources = {source.id for source in self.sources} | html_source_ids(original)
+                if selected is not None:
+                    proposed = replace_html_selection(
+                        original, selected.model_dump(), replacement, allowed_sources,
+                    )
+                    replacement = proposed[selected.start:len(proposed) - (len(original) - selected.end)]
+                else:
+                    proposed = prepare_html(proposed)
+                    validate_html(proposed, allowed_sources)
+                    replacement = proposed
             valid_content(proposed)
+            citation_text = html_citation_text if is_html_path(path) else lambda content: content
             request = WritingRequest(
-                document=original,
-                selectedText=selected.text if selected is not None else None,
+                document=citation_text(original),
+                selectedText=citation_text(selected.text) if selected is not None else None,
                 instruction=self.request.message,
                 sources=self.sources,
             )
-            response = WritingResponse(replacement=replacement, explanation=explanation)
+            response = WritingResponse(replacement=citation_text(replacement), explanation=explanation)
             _validate_citations(request, response)
             # A selection may edit a reference definition used by untouched
             # text. Validate the final document as well as the selected passage.
             if selected is not None:
                 _validate_citations(
                     request.model_copy(update={"selectedText": None}),
-                    WritingResponse(replacement=proposed, explanation=explanation),
+                    WritingResponse(replacement=citation_text(proposed), explanation=explanation),
                 )
         except HTTPException as error:
             raise ToolError(str(error.detail)) from error
@@ -340,6 +372,74 @@ class WorkspaceTools:
         }
         self.proposals = [*others, proposal]
         return {"path": path, "baseVersion": proposal["baseVersion"], "status": "proposed"}
+
+    def _apply_edits(self, path: str, edits: list[dict], explanation: str) -> dict:
+        """Resolve find/replace edits into a whole proposal, so output scales with the change."""
+        snapshot = self._snapshots.get(path)
+        if snapshot is None:
+            raise ToolError("Call read_file before apply_edits. Use propose_edit to create a new file.")
+        pending = next((item for item in self.proposals if item["path"] == path), None)
+        # Repeated calls build on this job's pending proposal instead of discarding it.
+        current = pending["proposedContent"] if pending is not None else snapshot.content
+        spans = []
+        for number, edit in enumerate(edits, start=1):
+            find = edit["find"]
+            start = current.find(find)
+            count = 0
+            position = start
+            while position != -1 and count < 3:
+                count += 1
+                position = current.find(find, position + 1)
+            if count != 1:
+                found = "was not found" if count == 0 else f"appears {'3 or more' if count > 2 else count} times"
+                raise ToolError(
+                    f"Edit {number}: find text {found}. Copy it exactly from read_file, "
+                    "with enough surrounding text to match exactly once."
+                )
+            spans.append((start, start + len(find), edit["replace"]))
+        spans.sort()
+        if any(following[0] < previous[1] for previous, following in zip(spans, spans[1:])):
+            raise ToolError("Edits overlap. Merge overlapping edits into one.")
+        revised = current
+        for start, end, replace in reversed(spans):
+            revised = revised[:start] + replace + revised[end:]
+        selection = self.request.selection
+        if selection is not None and selection.path == path:
+            suffix = len(snapshot.content) - selection.end
+            if any(start < selection.start or end > len(current) - suffix for start, end, _ in spans):
+                raise ToolError("A selection request can edit only inside the selected passage.")
+            replacement = revised[selection.start:len(revised) - suffix]
+        else:
+            replacement = revised
+        return {**self._propose_edit(path, replacement, explanation), "edits": len(edits)}
+
+    def _revise_document(self, path: str, instruction: str, explanation: str) -> dict:
+        """Revise a whole file section by section; only the resulting proposal enters the transcript."""
+        if self.request.selection is not None:
+            raise ToolError("A selection request revises only the selected passage. Use apply_edits or propose_edit.")
+        if is_html_path(path):
+            raise ToolError("revise_document supports Markdown and TXT files. Use apply_edits for HTML.")
+        if self.revise is None:
+            raise ToolError("Section revision is unavailable in this runtime. Use apply_edits.")
+        snapshot = self._snapshots.get(path) or self._read_snapshot(path)
+        pending = next((item for item in self.proposals if item["path"] == path), None)
+        base = pending["proposedContent"] if pending is not None else snapshot.content
+        sections = split_sections(base)
+        if len(sections) > MAX_SECTIONS:
+            raise ToolError("The document has too many sections for one revision. Revise one part at a time.")
+
+        def validate(before: str, after: str):
+            _validate_citations(
+                WritingRequest(document=base, selectedText=before, instruction=instruction, sources=self.sources),
+                WritingResponse(replacement=after, explanation=explanation),
+            )
+
+        revised, unchanged = self.revise(sections, instruction, validate)
+        if "".join(revised) == base:
+            raise ToolError("No section could be revised. Explain to the user what blocked the revision.")
+        result = self._propose_edit(path, "".join(revised), explanation)
+        # Validation, deadline or shared budget limits can leave sections unchanged.
+        return {**result, "sections": len(sections), "unchanged": unchanged}
 
     def execute(self, name: str, arguments: object) -> dict:
         schema = TOOL_ARGUMENTS.get(name)

@@ -4,6 +4,10 @@ export interface TextSelection {
   from: number;
   to: number;
   text: string;
+  nodeId?: string;
+  label?: string;
+  previewText?: string;
+  sourceIds?: string[];
 }
 
 export interface ReviewChange {

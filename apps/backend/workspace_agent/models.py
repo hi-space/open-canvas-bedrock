@@ -29,9 +29,9 @@ def valid_path(value: str) -> str:
             not part or part.startswith(".") or ":" in part or len(part.encode("utf-8")) > 240
             for part in parts
         )
-        or PurePosixPath(value).suffix.lower() not in {".md", ".markdown", ".txt"}
+        or PurePosixPath(value).suffix.lower() not in {".md", ".markdown", ".txt", ".html", ".htm"}
     ):
-        raise ValueError("Use a relative Markdown or TXT path without hidden or parent components.")
+        raise ValueError("Use a relative Markdown, TXT, or HTML path without hidden or parent components.")
     return value
 
 
@@ -55,6 +55,7 @@ class Selection(StrictModel):
     start: int = Field(ge=0, le=MAX_FILE_CHARS)
     end: int = Field(ge=1, le=MAX_FILE_CHARS)
     text: str = Field(min_length=1, max_length=MAX_FILE_CHARS)
+    nodeId: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$")
 
     _valid_path = field_validator("path")(valid_path)
 
@@ -74,6 +75,7 @@ class Invocation(StrictModel):
     sources: list[WritingSource] = Field(default_factory=list, max_length=50)
     activePath: str | None = None
     selection: Selection | None = None
+    outputFormat: Literal["html"] | None = None
 
     @field_validator("message")
     @classmethod
@@ -102,6 +104,8 @@ class Invocation(StrictModel):
             raise ValueError("Source IDs must be unique.")
         if self.selection is not None and self.selection.path != self.activePath:
             raise ValueError("The selection must belong to the active file.")
+        if self.outputFormat is not None and self.selection is not None:
+            raise ValueError("HTML generation creates a new file and cannot include a selection.")
         # Reject lone surrogate escapes before serializing requests or responses.
         def check_utf8(value):
             if isinstance(value, str):
@@ -160,10 +164,37 @@ class EditArguments(FileArguments):
         return value
 
 
+class TextEdit(StrictModel):
+    find: str = Field(min_length=1, max_length=20000)
+    replace: str = Field(max_length=20000)
+
+
+class TargetedEditArguments(FileArguments):
+    edits: list[TextEdit] = Field(min_length=1, max_length=100)
+    explanation: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("explanation")
+    @classmethod
+    def nonblank_explanation(cls, value: str) -> str:
+        return EditArguments.nonblank_explanation(value)
+
+
+class ReviseArguments(FileArguments):
+    instruction: str = Field(min_length=1, max_length=4000)
+    explanation: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("instruction", "explanation")
+    @classmethod
+    def nonblank_text(cls, value: str) -> str:
+        return EditArguments.nonblank_explanation(value)
+
+
 TOOL_ARGUMENTS = {
     "list_files": NoArguments,
     "read_file": FileArguments,
     "search_files": SearchArguments,
     "fetch_reference": ReferenceArguments,
     "propose_edit": EditArguments,
+    "apply_edits": TargetedEditArguments,
+    "revise_document": ReviseArguments,
 }

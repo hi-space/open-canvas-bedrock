@@ -11,11 +11,12 @@ import uuid
 
 from fastapi import HTTPException
 
+from api.workspaces.html_documents import is_html_path, prepare_html
 from api.workspaces.persistence import Metadata, atomic_bytes, write_json
 
 MAX_BYTES = 2 * 1024 * 1024
 MAX_CHARACTERS = 200000
-EXTENSIONS = {".md", ".markdown", ".txt"}
+EXTENSIONS = {".md", ".markdown", ".txt", ".html", ".htm"}
 
 
 def now():
@@ -35,7 +36,7 @@ def validate_path(value: str) -> str:
         or Path(value).suffix.lower() not in EXTENSIONS
         or any(len(part.encode("utf-8")) > 240 for part in parts)
     ):
-        raise HTTPException(422, "경로는 숨김 폴더나 상위 경로가 없는 Markdown/TXT 파일이어야 합니다.")
+        raise HTTPException(422, "경로는 숨김 폴더나 상위 경로가 없는 Markdown/TXT/HTML 파일이어야 합니다.")
     return value
 
 
@@ -169,6 +170,13 @@ class ProjectFiles:
             raise HTTPException(409, "파일이 다른 곳에서 변경되었습니다. 최신 내용과 비교한 뒤 저장해 주세요.")
         if previous is None and len(self.list()) >= 200:
             raise HTTPException(422, "프로젝트 문서는 최대 200개입니다.")
+        if is_html_path(path):
+            try:
+                content = prepare_html(content)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from error
+            # Added IDs also count toward the stored file and model context limits.
+            data = validate_content(content)
         if previous is not None and previous["content"] == content:
             return previous
         if previous:

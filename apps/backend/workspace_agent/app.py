@@ -1,6 +1,7 @@
 """AgentCore HTTP entry point. The runtime service enforces AWS IAM access."""
 import json
 import logging
+import threading
 
 from fastapi import FastAPI, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
@@ -13,6 +14,10 @@ from workspace_agent.tools import ToolError
 logger = logging.getLogger(__name__)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 MAX_INVOCATION_BYTES = 2 * 1024 * 1024
+# The runtime's idle timeout (60 s) also ends sessions that report "Healthy"
+# while a request runs, so a model turn longer than that would be lost.
+_active_invocations = 0
+_active_lock = threading.Lock()
 
 
 def _unique_object(pairs):
@@ -32,7 +37,18 @@ def _invalid_constant(_value):
 def ping():
     # Omit the optional timestamp: changing it for each ping keeps otherwise
     # idle runtime sessions alive until their maximum lifetime.
-    return {"status": "Healthy"}
+    return {"status": "HealthyBusy" if _active_invocations else "Healthy"}
+
+
+def _run_tracked(payload):
+    global _active_invocations
+    with _active_lock:
+        _active_invocations += 1
+    try:
+        return run_agent(payload)
+    finally:
+        with _active_lock:
+            _active_invocations -= 1
 
 
 @app.post("/invocations")
@@ -50,7 +66,7 @@ async def invocations(request: Request):
     except (ValueError, TypeError, RecursionError) as error:
         raise HTTPException(422, "Invalid workspace invocation. Check its fields and context limits.") from error
     try:
-        return await run_in_threadpool(run_agent, payload)
+        return await run_in_threadpool(_run_tracked, payload)
     except (AgentError, ToolError) as error:
         logger.warning(
             "Workspace invocation failed (stage=run_agent, error=%s, cause=%s)",
