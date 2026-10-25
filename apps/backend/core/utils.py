@@ -80,9 +80,9 @@ def get_model_config(
         "modelName": definition["name"],
         "modelProvider": "bedrock",
         "modelConfig": model_config,
+        # Never from the request: the browser-supplied config has no authority over where calls go.
         "region": (
-            configurable.get("region")
-            or os.getenv("BEDROCK_REGION")
+            os.getenv("BEDROCK_REGION")
             or os.getenv("AWS_REGION")
             or os.getenv("AWS_DEFAULT_REGION")
             or "us-east-1"

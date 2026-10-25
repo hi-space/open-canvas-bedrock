@@ -110,7 +110,8 @@ class DeepResearchGraphTests(unittest.TestCase):
 
         async def run():
             state = {"messages": [HumanMessage(content="RAG 평가 방법을 정리해줘")], "researchGenre": genre}
-            async for event in graph.astream_events(state, version="v2", config={"configurable": {}}):
+            config = {"configurable": {"research_asset_owner": "a" * 64}}  # set by the route from the session
+            async for event in graph.astream_events(state, version="v2", config=config):
                 events.append(event)
 
         with patch("core.bedrock_client.get_bedrock_model", return_value=model), \
@@ -173,6 +174,28 @@ class SourceBudgetTests(unittest.TestCase):
                  "pendingQueries": [{"question_id": "Q1", "query": "c"}]}, {}))
         self.assertEqual(len(first["sources"]), 24)   # 60% of blog's 40
         self.assertEqual(len(later["sources"]), 40)
+
+
+class AssetAccessTests(unittest.TestCase):
+    def test_figures_are_served_only_to_their_owner(self):
+        import hashlib
+        from tempfile import TemporaryDirectory
+        from fastapi.testclient import TestClient
+        from agents.deep_research.diagrams.assets import run_dir
+
+        with TemporaryDirectory() as root, patch.dict(os.environ, {
+            "RESEARCH_ASSETS_DIR": root, "WORKSPACE_AUTH_MODE": "local", "WORKSPACE_LOCAL_SUB": "alice",
+            "STORAGE_TYPE": "memory", "LANGCHAIN_TRACING_V2": "false",
+        }):
+            alice = hashlib.sha256(b"alice").hexdigest()
+            (run_dir(alice, "run1") / "fig1.png").write_bytes(b"\x89PNG")
+            from main import app
+            with TestClient(app) as client:
+                own = client.get("/api/research/assets/run1/fig1.png")
+                self.assertEqual(own.status_code, 200)
+                self.assertIn("private", own.headers["cache-control"])
+                with patch.dict(os.environ, {"WORKSPACE_LOCAL_SUB": "bob"}):
+                    self.assertEqual(client.get("/api/research/assets/run1/fig1.png").status_code, 404)
 
 
 class AssembleTests(unittest.TestCase):

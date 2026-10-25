@@ -38,7 +38,7 @@ class BedrockConfigurationTests(unittest.TestCase):
         self.assertEqual(resolved["region"], "ap-northeast-2")
         self.assertEqual(config, {"configurable": {"open_canvas_thread_id": "existing-thread"}})
 
-    def test_explicit_model_and_region_win_but_request_credentials_are_ignored(self):
+    def test_explicit_model_wins_but_request_region_and_credentials_are_ignored(self):
         resolved = get_model_config(
             {
                 "configurable": {
@@ -49,7 +49,7 @@ class BedrockConfigurationTests(unittest.TestCase):
             }
         )
         self.assertEqual(resolved["modelName"], "eu.anthropic.claude-sonnet-5-5")
-        self.assertEqual(resolved["region"], "eu-west-1")
+        self.assertEqual(resolved["region"], "ap-northeast-2")
         self.assertNotEqual(resolved.get("credentials", {}).get("aws_access_key_id"), "untrusted")
 
     def test_bedrock_region_override_wins_over_aws_region(self):

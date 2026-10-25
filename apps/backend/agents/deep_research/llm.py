@@ -73,7 +73,7 @@ async def ainvoke_json(model, system: str, user: str, schema: type[T]) -> T:
     try:
         return schema.model_validate(_extract_json(text))
     except (ValueError, ValidationError) as error:
-        logger.warning("JSON repair for %s: %s", schema.__name__, str(error)[:300])
+        logger.warning("JSON repair for %s (%s, %d chars)", schema.__name__, type(error).__name__, len(text))
         repair = (
             f"{user}\n\n<previous-response>\n{text[:20000]}\n</previous-response>\n"
             f"The previous response was invalid: {str(error)[:1500]}\nReturn the corrected JSON object only."
@@ -82,7 +82,7 @@ async def ainvoke_json(model, system: str, user: str, schema: type[T]) -> T:
         try:
             return schema.model_validate(_extract_json(text))
         except (ValueError, ValidationError):
-            logger.warning("JSON repair failed for %s; response began: %r", schema.__name__, text[:400])
+            logger.warning("JSON repair failed for %s (%d chars)", schema.__name__, len(text))
             raise
 
 

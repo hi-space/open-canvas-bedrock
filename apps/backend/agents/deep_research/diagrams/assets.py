@@ -4,19 +4,25 @@ import re
 from pathlib import Path
 
 ASSET_URL_PREFIX = "/api/research/assets"
+_OWNER = re.compile(r"^[a-f0-9]{64}$")
 _SAFE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 _SAFE_FILE = re.compile(r"^[A-Za-z0-9_-]{1,80}\.png$")
 
 
 def assets_root() -> Path:
-    default = Path(__file__).resolve().parents[3] / "data" / "research_assets"
-    return Path(os.getenv("RESEARCH_ASSETS_DIR") or default)
+    """RESEARCH_ASSETS_DIR, else beside project files on persistent storage, else a local data folder."""
+    if os.getenv("RESEARCH_ASSETS_DIR"):
+        return Path(os.environ["RESEARCH_ASSETS_DIR"])
+    if os.getenv("WORKSPACE_ROOT"):
+        return Path(os.environ["WORKSPACE_ROOT"]) / "research-assets"
+    return Path(__file__).resolve().parents[3] / "data" / "research_assets"
 
 
-def run_dir(run_id: str) -> Path:
-    if not _SAFE.match(run_id):
-        raise ValueError("invalid run id")
-    path = assets_root() / run_id
+def run_dir(owner: str, run_id: str) -> Path:
+    """Figures are stored per owner; only that owner's session can read them back."""
+    if not _OWNER.match(owner) or not _SAFE.match(run_id):
+        raise ValueError("invalid owner or run id")
+    path = assets_root() / owner / run_id
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -25,11 +31,11 @@ def asset_url(run_id: str, filename: str) -> str:
     return f"{ASSET_URL_PREFIX}/{run_id}/{filename}"
 
 
-def resolve_asset(run_id: str, filename: str) -> Path | None:
+def resolve_asset(owner: str, run_id: str, filename: str) -> Path | None:
     """Path for a served asset, or None when the name is not one this module could have written."""
-    if not _SAFE.match(run_id) or not _SAFE_FILE.match(filename):
+    if not _OWNER.match(owner) or not _SAFE.match(run_id) or not _SAFE_FILE.match(filename):
         return None
-    path = assets_root() / run_id / filename
+    path = assets_root() / owner / run_id / filename
     return path if path.is_file() else None
 
 

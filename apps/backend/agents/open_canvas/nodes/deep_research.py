@@ -16,6 +16,8 @@ async def deep_research_node(
         {
             "messages": state.get("_messages") or state.get("messages", []),
             "genre": state["researchGenre"],
+            # Set by the API route from the verified session, never from the client config.
+            "assetOwner": (config.get("configurable") or {}).get("research_asset_owner"),
         },
         config,
     )

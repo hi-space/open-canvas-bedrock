@@ -1,7 +1,7 @@
 """
 FastAPI routes for Open Canvas agent.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Literal, Optional, AsyncIterator
@@ -9,6 +9,7 @@ import json
 from agents.open_canvas.graph import graph
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from core.utils import extract_latest_artifact_version
+from api.workspaces.identity import owner_key
 
 router = APIRouter()
 
@@ -218,7 +219,7 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
 
 
 @router.post("/stream")
-async def stream_agent(request: OpenCanvasRequest):
+async def stream_agent(request: OpenCanvasRequest, http_request: Request):
     """Stream Open Canvas agent events."""
     import sys
     print("=== STREAM START ===", file=sys.stderr, flush=True)
@@ -235,6 +236,10 @@ async def stream_agent(request: OpenCanvasRequest):
             else:
                 # Config is flat, wrap it
                 config = {"configurable": request_config}
+            configurable = config.setdefault("configurable", {})
+            configurable.pop("research_asset_owner", None)
+            if request.researchGenre:
+                configurable["research_asset_owner"] = owner_key(http_request)
             
             print(f"Starting astream_events with config keys: {list(config.get('configurable', {}).keys())}", file=sys.stderr, flush=True)
             

@@ -25,4 +25,5 @@ class DeepResearchState(TypedDict, total=False):
     drafts: dict            # section_id -> markdown
     reviewNotes: dict       # section_id -> notes; "_global" -> notes
     runId: str              # names the figure asset directory
+    assetOwner: Optional[str]  # owner key whose session may read the figures
     artifact: Optional[Any]

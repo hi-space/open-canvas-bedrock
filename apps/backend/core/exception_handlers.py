@@ -46,9 +46,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle request validation errors."""
-    errors = exc.errors()
-    if request.url.path.startswith("/api/writing/"):
-        # Return useful errors without echoing the user's document or sources.
+    # Location and message only: `input`/`ctx` carry the user's documents, sources and messages.
+    errors = [{"loc": error["loc"], "msg": error["msg"], "type": error["type"]} for error in exc.errors()]
+    if request.url.path.startswith(("/api/writing/", "/api/workspaces")):
         detail = "; ".join(
             f"{'.'.join(str(part) for part in error['loc'] if part != 'body')}: {error['msg']}".lstrip(": ")
             for error in errors[:5]

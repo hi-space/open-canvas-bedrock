@@ -195,7 +195,7 @@ async def _screenshot(page: Path, target: Path, width: int, height: int) -> bool
 
     raw = target.with_suffix(".raw.png")
     proc = await asyncio.create_subprocess_exec(
-        _chrome(), "--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
+        _chrome(), "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--hide-scrollbars",
         f"--force-device-scale-factor={SCALE}", f"--window-size={width},{height + WINDOW_SLACK}",
         "--virtual-time-budget=2000", f"--screenshot={raw}", page.as_uri(),
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,

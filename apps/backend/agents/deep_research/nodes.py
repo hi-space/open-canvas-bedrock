@@ -315,13 +315,17 @@ async def create_diagrams_node(state: DeepResearchState, config: RunnableConfig)
     planned = [s for s in outline["sections"] if s.get("figure")]
     if not planned:
         return {"researchStatus": _say(state, "그림 없음", "No figures planned"), "figures": []}
+    if not state.get("assetOwner"):
+        # Figures are readable only by their owner; without a known owner none are made.
+        return {"researchStatus": _say(state, "그림 생략 (사용자 확인 불가)", "Figures skipped (no owner)"),
+                "figures": []}
     model = get_model(config, BUDGET_JSON)
 
     async def make(index: int, section: dict):
         figure = section["figure"]
         evidence = "\n".join(_finding_line(findings[fid], full=True) for fid in section["finding_ids"] if fid in findings)
         url = await render_figure(model, figure["kind"], figure["request"], evidence, language,
-                                  state["runId"], f"fig{index}")
+                                  state["assetOwner"], state["runId"], f"fig{index}")
         return section["id"], figure, url
 
     results = await gather_limited(make(i, s) for i, s in enumerate(planned, 1))

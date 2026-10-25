@@ -17,12 +17,12 @@ def available_kinds() -> list[str]:
 
 
 async def render_figure(model, kind: str, request: str, evidence: str, language: str,
-                        run_id: str, slug: str) -> str | None:
-    """Render a figure and return its canvas URL, or None."""
+                        owner: str, run_id: str, slug: str) -> str | None:
+    """Render a figure into the owner's asset folder and return its canvas URL, or None."""
     renderer = RENDERERS.get(kind)
     if renderer is None or not renderer.available():
         return None
-    target = run_dir(run_id) / f"{slug}.png"
+    target = run_dir(owner, run_id) / f"{slug}.png"
     try:
         with tempfile.TemporaryDirectory(prefix=f"fig-{slug}-") as tmp:
             ok = await renderer.create(model, request, evidence, language, Path(tmp), slug, target)

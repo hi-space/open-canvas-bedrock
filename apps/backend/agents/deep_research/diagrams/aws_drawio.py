@@ -6,6 +6,7 @@ CLI exports PNG. Builder errors go back to the model as feedback, the same loop 
 import asyncio
 import json
 import logging
+import os
 import shutil
 import sys
 from functools import lru_cache
@@ -142,6 +143,9 @@ async def _build(spec: AwsDiagramSpec, language: str, work: Path, slug: str) -> 
 
 async def _export(work: Path, slug: str, target: Path) -> bool:
     args = ["drawio", "-x", "-f", "png", "-b", "10", "-s", "2", "-o", str(target), f"{slug}.drawio"]
+    if os.getenv("DRAWIO_NO_SANDBOX"):
+        # Containers: no user namespaces for the sandbox, and a /dev/shm too small for the renderer (Fargate).
+        args[1:1] = ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
     if shutil.which("xvfb-run"):
         args = ["xvfb-run", "-a", *args]
     code, out = await _run(*args, cwd=work, timeout=90)

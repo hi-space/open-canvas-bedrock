@@ -6,10 +6,37 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Deep research figures: draw.io desktop (AWS architectures) and Chrome (concept figures), headless.
+ARG DRAWIO_VERSION=32.6.1
+ARG DRAWIO_SHA256=515a975fbdb982e0d736b6f99248dbbb856a8b07bb72d6d3648a54b850fa33db
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg xvfb xauth fonts-nanum \
+    && curl -fsSL -o /tmp/drawio.deb \
+        "https://github.com/jgraph/drawio-desktop/releases/download/v${DRAWIO_VERSION}/drawio-amd64-${DRAWIO_VERSION}.deb" \
+    && echo "${DRAWIO_SHA256}  /tmp/drawio.deb" | sha256sum -c - \
+    && apt-get install -y --no-install-recommends /tmp/drawio.deb \
+    && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-chrome-stable \
+    && apt-get purge -y curl gnupg \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* /tmp/drawio.deb
+
 COPY apps/backend/requirements.lock.txt ./
 RUN pip install --no-cache-dir -r requirements.lock.txt \
     && groupadd --gid 10001 app \
     && useradd --uid 10001 --gid app --create-home app
+
+# Diagram skills (MIT) and the LinkedIn style guide come from a named build context, not the repository:
+#   docker build --build-context skills=<dir with aws-drawio-diagram/, aws-diagram-design/,
+#                linkedin-style-guide.md> -f deploy/Dockerfile.backend .
+COPY --from=skills --chown=root:root . /opt/skills/
+ENV AWS_DRAWIO_SKILL_DIR=/opt/skills/aws-drawio-diagram \
+    AWS_DIAGRAM_SKILL_DIR=/opt/skills/aws-diagram-design \
+    LINKEDIN_STYLE_GUIDE_PATH=/opt/skills/linkedin-style-guide.md \
+    DRAWIO_NO_SANDBOX=1
 
 COPY --chown=app:app apps/backend/ ./
 

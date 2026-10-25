@@ -73,7 +73,8 @@ async def _run_graph(payload: dict, slots: int, progress) -> dict:
             progress(last[0])
 
     config = {"configurable": {"customModelName": payload["model"]}}
-    inputs = {"messages": _messages(payload), "genre": payload["researchGenre"], "maxCitedSources": slots}
+    inputs = {"messages": _messages(payload), "genre": payload["researchGenre"], "maxCitedSources": slots,
+              "assetOwner": payload["ownerKey"]}
     beat = asyncio.create_task(heartbeat())
     try:
         async for update in graph.astream(inputs, config=config, stream_mode="updates"):
