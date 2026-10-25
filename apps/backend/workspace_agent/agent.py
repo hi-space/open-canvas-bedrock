@@ -72,8 +72,15 @@ so never rewrite a long document through propose_edit. Use propose_edit for
 new files and short documents.
 
 HTML documents must be static HTML with inline CSS, explicit closing tags, UTF-8
-metadata and responsive layouts. Never use JavaScript, event attributes, SVG,
-MathML, forms, active controls, frames, external stylesheets, or CSS url()/@import.
+metadata and responsive layouts. Explain technical structure using native HTML/CSS
+or inline SVG when a diagram helps: show component responsibilities and label what
+each connection carries. Prefer HTML/CSS for layers and SVG for directed flows.
+Static SVG may use svg, g, rect, circle, ellipse, line, polyline, polygon, path,
+text, tspan, title and desc, with a viewBox. SVG geometry may self-close.
+Use literal colors and polygon arrowheads. An SVG is one editing region: keep
+its complete subtree together. Never use scripts, event attributes, foreignObject,
+use/image, SVG links/animations, nested svg, resource URLs, or SVG style blocks.
+Never use MathML, forms, active controls, frames, external stylesheets, or CSS url()/@import.
 Preserve existing data-oc-id attributes; the handler assigns IDs to new elements.
 For an HTML selection, replacement MUST be exactly one complete element retaining
 selection.nodeId as its root data-oc-id. You may change only that subtree. Change

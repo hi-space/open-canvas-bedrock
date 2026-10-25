@@ -96,6 +96,7 @@ async def _run_graph(payload: dict, slots: int, progress) -> dict:
         "maxCitedSources": slots + len(evidence_groups(supplied)),
         "maxNewCitedSources": slots, "assetOwner": payload["ownerKey"],
         "projectContext": payload.get("projectContext", []), "suppliedSources": supplied,
+        "outputFormat": payload.get("outputFormat"),
     }
     beat = asyncio.create_task(heartbeat())
     try:
@@ -144,6 +145,10 @@ def run_research(payload: dict, existing_paths: set[str], progress) -> dict:
         progress("출처와 다이어그램을 포함한 HTML을 구성하고 있습니다.")
         content = render_research_html(
             markdown, title, sources=[*existing, *sources], genre=payload["researchGenre"], language=language,
+            figures=[{**figure, "source_urls": [
+                state["sources"][sid]["url"] for sid in figure.get("source_ids", [])
+                if sid in state.get("sources", {})
+            ]} for figure in state.get("figures", [])],
         )
     path = document_path(title, existing_paths, payload.get("outputFormat"))
     figures = len(state.get("figures") or [])

@@ -4,9 +4,11 @@ import json
 import re
 
 from markdown_it import MarkdownIt
+from markdown_it.token import Token
 
 from api.workspaces.html_documents import prepare_html
 from core.research_sources import evidence_groups, source_key
+from agents.deep_research.assemble import figure_label, native_figure_uri
 
 _STYLE = """
 :root { color-scheme: light; --ink: #23342f; --muted: #62746c; --accent: #246a56; }
@@ -45,6 +47,7 @@ pre { max-width: 100%; overflow-x: auto; background: #21382f; color: #edf3eb;
 code { font-family: "SFMono-Regular", Consolas, monospace; font-size: .88em; }
 :not(pre) > code { background: #edf0e8; padding: 2px 5px; border-radius: 3px; }
 img { display: block; max-width: 100%; height: auto; margin: 30px auto 12px; }
+figure { margin: 28px 0; }
 p:has(> em:only-child) { color: var(--muted); font-size: 13px; }
 hr { border: 0; border-top: 1px solid #d8ded4; margin: 36px 0; }
 li { margin-bottom: 7px; }
@@ -60,16 +63,42 @@ li { margin-bottom: 7px; }
   nav { display: none; }
   img, table, pre { break-inside: avoid; }
   pre { white-space: pre-wrap; }
+  .oc-native-diagram svg { min-width: 0 !important; max-width: 100%; }
 }
 """
 
 
 def render_research_html(
     markdown: str, title: str, *, sources: list[dict], genre: str, language: str = "ko",
+    figures: list[dict] | None = None,
 ) -> str:
     """Convert research without asking a model to restate its facts or citations."""
     md = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
     source_ids = {key: [item["id"] for item in group] for key, group in evidence_groups(sources).items()}
+    native_figures = {
+        native_figure_uri(figure["number"]): figure
+        for figure in figures or [] if figure.get("renderer") == "native"
+    }
+
+    def native_block(figure):
+        ids = list(dict.fromkeys(
+            sid for url in figure.get("source_urls", []) for sid in source_ids.get(source_key(url), [])
+        ))
+        provenance = (
+            ' data-source-ids="' + html.escape(json.dumps(ids, ensure_ascii=False), quote=True) + '"'
+        ) if ids else ""
+        caption = f"{figure_label(language, figure['number'])}. {figure['caption']}"
+        return (
+            f"<figure{provenance}>{figure['markup']}"
+            f'<figcaption style="font-size:13px;color:#62746c;">{html.escape(caption)}</figcaption></figure>'
+        )
+
+    original_image = md.renderer.rules["image"]
+
+    def image(_renderer, tokens, index, options, environment):
+        if (tokens[index].attrGet("src") or "").startswith("oc-diagram:"):
+            raise ValueError("리서치 도식의 위치를 확인할 수 없습니다.")
+        return original_image(tokens, index, options, environment)
 
     def link_open(renderer, tokens, index, options, environment):
         token = tokens[index]
@@ -116,8 +145,27 @@ def render_research_html(
     md.add_render_rule("table_open", table_open)
     md.add_render_rule("table_close", table_close)
     md.add_render_rule("text", text)
+    md.add_render_rule("image", image)
     environment = {}
     tokens = md.parse(markdown, environment)
+    # Only graph-produced placeholders become raw HTML; authored HTML stays escaped.
+    consumed, index = set(), 0
+    while index + 2 < len(tokens):
+        opening, inline, closing = tokens[index:index + 3]
+        children = inline.children or []
+        if (
+            opening.type == "paragraph_open" and inline.type == "inline"
+            and closing.type == "paragraph_close" and len(children) == 1 and children[0].type == "image"
+            and (children[0].attrGet("src") or "").startswith("oc-diagram:")
+        ):
+            uri = children[0].attrGet("src")
+            if uri not in native_figures or uri in consumed:
+                raise ValueError("리서치 도식의 위치가 없거나 중복되었습니다.")
+            consumed.add(uri)
+            block = Token("html_block", "", 0)
+            block.content = native_block(native_figures[uri])
+            tokens[index:index + 3] = [block]
+        index += 1
     headings = []
     for index, token in enumerate(tokens):
         if token.type == "heading_open" and token.tag == "h2":

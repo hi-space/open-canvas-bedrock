@@ -14,6 +14,7 @@ class DeepResearchState(TypedDict, total=False):
     projectContext: List[dict]  # server snapshots: path, version, content, truncated
     suppliedSources: List[dict]  # registered reference excerpts, not instructions
     genre: str
+    outputFormat: Optional[str]  # HTML can carry native diagrams without raster assets.
     maxCitedSources: Optional[int]  # set by destinations with a source limit (project workspaces)
     maxNewCitedSources: Optional[int]  # unused registration slots, separate from supplied evidence
     brief: dict             # title, audience, thesis, language, questions[{id, question, queries}]

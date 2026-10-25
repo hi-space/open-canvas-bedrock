@@ -13,6 +13,7 @@ import json
 from pathlib import PurePosixPath
 import re
 from urllib.parse import urlsplit
+from api.workspaces.svg import SVG_TAGS, SVG_TEXT, svg_attribute_allowed, svg_child_allowed
 
 
 NODE_ID_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}"
@@ -140,7 +141,7 @@ class _DocumentParser(HTMLParser):
         line, column = self.getpos()
         return self.lines[line - 1] + column
 
-    def _attrs(self, tag, parsed, raw, offset):
+    def _attrs(self, tag, parsed, raw, offset, svg=False):
         start = re.match(r"<[A-Za-z][A-Za-z0-9]*", raw)
         if start is None:
             _fail()
@@ -160,15 +161,17 @@ class _DocumentParser(HTMLParser):
             attrs[name] = value
             spans[name] = (offset + match.start(1), offset + match.end())
             position = match.end()
-            if (
-                name.startswith("on") or ":" in name
-                or (name not in _GLOBAL_ATTRIBUTES and name not in _TAG_ATTRIBUTES.get(tag, set())
-                    and not name.startswith(("data-", "aria-")))
-            ):
+            allowed = svg_attribute_allowed(tag, name, value) if svg else (
+                ":" not in name and (
+                    name in _GLOBAL_ATTRIBUTES or name in _TAG_ATTRIBUTES.get(tag, set())
+                    or name.startswith(("data-", "aria-"))
+                )
+            )
+            if name.startswith("on") or not allowed:
                 _fail("실행 동작이나 지원하지 않는 HTML 속성은 사용할 수 없습니다.")
             if name in {"href", "src", "cite"} and value is not None:
                 _validate_url(value)
-            if name == "style":
+            if name == "style" or (svg and name in {"fill", "stroke", "font-family"}):
                 _validate_css(value or "")
             if name == "data-source-ids":
                 _source_ids(value)
@@ -181,12 +184,17 @@ class _DocumentParser(HTMLParser):
         return attrs, spans, offset + position
 
     def _start(self, tag, attrs, self_closing=False):
-        if tag not in _ALLOWED or (self_closing and tag not in _VOID):
-            _fail("정적 HTML 요소만 사용할 수 있으며 닫는 태그가 필요합니다.")
         if len(self.stack) >= 100:
             _fail("HTML 요소의 중첩은 100단계 이내여야 합니다.")
         ancestors = [node.tag for node in self.stack]
         parent = ancestors[-1] if ancestors else None
+        inside_svg = "svg" in ancestors
+        svg = inside_svg or tag == "svg"
+        if svg:
+            if tag not in SVG_TAGS or (inside_svg and not svg_child_allowed(tag, parent)):
+                _fail("SVG에는 정적인 도형과 텍스트만 사용할 수 있습니다.")
+        elif tag not in _ALLOWED or (self_closing and tag not in _VOID):
+            _fail("정적 HTML 요소만 사용할 수 있으며 닫는 태그가 필요합니다.")
         if tag in {"html", "head", "body"}:
             if tag in self.structural or (tag == "html" and (self.stack or self.elements)):
                 _fail()
@@ -213,14 +221,14 @@ class _DocumentParser(HTMLParser):
             _fail("브라우저가 요소를 자동 이동하지 않도록 HTML 중첩을 확인해 주세요.")
         raw = self.get_starttag_text()
         offset = self._source_offset()
-        attributes, spans, attributes_end = self._attrs(tag, attrs, raw, offset)
+        attributes, spans, attributes_end = self._attrs(tag, attrs, raw, offset, svg)
         element = _Element(
             tag=tag, start=offset, start_end=offset + len(raw), attributes_end=attributes_end,
             end=offset + len(raw), attrs=attributes, attr_spans=spans,
-            editable=tag not in _NON_EDITABLE and "head" not in ancestors,
+            editable=not inside_svg and tag not in _NON_EDITABLE and "head" not in ancestors,
         )
         self.elements.append(element)
-        if tag not in _VOID:
+        if tag not in _VOID and not (svg and self_closing):
             self.stack.append(element)
 
     def handle_starttag(self, tag, attrs):
@@ -241,6 +249,8 @@ class _DocumentParser(HTMLParser):
 
     def _text(self, data, escaped=False):
         parent = self.stack[-1].tag if self.stack else None
+        if any(node.tag == "svg" for node in self.stack) and parent not in SVG_TEXT and data.strip():
+            _fail("SVG 텍스트는 text, tspan, title, desc 요소에 넣어 주세요.")
         if (
             (parent != "style" and not escaped and "<" in data)
             or (parent in {"html", "head", *_TABLE_CHILDREN} and data.strip(" \t\r\n\f"))

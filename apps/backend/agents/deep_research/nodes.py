@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnableConfig
 from agents.deep_research import prompts
 from agents.deep_research.assemble import assemble, figure_label
 from agents.deep_research.diagrams import available_kinds, render_figure
+from agents.deep_research.diagrams.native import create_native
 from agents.deep_research.genres import GenreProfile, get_profile, style_guide
 from agents.deep_research.llm import ainvoke_json, chunk_text, gather_limited, get_model
 from agents.deep_research.schemas import Extraction, Outline, Review, ResearchBrief
@@ -295,7 +296,20 @@ async def build_outline_node(state: DeepResearchState, config: RunnableConfig) -
     profile = _profile(state)
     brief = state["brief"]
     findings = state.get("findings") or []
-    kinds = available_kinds()
+    skills = available_kinds()
+    html_output = state.get("outputFormat") == "html"
+    kinds = list(dict.fromkeys([*(["concept", "aws_architecture"] if html_output else []), *skills]))
+    diagram_guidance = (
+        "HTML output: default to renderer native (auto also chooses native). Use native HTML/CSS for "
+        "layers and responsibilities, or native SVG for directed flows and request/response sequences. "
+        "An AWS architecture may be explained with native labeled components. Choose renderer skill "
+        "only when an available specialized renderer adds technical value (such as official AWS icons) "
+        "or the user explicitly requests it. Available skill kinds: " + (", ".join(skills) or "none") + ". "
+        "Never depend on a skill for an HTML diagram. Show concrete components, responsibilities and "
+        "labeled connections, not decorative boxes."
+        if html_output else
+        "Markdown output uses available specialized PNG renderers; choose renderer auto or skill."
+    )
     section_rule = (
         "exactly one section with id \"post\" (the whole post)." if not profile.sectioned
         else "the sections of the genre structure, 5-9 of them. For a paper the first section is the Abstract."
@@ -304,6 +318,7 @@ async def build_outline_node(state: DeepResearchState, config: RunnableConfig) -
         genre_label=profile.label, guide=style_guide(profile.name), section_rule=section_rule,
         min_words=profile.target_words[0], max_words=profile.target_words[1],
         max_figures=profile.max_figures if kinds else 0, figure_kinds=", ".join(kinds) or "none",
+        diagram_guidance=diagram_guidance,
     )
     questions = "\n".join(f"{q['id']}: {q['question']}" for q in brief["questions"])
     user = (
@@ -343,19 +358,43 @@ async def create_diagrams_node(state: DeepResearchState, config: RunnableConfig)
     planned = [s for s in outline["sections"] if s.get("figure")]
     if not planned:
         return {"researchStatus": _say(state, "그림 없음", "No figures planned"), "figures": []}
-    if not state.get("assetOwner"):
+    html_output = state.get("outputFormat") == "html"
+    if not html_output and not state.get("assetOwner"):
         # Figures are readable only by their owner; without a known owner none are made.
         return {"researchStatus": _say(state, "그림 생략 (사용자 확인 불가)", "Figures skipped (no owner)"),
                 "figures": []}
     model = get_model(config, BUDGET_JSON)
+    skills = available_kinds()
 
     async def make(index: int, section: dict):
         figure = section["figure"]
         evidence = "\n".join(_finding_line(findings[fid], full=True) for fid in section["finding_ids"] if fid in findings)
         evidence += _project_material(state)
-        url = await render_figure(model, figure["kind"], figure["request"], evidence, language,
-                                  state["assetOwner"], state["runId"], f"fig{index}")
-        return section["id"], figure, url
+        source_ids = list(dict.fromkeys(
+            sid for fid in section["finding_ids"] if fid in findings
+            for sid in findings[fid]["source_ids"] if sid in (state.get("sources") or {})
+        ))
+        base = {
+            "section_id": section["id"], "caption": figure["caption"], "kind": figure["kind"],
+            "source_ids": source_ids, "reason": figure.get("reason", ""),
+        }
+        if not html_output or (
+            figure.get("renderer") == "skill" and figure["kind"] in skills and state.get("assetOwner")
+        ):
+            try:
+                url = await render_figure(
+                    model, figure["kind"], figure["request"], evidence, language,
+                    state["assetOwner"], state["runId"], f"fig{index}",
+                )
+            except Exception as error:
+                logger.warning("specialized figure failed (%s)", type(error).__name__)
+                url = None
+            if url:
+                return {**base, "renderer": "skill", "url": url}
+            if not html_output:
+                return None
+        native = await create_native(model, figure["request"], evidence, language)
+        return {**base, **native, "renderer": "native"}
 
     results = await gather_limited(make(i, s) for i, s in enumerate(planned, 1))
     figures = []
@@ -363,11 +402,9 @@ async def create_diagrams_node(state: DeepResearchState, config: RunnableConfig)
         if isinstance(result, BaseException):
             logger.warning("figure task failed (%s)", type(result).__name__)
             continue
-        if not result[2]:
+        if result is None:
             continue
-        section_id, figure, url = result
-        figures.append({"section_id": section_id, "number": len(figures) + 1,
-                        "caption": figure["caption"], "kind": figure["kind"], "url": url})
+        figures.append({**result, "number": len(figures) + 1})
     return {
         "researchStatus": _say(state, f"그림 {len(figures)}/{len(planned)}개 렌더링",
                                f"Rendered {len(figures)}/{len(planned)} figures"),
@@ -389,6 +426,10 @@ def _section_context(state: DeepResearchState, section: dict) -> str:
         f"{figure_label(state['brief']['language'], figure['number'])} ({figure['caption']}) is placed right after "
         "this section. Refer to it by its label where it helps the reader." if figure else "No figure in this section."
     )
+    if figure and figure.get("summary"):
+        figure_note += "\nDiagram takeaway (data): " + figure["summary"]
+    if figure and figure.get("spec"):
+        figure_note += "\nDiagram structure (data): " + json.dumps(figure["spec"], ensure_ascii=False)
     return (
         f"<brief>\n{_brief_text(state['brief'])}\n</brief>\n\n"
         f"<document-outline title=\"{state['outline']['title']}\">\n{outline}\n</document-outline>\n\n"

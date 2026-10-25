@@ -46,7 +46,7 @@ graph TD;
 - **extractFindings**: per sub-question, in parallel: findings (claim, numbers, quote, source ids, strength), gaps and follow-up queries. Findings citing sources the analyst did not read are dropped.
 - **prepareFollowups**: another round while gaps remain and the genre allows it (`should_continue_research`).
 - **buildOutline**: genre-shaped sections with goals, key points, findings, word budgets and figure requests.
-- **createDiagrams**: AWS architectures through the aws-drawio-diagram skill's scripts (brief, auto layout, validation, drawio PNG export); concept figures through aws-diagram-design's `awsdiag.Canvas` and headless Chrome. Figures that fail validation are skipped.
+- **createDiagrams**: HTML defaults to a bounded semantic specification rendered directly as HTML/CSS layers or SVG flows/sequences (`diagrams/native.py`). Components carry responsibilities and relationships carry operations/data; every supplied edge is rendered. The outline can choose `renderer: "skill"` for an available specialized renderer, with native fallback for HTML. Markdown retains the existing aws-drawio-diagram / aws-diagram-design PNG path.
 - **draftSections**: parallel section drafts; may cite only `[S#]` of the assigned findings.
 - **reviewDraft**: per-section edit notes on depth, argument, evidence, redundancy and genre fit.
 - **generateArtifact**: sequential final pass streamed into the canvas; assembles numbered citation links, figures and references.
@@ -64,9 +64,10 @@ LinkedIn follows `~/.claude/skills/linkedin-writer/references/style-guide.md` (o
 ## Requirements
 
 - `TAVILY_API_KEY` (missing key stops with an explicit error)
-- Figures: `drawio` CLI (+ `xvfb-run`), Google Chrome, the aws-drawio-diagram and aws-diagram-design Claude Code plugins. Without them the document is written without figures.
-- Figures are written to `data/research_assets/<runId>/` and served at `GET /api/research/assets/<runId>/<file>.png`.
+- Native HTML figures need no diagram skill, CLI, Chrome, or raster asset. SVG is a validated static subset, edited as one source region.
+- Specialized PNG figures use `drawio` CLI (+ `xvfb-run`), Google Chrome, and the corresponding installed diagram plugins. They are optional for HTML.
+- PNG files live under the configured research-assets root, scoped by owner and run, and are served through the authenticated `GET /api/research/assets/<runId>/<file>.png` route. Native figures are embedded in the HTML itself.
 
 ## Where it is used
 
-Called from the `deepResearch` node of the `open_canvas` graph; `generatePath` routes there when the request carries `researchGenre` (the composer's deep research button).
+The workspace chat API calls this graph when `researchGenre` is selected, passing `outputFormat` for native HTML figures. The HTML adapter resolves trusted figure placeholders, captions and citations after Markdown parsing. The legacy `open_canvas` graph also calls it from its `deepResearch` node, retaining Markdown output.

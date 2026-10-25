@@ -36,6 +36,8 @@ class FigurePlan(BaseModel):
     kind: Literal["aws_architecture", "concept"]
     request: str
     caption: str
+    renderer: Literal["auto", "native", "skill"] = "auto"
+    reason: str = Field(default="", max_length=400)
 
 
 class SectionPlan(BaseModel):

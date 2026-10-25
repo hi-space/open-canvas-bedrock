@@ -168,8 +168,14 @@ def references(sources: dict, order: dict[str, int], profile: GenreProfile, lang
     return "\n".join(lines)
 
 
+def native_figure_uri(number: int) -> str:
+    return f"oc-diagram:figure-{number}"
+
+
 def figure_block(figure: dict, language: str) -> str:
     label = figure_label(language, figure["number"])
+    if figure.get("renderer") == "native":
+        return f"![{label}]({native_figure_uri(figure['number'])})"
     return f"![{label}. {figure['caption']}]({figure['url']})\n\n*{label}. {figure['caption']}*"
 
 
@@ -205,7 +211,21 @@ def assemble(title: str, sections: list[tuple[str, str]], figures: list[dict], s
             body = link_citations(drop_unknown_urls(body, sources, allow_source),
                                   sources, order, max_cited, allow_source)
         parts.append(body)
-        parts.extend(figure_block(f, language) for f in by_section.get(section_id, []))
+        for figure in by_section.get(section_id, []):
+            block = figure_block(figure, language)
+            if figure.get("renderer") == "native":
+                ids = [sid for sid in figure.get("source_ids", []) if sid in sources]
+                if profile.citation_style == "links":
+                    citations = " ".join(
+                        sources[sid]["url"] for sid in ids if allow_source(sources[sid])
+                    )
+                else:
+                    citations = link_citations(
+                        "[" + ", ".join(ids) + "]", sources, order, max_cited, allow_source,
+                    ) if ids else ""
+                if citations:
+                    block += "\n\n" + _localized(language, "그림 근거", "Figure sources") + ": " + citations
+            parts.append(block)
     if profile.citation_style == "numbered":
         refs = references(sources, order, profile, language)
         if refs:

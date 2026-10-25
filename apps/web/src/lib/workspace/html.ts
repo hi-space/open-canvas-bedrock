@@ -6,6 +6,7 @@ import {
   type ParserError,
 } from "parse5";
 import type { TextSelection } from "./types";
+import { SVG_NAMESPACE, svgAttributeAllowed, svgChildAllowed } from "./svg";
 
 type HtmlNode = DefaultTreeAdapterTypes.Node;
 type HtmlElement = DefaultTreeAdapterTypes.Element;
@@ -83,6 +84,7 @@ const REGION_TAGS = new Set([
   "u",
   "ul",
   "var",
+  "svg",
 ]);
 const NON_REGION_TAGS = new Set([
   "html",
@@ -102,7 +104,6 @@ const NON_REGION_TAGS = new Set([
   "object",
   "embed",
   "applet",
-  "svg",
   "math",
   "form",
   "input",
@@ -202,7 +203,12 @@ function isBodyRegion(node: HtmlElement): boolean {
   while (current && isElement(current)) {
     if (current !== node && current.tagName === "body") return true;
     if (
-      current.namespaceURI !== HTML_NAMESPACE ||
+      (current.namespaceURI !== HTML_NAMESPACE &&
+        !(
+          current === node &&
+          current.namespaceURI === SVG_NAMESPACE &&
+          current.tagName === "svg"
+        )) ||
       !REGION_TAGS.has(current.tagName)
     )
       return false;
@@ -321,7 +327,15 @@ export function htmlRegions(content: string): HtmlRegion[] {
       ambiguous.has(node) ||
       !location?.startTag ||
       !location.attrs?.["data-oc-id"] ||
-      (!VOID_TAGS.has(node.tagName) && !location.endTag) ||
+      (!VOID_TAGS.has(node.tagName) &&
+        !location.endTag &&
+        !(
+          node.tagName === "svg" &&
+          node.namespaceURI === SVG_NAMESPACE &&
+          /\/>\s*$/.test(
+            content.slice(location.startOffset, location.endOffset)
+          )
+        )) ||
       errors.some(
         (error) =>
           error.code === "duplicate-attribute" &&
@@ -333,9 +347,10 @@ export function htmlRegions(content: string): HtmlRegion[] {
     const text = previewText(node);
     const description =
       attribute(node, "aria-label") || attribute(node, "title") || text;
+    const tagLabel = node.tagName === "svg" ? "SVG 도식" : node.tagName;
     const label = description
-      ? `${node.tagName} · ${Array.from(description).slice(0, 64).join("")}`
-      : node.tagName;
+      ? `${tagLabel} · ${Array.from(description).slice(0, 64).join("")}`
+      : tagLabel;
     mapped.set(node, {
       nodeId,
       from: location.startOffset,
@@ -486,9 +501,20 @@ export function createHtmlPreview(
       (child) =>
         !isElement(child) ||
         (child.namespaceURI === HTML_NAMESPACE &&
-          !REMOVED_PREVIEW_TAGS.has(child.tagName))
+          node.namespaceURI !== SVG_NAMESPACE &&
+          !REMOVED_PREVIEW_TAGS.has(child.tagName)) ||
+        (child.namespaceURI === SVG_NAMESPACE &&
+          (node.namespaceURI === HTML_NAMESPACE
+            ? child.tagName === "svg"
+            : svgChildAllowed(child.tagName, node.tagName)))
     );
-    node.attrs = node.attrs.filter(({ name, value }) => {
+    node.attrs = node.attrs.filter(({ name, value, namespace, prefix }) => {
+      if (
+        node.namespaceURI === SVG_NAMESPACE &&
+        (!svgAttributeAllowed(node.tagName, name, value) ||
+          (namespace && (name !== "xmlns" || prefix)))
+      )
+        return false;
       if (
         name === "style" &&
         (node.tagName === "html" || node.tagName === "head")
@@ -510,7 +536,7 @@ export function createHtmlPreview(
   const clean = purifier.sanitize(serialize(tree), {
     WHOLE_DOCUMENT: true,
     RETURN_DOM: true,
-    USE_PROFILES: { html: true },
+    USE_PROFILES: { html: true, svg: true },
     FORBID_TAGS: [...REMOVED_PREVIEW_TAGS],
     FORBID_ATTR: [...REMOVED_PREVIEW_ATTRIBUTES],
     ADD_TAGS: ["style", "title"],

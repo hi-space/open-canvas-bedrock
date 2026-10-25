@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.lock.txt \
 COPY --chown=app:app apps/backend/workspace_agent/ ./workspace_agent/
 COPY --chown=app:app apps/backend/api/__init__.py ./api/__init__.py
 COPY --chown=app:app apps/backend/api/writing/ ./api/writing/
-COPY --chown=app:app apps/backend/api/workspaces/__init__.py apps/backend/api/workspaces/html_documents.py ./api/workspaces/
+COPY --chown=app:app apps/backend/api/workspaces/__init__.py apps/backend/api/workspaces/html_documents.py apps/backend/api/workspaces/svg.py ./api/workspaces/
 COPY --chown=app:app apps/backend/core/ ./core/
 
 USER app

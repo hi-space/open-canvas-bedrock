@@ -49,6 +49,7 @@ describe("HTML source regions", () => {
   it("does not infer IDs or select head, active, or inert content", () => {
     const content = `<!doctype html><html data-oc-id="html"><head data-oc-id="head"><style data-oc-id="style">p{color:red}</style><title data-oc-id="title">Title</title></head><body data-oc-id="body"><div>Plain</div><script data-oc-id="script">bad()</script><template data-oc-id="template"><p data-oc-id="in-template">Hidden</p></template><svg data-oc-id="svg"><text data-oc-id="svg-text">SVG</text></svg><p data-oc-id="allowed">Content</p></body></html>`;
     expect(htmlRegions(content).map((region) => region.nodeId)).toEqual([
+      "svg",
       "allowed",
     ]);
   });
@@ -242,7 +243,7 @@ describe("isolated HTML preview", () => {
       </body>`);
     expect(
       preview.querySelector(
-        "base,link,iframe,object,embed,form,input,button,template,svg"
+        "base,link,iframe,object,embed,form,input,button,template,svg a"
       )
     ).toBeNull();
     expect(preview.querySelector('meta[http-equiv="refresh"]')).toBeNull();
