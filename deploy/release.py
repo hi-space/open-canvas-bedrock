@@ -85,16 +85,35 @@ def changed_resources(before: dict, after: dict) -> list[str]:
 def check_changes(stack: str, changes: list[dict]) -> list[str]:
     """Return the changed logical IDs, or raise when a change is outside the release scope."""
     allowed = ALLOWED_CHANGES[stack]
+    resources = [change.get("ResourceChange", {}) for change in changes]
+    if any(change.get("Type") != "Resource" for change in changes):
+        raise ReleaseError(f"{stack}: unexpected non-resource change.")
+    released = {item.get("LogicalResourceId") for item in resources if item.get("ResourceType") in allowed}
     names = []
-    for change in changes:
-        resource = change.get("ResourceChange", {})
+    for resource in resources:
         kind = resource.get("ResourceType")
-        if change.get("Type") != "Resource" or resource.get("Action") != "Modify" or kind not in allowed:
+        if resource.get("Action") != "Modify":
             raise ReleaseError(f"{stack}: unexpected {resource.get('Action')} of {kind}.")
-        if allowed[kind] is not None and resource.get("Replacement") != allowed[kind]:
-            raise ReleaseError(f"{stack}: {kind} would be replaced.")
+        if kind in allowed:
+            if allowed[kind] is not None and resource.get("Replacement") != allowed[kind]:
+                raise ReleaseError(f"{stack}: {kind} would be replaced.")
+        # Resources that reference a released one (for example a policy naming
+        # the runtime ARN) are listed for re-evaluation although their template
+        # is unchanged; changed_resources() already rejected direct edits.
+        elif not reevaluated_only(resource, released):
+            raise ReleaseError(f"{stack}: unexpected Modify of {kind}.")
         names.append(resource["LogicalResourceId"])
     return sorted(names)
+
+
+def reevaluated_only(resource: dict, released: set[str]) -> bool:
+    details = resource.get("Details") or []
+    return resource.get("Replacement") == "False" and bool(details) and all(
+        detail.get("ChangeSource") in {"ResourceAttribute", "ResourceReference"}
+        and detail.get("Evaluation") == "Dynamic"
+        and str(detail.get("CausingEntity", "")).split(".", 1)[0] in released
+        for detail in details
+    )
 
 
 def template_body(template: dict) -> str:
