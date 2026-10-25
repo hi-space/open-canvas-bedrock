@@ -12,6 +12,7 @@ import {
   Code2,
   FileText,
   LoaderCircle,
+  Maximize2,
   PanelLeft,
   PanelRight,
   Plus,
@@ -202,6 +203,7 @@ export function CloudWorkspace({
     value: TextSelection;
   }>();
   const fileInput = useRef<HTMLInputElement>(null);
+  const fileToggle = useRef<HTMLButtonElement>(null);
   const scrollArea = useRef<HTMLDivElement>(null);
   const path = project?.activePath;
   const id = project?.workspace.id;
@@ -232,6 +234,9 @@ export function CloudWorkspace({
       : undefined;
   const selected = selection?.text.trim() ? selection : undefined;
   const htmlDocument = !!path && isHtmlFile(path);
+  const htmlPreviewVisible =
+    htmlDocument && (mode === "read" || !!virtualProposal);
+  const htmlWide = !sidebarOpen && !inspectorOpen;
   const dirty = isDirty(draft);
   const saving = !!path && !!project?.saving.includes(path);
   const agentBusy =
@@ -264,15 +269,18 @@ export function CloudWorkspace({
       }
       if (
         event.key === "Escape" &&
-        window.matchMedia("(max-width: 899px)").matches
+        (window.matchMedia("(max-width: 899px)").matches ||
+          (htmlDocument && sidebarOpen))
       ) {
         setSidebarOpen(false);
-        setInspectorOpen(false);
+        if (window.matchMedia("(max-width: 899px)").matches)
+          setInspectorOpen(false);
+        fileToggle.current?.focus();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [controller, draft, id, path]);
+  }, [controller, draft, htmlDocument, id, path, sidebarOpen]);
 
   const openInspector = (next: CloudInspectorTab) => {
     setTab(next);
@@ -321,7 +329,7 @@ export function CloudWorkspace({
 
   return (
     <div
-      className={`${styles.workspace} ${cloud.layout} ${sidebarOpen ? styles.sidebarOpen : ""} ${inspectorOpen ? styles.inspectorOpen : `${styles.inspectorClosed} ${cloud.closed}`}`}
+      className={`${styles.workspace} ${cloud.layout} ${htmlDocument ? cloud.htmlLayout : ""} ${sidebarOpen ? `${styles.sidebarOpen} ${cloud.filesOpen}` : ""} ${inspectorOpen ? styles.inspectorOpen : `${styles.inspectorClosed} ${cloud.closed}`}`}
       onDragOver={(event) => {
         if (event.dataTransfer.types.includes("Files")) {
           event.preventDefault();
@@ -358,11 +366,16 @@ export function CloudWorkspace({
       />
       {(sidebarOpen || inspectorOpen) && (
         <button
-          className={styles.backdrop}
+          className={`${styles.backdrop} ${htmlDocument && sidebarOpen ? cloud.htmlFileBackdrop : ""}`}
           aria-label="열린 패널 닫기"
           onClick={() => {
             setSidebarOpen(false);
-            setInspectorOpen(false);
+            if (
+              !htmlDocument ||
+              window.matchMedia("(max-width: 899px)").matches
+            )
+              setInspectorOpen(false);
+            fileToggle.current?.focus();
           }}
         />
       )}
@@ -373,24 +386,40 @@ export function CloudWorkspace({
         onNewProject={() => setCreating("project")}
         onNewFile={newFile}
         onSync={() => openInspector("sync")}
-        onClose={() => setSidebarOpen(false)}
+        onClose={() => {
+          setSidebarOpen(false);
+          fileToggle.current?.focus();
+        }}
+        focusFileSearch={htmlDocument && sidebarOpen}
         authenticationEnabled={authenticationEnabled}
         onSelect={(nextPath) => {
           if (id)
             void controller.openFile(id, nextPath).catch(controller.report);
           setSidebarOpen(false);
+          if (
+            isHtmlFile(nextPath) ||
+            window.matchMedia("(max-width: 1099px)").matches
+          )
+            fileToggle.current?.focus();
         }}
       />
       <main className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.breadcrumb}>
             <button
-              className={`${styles.iconButton} ${styles.sidebarToggle}`}
+              ref={fileToggle}
+              className={`${styles.iconButton} ${styles.sidebarToggle} ${htmlDocument ? cloud.htmlFileToggle : ""}`}
               onClick={() => {
                 setSidebarOpen(!sidebarOpen);
-                setInspectorOpen(false);
+                if (
+                  !htmlDocument ||
+                  window.matchMedia("(max-width: 899px)").matches
+                )
+                  setInspectorOpen(false);
               }}
               aria-label="파일 목록 열기"
+              aria-expanded={sidebarOpen}
+              aria-controls="cloud-workspace-files"
             >
               <PanelLeft size={18} />
             </button>
@@ -449,8 +478,12 @@ export function CloudWorkspace({
         )}
         {document ? (
           <>
-            <div className={styles.documentToolbar}>
-              <div className={styles.documentIdentity}>
+            <div
+              className={`${styles.documentToolbar} ${htmlDocument ? cloud.htmlToolbar : ""}`}
+            >
+              <div
+                className={`${styles.documentIdentity} ${htmlDocument ? cloud.htmlIdentity : ""}`}
+              >
                 <div className={styles.documentIcon}>
                   <FileText size={20} strokeWidth={1.5} />
                 </div>
@@ -480,7 +513,9 @@ export function CloudWorkspace({
                   </span>
                 </div>
               </div>
-              <div className={styles.documentActions}>
+              <div
+                className={`${styles.documentActions} ${htmlDocument ? cloud.htmlActions : ""}`}
+              >
                 <fieldset
                   className={styles.viewToggle}
                   aria-label="문서 보기 방식"
@@ -504,6 +539,23 @@ export function CloudWorkspace({
                     <span>{htmlDocument ? "HTML 코드" : "Markdown 편집"}</span>
                   </button>
                 </fieldset>
+                {htmlDocument && (
+                  <button
+                    className={`${styles.secondaryButton} ${cloud.previewWidthToggle}`}
+                    aria-pressed={htmlWide}
+                    onClick={() => {
+                      setSidebarOpen(false);
+                      setInspectorOpen(htmlWide);
+                    }}
+                  >
+                    {htmlWide ? (
+                      <PanelRight size={15} />
+                    ) : (
+                      <Maximize2 size={15} />
+                    )}
+                    {htmlWide ? "대화 보기" : "넓게 보기"}
+                  </button>
+                )}
                 <button
                   className={styles.iconButton}
                   onClick={() =>
@@ -628,12 +680,19 @@ export function CloudWorkspace({
                 ))}
               </details>
             )}
-            <div className={styles.documentStage}>
-              <div ref={scrollArea} className={styles.documentScroll}>
+            <div
+              className={`${styles.documentStage} ${htmlPreviewVisible ? cloud.htmlStage : ""}`}
+            >
+              <div
+                ref={scrollArea}
+                className={`${styles.documentScroll} ${htmlPreviewVisible ? cloud.htmlViewport : ""}`}
+              >
                 <div
                   className={`${htmlDocument ? cloud.htmlPaper : styles.paper} ${mode === "edit" && !virtualProposal ? styles.paperEditor : ""}`}
                 >
-                  <div className={styles.paperEyebrow}>
+                  <div
+                    className={`${styles.paperEyebrow} ${htmlDocument ? cloud.htmlEyebrow : ""}`}
+                  >
                     <span>
                       {htmlDocument
                         ? mode === "edit"
@@ -664,6 +723,7 @@ export function CloudWorkspace({
                       <HtmlPreview
                         content={virtualProposal.proposedContent}
                         title="새 HTML 제안 미리보기"
+                        fill
                       />
                     </>
                   ) : virtualProposal ? (
@@ -696,6 +756,7 @@ export function CloudWorkspace({
                       onSelection={select}
                       selection={selection}
                       title={`${document.name} 미리보기`}
+                      fill
                     />
                   ) : mode === "read" ? (
                     <DocumentPreview
@@ -722,7 +783,9 @@ export function CloudWorkspace({
                     />
                   )}
                 </div>
-                <p className={styles.pageHint}>
+                <p
+                  className={`${styles.pageHint} ${htmlPreviewVisible ? cloud.htmlPageHint : ""}`}
+                >
                   {virtualProposal
                     ? "검토 패널에서 승인하면 이 페이지를 편집할 수 있어요."
                     : mode === "read"
@@ -781,7 +844,9 @@ export function CloudWorkspace({
                 />
               )}
             </div>
-            <footer className={styles.documentFooter}>
+            <footer
+              className={`${styles.documentFooter} ${htmlPreviewVisible ? cloud.htmlFooter : ""}`}
+            >
               <span>
                 {htmlDocument ? "HTML" : "Markdown"} <i /> UTF-8{" "}
                 {document.content.startsWith("\uFEFF") ? "· BOM " : ""}

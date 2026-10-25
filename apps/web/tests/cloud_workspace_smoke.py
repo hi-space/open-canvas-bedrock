@@ -2,6 +2,7 @@
 
 Start cloud_workspace_backend.py, then Next with API_URL=http://127.0.0.1:9011.
 Run OPEN_CANVAS_TEST_URL=http://127.0.0.1:3102 python tests/cloud_workspace_smoke.py.
+Set OPEN_CANVAS_TEST_API_URL when the fixture uses a different backend port.
 The test creates isolated projects and uses native OPFS handles for folder sync.
 """
 import asyncio
@@ -15,11 +16,17 @@ from playwright.async_api import async_playwright, expect
 from workspace_smoke import select_passage
 
 BASE = os.environ.get("OPEN_CANVAS_TEST_URL", "http://127.0.0.1:3102")
+API_BASE = os.environ.get("OPEN_CANVAS_TEST_API_URL", "http://127.0.0.1:9011")
 ARTIFACTS = Path(os.environ.get("OPEN_CANVAS_TEST_ARTIFACTS", "/tmp/open-canvas-cloud-browser"))
 SAMPLE = "\ufeff# 검토 테스트\r\n\r\n첫 문장 입니다.\r\n\r\n두 번째 문장 입니다.\r\n\r\n참고 [1](https://example.org/source).\r\n"
 
 
 async def create_project(page, name):
+    await page.locator(
+        'button[aria-label="새 프로젝트"]:visible, button[aria-label="파일 목록 열기"]:visible'
+    ).first.wait_for()
+    if not await page.get_by_role("button", name="새 프로젝트", exact=True).is_visible():
+        await page.get_by_role("button", name="파일 목록 열기", exact=True).click()
     await page.get_by_role("button", name="새 프로젝트", exact=True).click()
     dialog = page.get_by_role("dialog", name="새 프로젝트")
     await dialog.get_by_label("프로젝트 이름", exact=True).fill(name)
@@ -59,7 +66,6 @@ async def main():
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.on("dialog", lambda dialog: dialog.accept())
         await page.goto(BASE)
-        await expect(page.get_by_role("button", name="새 프로젝트", exact=True)).to_be_visible()
         project_a = await create_project(page, f"브라우저 검증 {uuid.uuid4().hex[:7]}")
         await page.get_by_test_id("file-import").set_input_files({
             "name": "review.md", "mimeType": "text/markdown", "buffer": SAMPLE.encode("utf-8"),
@@ -137,7 +143,7 @@ async def main():
         await page.reload()
         await expect(page.get_by_text("문서와 자료를 살펴보고 있어요…", exact=False)).to_be_visible()
         project_b = await create_project(page, f"다른 프로젝트 {uuid.uuid4().hex[:7]}")
-        await page.request.post("http://127.0.0.1:9011/__test/release")
+        await page.request.post(f"{API_BASE}/__test/release")
         await expect(page.get_by_text("문서를 만들거나 파일을 가져오세요.", exact=True)).to_be_visible()
         await page.get_by_label("프로젝트", exact=True).select_option(project_a)
         await expect(page.get_by_text("검토할 수정안을 준비했습니다.", exact=False).first).to_be_visible(timeout=15000)
