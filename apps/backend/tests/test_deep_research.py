@@ -212,6 +212,71 @@ class AssembleTests(unittest.TestCase):
         self.assertTrue(md.startswith("# T\n\n## One\nx [[1]](https://a.dev/x). y.\n"))
         self.assertEqual(md.count("# T"), 1)
 
+    def test_unread_urls_never_reach_numbered_documents(self):
+        # The workspace rejects a whole proposal that links an unread source,
+        # discarding a finished research run, so the assembler must drop them.
+        body = ("## One\nSee [the paper](https://arxiv.org/abs/2501.00001) and https://unread.dev/repo. "
+                "Read [here](https://a.dev/x) [S1].")
+        for genre in ("paper", "blog"):
+            md = assemble("T", [("s1", body)], [], self.sources, get_profile(genre), "en")
+            self.assertNotIn("arxiv.org", md)
+            self.assertNotIn("unread.dev", md)
+            self.assertIn("See the paper and.", md)
+            self.assertIn("Read [here](https://a.dev/x) [[1]](https://a.dev/x).", md)
+
+    def test_unread_markdown_links_with_titles_are_unlinked_to_their_labels(self):
+        from agents.deep_research.assemble import drop_unknown_urls
+
+        for link in (
+            '[the paper](https://unread.example/paper "Title")',
+            "[the paper](https://unread.example/paper 'Title')",
+            '[the paper](<https://unread.example/Paper_(2025)> "Title")',
+            '[the **paper**](https://unread.example/paper "Title")',
+        ):
+            with self.subTest(link=link):
+                label = "the **paper**" if "**paper**" in link else "the paper"
+                self.assertEqual(drop_unknown_urls("See " + link + ".", {}), "See " + label + ".")
+
+    def test_known_link_destinations_titles_and_parentheses_keep_the_exact_source(self):
+        from agents.deep_research.assemble import drop_unknown_urls
+
+        sources = {"S1": {"url": "https://example.org/Paper_(2025)", "title": "Paper"}}
+        for link in (
+            "[the paper](https://example.org/Paper_(2025))",
+            '[the paper](https://example.org/Paper_(2025) "Title")',
+            "[the paper](<https://example.org/Paper_(2025)> 'Title')",
+            r'[the paper](https://example.org/Paper_\(2025\) "Title")',
+            "https://example.org/Paper_(2025)",
+        ):
+            with self.subTest(link=link):
+                original = "\ufeffBefore " + link + ".\r\n"
+                self.assertEqual(drop_unknown_urls(original, sources), original)
+
+    def test_url_cleanup_preserves_code_samples_and_only_drops_bare_prose_urls(self):
+        from agents.deep_research.assemble import drop_unknown_urls
+
+        code = (
+            "Use `https://unread.example/inline` and `` `[paper](https://unread.example/code)` ``.\r\n\r\n"
+            "````markdown\r\n[the paper](https://unread.example/fenced \"Title\")\r\n"
+            "```\r\nhttps://unread.example/example\r\n```\r\n````\r\n\r\n"
+            "    https://unread.example/indented\r\n"
+        )
+        original = "\ufeffBefore https://unread.example/bare.\r\n\r\n" + code
+        self.assertEqual(drop_unknown_urls(original, {}), "\ufeffBefore .\r\n\r\n" + code)
+
+    def test_reference_links_and_titles_are_cleaned_structurally(self):
+        from agents.deep_research.assemble import drop_unknown_urls
+
+        original = (
+            'Read [known][kept] and [unread][removed].\r\n\r\n'
+            '[kept]: https://a.dev/x "Known title"\r\n'
+            '[removed]: https://unread.example/paper "Unread title"\r\n'
+        )
+        self.assertEqual(
+            drop_unknown_urls(original, self.sources),
+            'Read [known][kept] and unread.\r\n\r\n[kept]: https://a.dev/x "Known title"\r\n\r\n',
+        )
+
     def test_linkedin_strips_markers_and_has_no_reference_list(self):
         md = assemble("T", [("post", "🚀 Title\n\nBody [S1].")], [], self.sources, get_profile("linkedin"), "ko")
         self.assertEqual(md, "🚀 Title\n\nBody.\n")

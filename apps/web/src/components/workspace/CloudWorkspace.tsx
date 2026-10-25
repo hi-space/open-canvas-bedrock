@@ -27,10 +27,16 @@ import { useWorkspaceModels } from "@/hooks/useWorkspaceModels";
 import { useReviewFocus } from "@/hooks/useReviewFocus";
 import { isDirty } from "@/lib/workspace/cloud-state";
 import { ownsSelection } from "@/lib/workspace/cloud-intent";
-import { downloadMarkdown, isDocumentFile } from "@/lib/workspace/files";
+import {
+  downloadDocument,
+  isDocumentFile,
+  isHtmlFile,
+} from "@/lib/workspace/files";
+import { EMPTY_HTML_DOCUMENT } from "@/lib/workspace/html-template";
 import { editingInstruction } from "@/lib/workspace/review-policy";
 import type { TextSelection } from "@/lib/workspace/types";
 import { DocumentPreview } from "./DocumentPreview";
+import { HtmlPreview } from "./HtmlPreview";
 import { ReviewFocusToolbar } from "./ReviewFocusToolbar";
 import { CloudSidebar } from "./CloudSidebar";
 import {
@@ -108,6 +114,26 @@ function CreateItem({
             <X size={19} />
           </button>
         </header>
+        {kind === "file" && (
+          <label>
+            문서 형식
+            <select
+              value={isHtmlFile(name) ? "html" : "markdown"}
+              onChange={(event) => {
+                const extension =
+                  event.target.value === "html" ? ".html" : ".md";
+                setName(
+                  (current) =>
+                    current.replace(/\.(md|markdown|txt|html?)$/i, "") +
+                    extension
+                );
+              }}
+            >
+              <option value="markdown">Markdown 문서</option>
+              <option value="html">HTML 페이지</option>
+            </select>
+          </label>
+        )}
         <label>
           {kind === "project" ? "프로젝트 이름" : "파일 경로"}
           <input
@@ -126,7 +152,7 @@ function CreateItem({
         <p>
           {kind === "project"
             ? "관련 문서와 대화, 참고 자료를 함께 보관합니다."
-            : "하위 폴더를 포함한 Markdown·TXT 경로를 사용할 수 있습니다."}
+            : "하위 폴더를 포함한 Markdown·TXT·HTML 경로를 사용할 수 있습니다."}
         </p>
         {error && (
           <p className={styles.fieldError} role="alert">
@@ -194,11 +220,18 @@ export function CloudWorkspace({
     document?.content ?? "",
     proposal?.path === path ? proposal : undefined
   );
-  const selection =
+  const capturedSelection =
     selectionState && selectionState.id === id && selectionState.path === path
       ? selectionState.value
       : undefined;
+  const selection =
+    capturedSelection &&
+    document?.content.slice(capturedSelection.from, capturedSelection.to) ===
+      capturedSelection.text
+      ? capturedSelection
+      : undefined;
   const selected = selection?.text.trim() ? selection : undefined;
+  const htmlDocument = !!path && isHtmlFile(path);
   const dirty = isDirty(draft);
   const saving = !!path && !!project?.saving.includes(path);
   const agentBusy =
@@ -310,11 +343,11 @@ export function CloudWorkspace({
       <input
         ref={fileInput}
         type="file"
-        accept=".md,.markdown,.txt,text/plain,text/markdown"
+        accept=".md,.markdown,.txt,.html,.htm,text/plain,text/markdown,text/html"
         multiple
         hidden
         data-testid="file-import"
-        aria-label="Markdown 파일 가져오기"
+        aria-label="문서 파일 가져오기"
         onChange={(event) => {
           void workspace
             .importFiles(Array.from(event.target.files ?? []))
@@ -460,7 +493,7 @@ export function CloudWorkspace({
                     }}
                   >
                     <BookOpen size={14} />
-                    <span>읽기</span>
+                    <span>{htmlDocument ? "미리보기" : "읽기"}</span>
                   </button>
                   <button
                     aria-pressed={mode === "edit" && !virtualProposal}
@@ -468,15 +501,20 @@ export function CloudWorkspace({
                     onClick={() => setMode("edit")}
                   >
                     <Code2 size={14} />
-                    <span>Markdown 편집</span>
+                    <span>{htmlDocument ? "HTML 코드" : "Markdown 편집"}</span>
                   </button>
                 </fieldset>
                 <button
                   className={styles.iconButton}
                   onClick={() =>
-                    downloadMarkdown(document.name, document.content)
+                    downloadDocument(
+                      document.name,
+                      virtualProposal?.proposedContent ?? document.content
+                    )
                   }
-                  aria-label="Markdown 다운로드"
+                  aria-label={
+                    htmlDocument ? "HTML 다운로드" : "Markdown 다운로드"
+                  }
                 >
                   <ArrowDownToLine size={17} />
                 </button>
@@ -494,7 +532,15 @@ export function CloudWorkspace({
                   ) : (
                     <Save size={15} />
                   )}
-                  <span>{saving ? "저장 중" : dirty ? "저장" : "저장됨"}</span>
+                  <span>
+                    {virtualProposal
+                      ? "승인 대기"
+                      : saving
+                        ? "저장 중"
+                        : dirty
+                          ? "저장"
+                          : "저장됨"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -520,7 +566,7 @@ export function CloudWorkspace({
                   <button
                     className={styles.secondaryButton}
                     onClick={() =>
-                      downloadMarkdown(document.name, draft.content)
+                      downloadDocument(document.name, draft.content)
                     }
                   >
                     내 초안 다운로드
@@ -554,7 +600,7 @@ export function CloudWorkspace({
                 <button
                   className={styles.textButton}
                   onClick={() =>
-                    downloadMarkdown(`복구-${document.name}`, draft.recovery!)
+                    downloadDocument(`복구-${document.name}`, draft.recovery!)
                   }
                 >
                   보관한 초안 다운로드
@@ -571,7 +617,7 @@ export function CloudWorkspace({
                     key={index}
                     className={styles.textButton}
                     onClick={() =>
-                      downloadMarkdown(
+                      downloadDocument(
                         `복구-${index + 2}-${document.name}`,
                         content
                       )
@@ -585,19 +631,42 @@ export function CloudWorkspace({
             <div className={styles.documentStage}>
               <div ref={scrollArea} className={styles.documentScroll}>
                 <div
-                  className={`${styles.paper} ${mode === "edit" && !virtualProposal ? styles.paperEditor : ""}`}
+                  className={`${htmlDocument ? cloud.htmlPaper : styles.paper} ${mode === "edit" && !virtualProposal ? styles.paperEditor : ""}`}
                 >
                   <div className={styles.paperEyebrow}>
                     <span>
-                      {mode === "read" || virtualProposal
-                        ? "YOUR WORDS, THOUGHTFULLY CRAFTED"
-                        : "MARKDOWN SOURCE"}
+                      {htmlDocument
+                        ? mode === "edit"
+                          ? "HTML SOURCE"
+                          : "HTML CANVAS"
+                        : mode === "read" || virtualProposal
+                          ? "YOUR WORDS, THOUGHTFULLY CRAFTED"
+                          : "MARKDOWN SOURCE"}
                     </span>
                     <span>
                       {document.name.split(".").at(-1)?.toUpperCase()}
                     </span>
                   </div>
-                  {virtualProposal ? (
+                  {virtualProposal && htmlDocument ? (
+                    <>
+                      <div className={cloud.htmlProposalNotice}>
+                        <span>
+                          새 HTML 제안 · 미리보기를 확인하고 검토 패널에서
+                          승인하세요.
+                        </span>
+                        <button
+                          className={styles.textButton}
+                          onClick={() => openInspector("review")}
+                        >
+                          수정안 검토
+                        </button>
+                      </div>
+                      <HtmlPreview
+                        content={virtualProposal.proposedContent}
+                        title="새 HTML 제안 미리보기"
+                      />
+                    </>
+                  ) : virtualProposal ? (
                     <div className={cloud.proposedFile}>
                       {review.focus && (
                         <p
@@ -621,6 +690,13 @@ export function CloudWorkspace({
                         수정안 검토
                       </button>
                     </div>
+                  ) : mode === "read" && htmlDocument ? (
+                    <HtmlPreview
+                      content={document.content}
+                      onSelection={select}
+                      selection={selection}
+                      title={`${document.name} 미리보기`}
+                    />
                   ) : mode === "read" ? (
                     <DocumentPreview
                       content={document.content}
@@ -635,26 +711,42 @@ export function CloudWorkspace({
                     <MarkdownEditor
                       key={`${id}/${path}`}
                       content={document.content}
+                      format={htmlDocument ? "html" : "markdown"}
                       onChange={(content) => {
                         if (id && path) controller.edit(id, path, content);
                       }}
-                      onSelection={select}
+                      onSelection={
+                        htmlDocument ? () => select(undefined) : select
+                      }
                       reviewFocus={review.focus}
                     />
                   )}
                 </div>
                 <p className={styles.pageHint}>
-                  {mode === "read"
-                    ? "문장을 선택하면, 그 부분만 함께 다듬을 수 있어요."
-                    : "편집한 내용은 저장 버튼으로 프로젝트에 반영합니다."}
+                  {virtualProposal
+                    ? "검토 패널에서 승인하면 이 페이지를 편집할 수 있어요."
+                    : mode === "read"
+                      ? htmlDocument
+                        ? "영역을 선택하면, 문구와 디자인을 함께 다듬을 수 있어요."
+                        : "문장을 선택하면, 그 부분만 함께 다듬을 수 있어요."
+                      : "편집한 내용은 저장 버튼으로 프로젝트에 반영합니다."}
                 </p>
               </div>
               {selected && (
                 <div
-                  className={styles.selectionToolbar}
+                  className={`${styles.selectionToolbar} ${selected.nodeId ? cloud.htmlSelectionToolbar : ""}`}
                   aria-label="선택 영역 작업"
                 >
-                  <span>{selected.text.length}자 선택</span>
+                  <span>
+                    {selected.nodeId
+                      ? "영역 선택"
+                      : `${selected.text.length}자 선택`}
+                  </span>
+                  {selected.nodeId && (
+                    <button onClick={() => openInspector("chat")}>
+                      <Code2 size={14} /> 디자인 요청
+                    </button>
+                  )}
                   <button
                     disabled={agentBusy}
                     onClick={() => {
@@ -691,13 +783,15 @@ export function CloudWorkspace({
             </div>
             <footer className={styles.documentFooter}>
               <span>
-                Markdown <i /> UTF-8{" "}
+                {htmlDocument ? "HTML" : "Markdown"} <i /> UTF-8{" "}
                 {document.content.startsWith("\uFEFF") ? "· BOM " : ""}
                 {document.content.includes("\r\n") ? "· CRLF" : ""}
               </span>
               <span>
-                {document.content.length.toLocaleString("ko-KR")}자{" "}
-                {selected && `· ${selected.text.length}자 선택`}
+                {(
+                  virtualProposal?.proposedContent ?? document.content
+                ).length.toLocaleString("ko-KR")}
+                자 {selected && `· ${selected.text.length}자 선택`}
               </span>
               <button onClick={() => openInspector("chat")}>
                 <Sparkles size={12} /> AI와 함께 쓰기
@@ -776,6 +870,7 @@ export function CloudWorkspace({
         onLocateChange={(changeId) => {
           clearSelection();
           review.locate(changeId);
+          if (htmlDocument) setMode("edit");
           if (window.matchMedia("(max-width: 899px)").matches)
             setInspectorOpen(false);
         }}
@@ -799,9 +894,10 @@ export function CloudWorkspace({
             else if (id) {
               await controller.createFile(
                 id,
-                isDocumentFile(name.trim()) ? name.trim() : `${name.trim()}.md`
+                isDocumentFile(name.trim()) ? name.trim() : `${name.trim()}.md`,
+                isHtmlFile(name.trim()) ? EMPTY_HTML_DOCUMENT : ""
               );
-              setMode("edit");
+              setMode(isHtmlFile(name.trim()) ? "read" : "edit");
             }
           }}
         />
@@ -822,7 +918,7 @@ export function CloudWorkspace({
         <div className={styles.dropOverlay}>
           <Upload size={36} />
           <strong>프로젝트에 파일을 가져오세요.</strong>
-          <span>Markdown · TXT</span>
+          <span>Markdown · TXT · HTML</span>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 """The public workspace contract and its resource limits."""
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from api.writing.models import WritingSource
 from core.models import normalize_model_name
@@ -33,6 +33,7 @@ class Selection(Input):
     from_: int = Field(alias="from", ge=0)
     to: int = Field(ge=0)
     text: str = Field(min_length=1, max_length=200000)
+    nodeId: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$")
 
 
 class ChatRequest(Input):
@@ -44,6 +45,13 @@ class ChatRequest(Input):
     model: str | None = Field(default=None, max_length=200)
     # Deep research: research the request and propose the result as a new file in this genre.
     researchGenre: Literal["paper", "blog", "linkedin"] | None = None
+    outputFormat: Literal["html"] | None = None
+
+    @model_validator(mode="after")
+    def exclusive_output_mode(self):
+        if self.outputFormat is not None and (self.selection is not None or self.researchGenre is not None):
+            raise ValueError("HTML 생성은 새 문서를 만듭니다. 선택 영역과 딥 리서치를 해제해 주세요.")
+        return self
 
     @field_validator("message")
     @classmethod

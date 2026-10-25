@@ -3,6 +3,9 @@ import logging
 import re
 from urllib.parse import urlsplit
 
+from markdown_it import MarkdownIt
+from markdown_it.rules_inline import StateInline, autolink, backtick, escape, html_inline, image, link
+
 from agents.deep_research.genres import GenreProfile
 
 logger = logging.getLogger(__name__)
@@ -50,21 +53,97 @@ def strip_citations(text: str) -> str:
     return re.sub(r"[ \t]*" + CITATION.pattern, "", text)
 
 
-_URL = re.compile(r"https?://[^\s<>()\[\]\"']+")
-
-
 def drop_unknown_urls(text: str, sources: dict) -> str:
-    """Posts name sources as bare URLs; keep only URLs of sources that were actually read."""
-    known = {s["url"].rstrip("/") for s in sources.values()}
+    """Keep only URLs of sources that were actually read. Writers also link papers from memory, and the
+    workspace rejects a whole document that cites an unread URL. Parser spans protect code and link
+    syntax; edits only remove source bytes, preserving known links, formatting, BOM and line endings."""
+    markdown = MarkdownIt("commonmark", {"inline_definitions": True})
+    known = {markdown.normalizeLink(source["url"]).rstrip("/") for source in sources.values()}
+    # Markdown parses normalized newlines. Keep boundary offsets into the original text so none of
+    # that normalization is written back to the document.
+    characters, original_offsets = [], [0]
+    position = 0
+    while position < len(text):
+        character = text[position]
+        position += 1
+        if character == "\r":
+            if position < len(text) and text[position] == "\n":
+                position += 1
+            character = "\n"
+        characters.append(character)
+        original_offsets.append(position)
+    normalized = "".join(characters)
+    environment = {}
+    tokens = markdown.parse(normalized.removeprefix("\ufeff"), environment)
+    line_offsets = [0, *[index + 1 for index, character in enumerate(normalized) if character == "\n"]]
+    if line_offsets[-1] != len(normalized):
+        line_offsets.append(len(normalized))
+    removals = []
 
-    def keep(match: re.Match) -> str:
-        url = match.group().rstrip(".,;!")
-        if url.rstrip("/") in known:
-            return match.group()
-        logger.info("dropped unread URL %s", url)
-        return match.group()[len(url):]
+    def unread(url):
+        return (
+            url.lower().startswith(("http://", "https://"))
+            and markdown.normalizeLink(url).rstrip("/") not in known
+        )
 
-    return _URL.sub(keep, text)
+    def scan_inline(start, end):
+        state = StateInline(normalized[start:end], markdown, environment, [])
+        while state.pos < state.posMax:
+            position = state.pos
+            marker = state.src[position]
+            if marker == "`" and backtick(state, True):
+                continue
+            if marker == "\\" and escape(state, True):
+                continue
+            is_image = state.src.startswith("![", position)
+            if marker == "[" or is_image:
+                label_start = position + (2 if is_image else 1)
+                label_end = markdown.helpers.parseLinkLabel(state, label_start - 1, not is_image)
+                token_start = len(state.tokens)
+                if label_end >= 0 and (image if is_image else link)(state, False):
+                    token = next(token for token in state.tokens[token_start:] if token.type in {"image", "link_open"})
+                    if unread(token.attrGet("src" if is_image else "href") or ""):
+                        removals.extend(((start + position, start + label_start), (start + label_end, start + state.pos)))
+                        scan_inline(start + label_start, start + label_end)
+                    continue
+            if marker == "<":
+                token_start = len(state.tokens)
+                if autolink(state, False):
+                    if unread(state.tokens[token_start].attrGet("href") or ""):
+                        removals.append((start + position, start + state.pos))
+                    continue
+                if html_inline(state, True):
+                    continue
+            if state.src[position:position + 8].lower().startswith(("http://", "https://")):
+                limit = position
+                while limit < state.posMax and not state.src[limit].isspace() and state.src[limit] not in "<>[]\"'`":
+                    limit += 1
+                destination = markdown.helpers.parseLinkDestination(state.src, position, limit)
+                url_end = destination.pos if destination.ok else limit
+                raw_url = state.src[position:url_end].rstrip(".,;!")
+                if unread(markdown.utils.unescapeAll(raw_url)):
+                    removals.append((start + position, start + position + len(raw_url)))
+                state.pos = url_end
+                continue
+            state.pos = position + 1
+
+    for token in tokens:
+        if token.map is None:
+            continue
+        start, end = (line_offsets[line] for line in token.map)
+        if token.type == "definition" and unread(token.meta["url"]):
+            # Remove an unread reference definition, retaining its original line endings.
+            for line in normalized[start:end].splitlines(keepends=True):
+                removals.append((start, start + len(line.rstrip("\n"))))
+                start += len(line)
+        elif token.type in {"inline", "html_block"}:
+            scan_inline(start, end)
+    result, previous = [], 0
+    for start, end in sorted(removals):
+        result.append(text[previous:original_offsets[start]])
+        previous = original_offsets[end]
+    result.append(text[previous:])
+    return "".join(result)
 
 
 def references(sources: dict, order: dict[str, int], profile: GenreProfile, language: str) -> str:
@@ -102,7 +181,7 @@ def assemble(title: str, sections: list[tuple[str, str]], figures: list[dict], s
         if profile.citation_style == "links":
             body = drop_unknown_urls(strip_citations(body), sources)
         else:
-            body = link_citations(body, sources, order, max_cited)
+            body = link_citations(drop_unknown_urls(body, sources), sources, order, max_cited)
         parts.append(body)
         parts.extend(figure_block(f, language) for f in by_section.get(section_id, []))
     if profile.citation_style == "numbered":

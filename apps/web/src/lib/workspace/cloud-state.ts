@@ -1,6 +1,9 @@
 import { workspaceApi, WorkspaceApiError } from "./cloud-api";
 import { validateCloudFile } from "./cloud-sync";
 import { insertCitation } from "./sources";
+import { insertHtmlCitation } from "./html-source";
+import { isHtmlFile } from "./files";
+import { htmlRegions } from "./html";
 import type {
   CloudChatRequest,
   CloudFile,
@@ -427,6 +430,7 @@ export class CloudWorkspaceController {
       selection?: TextSelection;
       model?: string;
       researchGenre?: ResearchGenre;
+      outputFormat?: "html";
     } = {}
   ) {
     const id = this.state.activeId;
@@ -440,6 +444,10 @@ export class CloudWorkspaceController {
       );
     if (project.uncertainRequest)
       throw new Error("앞선 요청의 접수를 먼저 확인해 주세요.");
+    if (options.outputFormat && (options.selection || options.researchGenre))
+      throw new Error(
+        "HTML 생성은 영역 수정이나 딥 리서치와 따로 요청해 주세요."
+      );
     const path = project.activePath;
     const draft = path ? project.documents[path] : undefined;
     const content = draft?.content;
@@ -457,19 +465,34 @@ export class CloudWorkspaceController {
       const current = path
         ? this.state.projects[id]?.documents[path]
         : undefined;
-      if (current && current.content !== content)
+      if (current && current.content !== (file?.content ?? content))
         throw new Error(
           "저장 중 문서가 변경되었습니다. 현재 내용으로 다시 보내 주세요."
         );
+      let selection = options.selection;
+      if (selection && file && isHtmlFile(file.path)) {
+        const region = htmlRegions(file.content).find(
+          (item) => item.nodeId === selection?.nodeId
+        );
+        if (!region)
+          throw new Error(
+            "HTML 미리보기에서 수정할 영역을 다시 선택해 주세요."
+          );
+        // A canonical save may add IDs before this node. Resolve its new range
+        // only after confirming that no newer user typing is being replaced.
+        const { from, to, text, nodeId } = region;
+        selection = { from, to, text, nodeId };
+      }
       const request: CloudChatRequest = {
         message: message.trim(),
         requestId: crypto.randomUUID(),
         model: options.model,
         ...(file ? { activePath: file.path, activeVersion: file.version } : {}),
-        ...(options.selection ? { selection: options.selection } : {}),
+        ...(selection ? { selection } : {}),
         ...(options.researchGenre
           ? { researchGenre: options.researchGenre }
           : {}),
+        ...(options.outputFormat ? { outputFormat: options.outputFormat } : {}),
       };
       await this.submitRequest(id, request);
     } finally {
@@ -683,14 +706,24 @@ export class CloudWorkspaceController {
       draft.content.slice(selection.from, selection.to) !== selection.text
     )
       throw new Error("인용할 문장을 다시 선택해 주세요.");
+    const recordedSource = this.state.projects[id]?.sources.find(
+      (item) => item.url === source.url
+    );
     this.edit(
       id,
       path,
-      insertCitation(
-        draft.content,
-        source,
-        selection?.to ?? draft.content.length
-      )
+      isHtmlFile(path)
+        ? insertHtmlCitation(
+            draft.content,
+            source,
+            selection?.nodeId,
+            recordedSource?.id ?? null
+          )
+        : insertCitation(
+            draft.content,
+            source,
+            selection?.to ?? draft.content.length
+          )
     );
   }
 }

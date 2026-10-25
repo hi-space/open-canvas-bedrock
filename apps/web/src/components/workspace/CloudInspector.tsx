@@ -26,6 +26,7 @@ import type { CloudProposal, ResearchGenre } from "@/lib/workspace/cloud-types";
 import { editingInstruction } from "@/lib/workspace/review-policy";
 import { ownsComposerDraft } from "@/lib/workspace/cloud-intent";
 import { referenceUrl } from "@/lib/workspace/sources";
+import { isHtmlFile } from "@/lib/workspace/files";
 import type {
   EditingAction,
   TextSelection,
@@ -98,7 +99,9 @@ export function CloudInspector({
     Record<string, { text: string; revision: number }>
   >({});
   // Deep research applies to composer messages only, never to quick editing actions.
-  const [researchGenre, setResearchGenre] = useState<ResearchGenre | "">("");
+  const [creationMode, setCreationMode] = useState<ResearchGenre | "html" | "">(
+    ""
+  );
   const transcript = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const selected = selection?.text.trim() ? selection : undefined;
@@ -113,6 +116,7 @@ export function CloudInspector({
     }));
   };
   const path = project?.activePath;
+  const htmlDocument = !!path && isHtmlFile(path);
   const document = project ? workspaceDocument(project, path) : undefined;
   const proposal = project?.reviewId
     ? project.proposalDetails[project.reviewId]
@@ -132,6 +136,12 @@ export function CloudInspector({
     following.current = true;
   }, [id]);
   useEffect(() => {
+    setCreationMode("");
+  }, [id, path]);
+  useEffect(() => {
+    if (selected) setCreationMode("");
+  }, [selected]);
+  useEffect(() => {
     if (following.current && transcript.current)
       transcript.current.scrollTop = transcript.current.scrollHeight;
   }, [id, project?.messages.length, tab]);
@@ -145,12 +155,17 @@ export function CloudInspector({
       workspaceId: id,
       revision: composerDraft?.revision ?? 0,
     };
-    const research = consumeDraft && researchGenre ? researchGenre : undefined;
+    const research =
+      consumeDraft && creationMode && creationMode !== "html"
+        ? creationMode
+        : undefined;
+    const htmlGeneration = consumeDraft && creationMode === "html";
     try {
       await controller.send(instruction, {
-        selection: research ? undefined : selected,
+        selection: research || htmlGeneration ? undefined : selected,
         model: catalog.model,
         researchGenre: research,
+        outputFormat: htmlGeneration ? "html" : undefined,
       });
       if (consumeDraft && id)
         setComposerDrafts((current) => {
@@ -438,20 +453,26 @@ export function CloudInspector({
             <div className={`${styles.aiComposer} ${cloud.composer}`}>
               <div className={styles.scopeLabel}>
                 <span className={styles.statusDot} />
-                {selected ? "선택한 문장" : (path ?? "프로젝트 전체")}
+                {selected
+                  ? selected.nodeId
+                    ? "선택한 HTML 영역"
+                    : "선택한 문장"
+                  : (path ?? "프로젝트 전체")}
                 <span>
                   {selected
-                    ? `${selected.text.length}자`
+                    ? selected.nodeId
+                      ? (selected.label ?? "영역")
+                      : `${selected.text.length}자`
                     : `${project.files.length}개 파일`}
                 </span>
               </div>
               {selected && (
                 <div className={styles.selectedPassage}>
-                  <p>{selected.text}</p>
+                  <p>{selected.previewText ?? selected.text}</p>
                   <button
                     className={styles.iconButton}
                     onClick={() => onClearSelection()}
-                    aria-label="문장 선택 해제"
+                    aria-label="선택 해제"
                   >
                     <X size={14} />
                   </button>
@@ -490,9 +511,13 @@ export function CloudInspector({
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
                     placeholder={
-                      researchGenre
-                        ? "조사할 주제와 관점을 적어 주세요. 결과는 새 문서 수정안으로 제안됩니다."
-                        : "글을 다듬거나, 파일을 비교하거나, 새 초안을 부탁해 보세요."
+                      creationMode === "html"
+                        ? "추가한 출처와 프로젝트 파일로 어떤 HTML 페이지를 만들까요?"
+                        : creationMode
+                          ? "조사할 주제와 관점을 적어 주세요. 결과는 새 문서 수정안으로 제안됩니다."
+                          : selected?.nodeId
+                            ? "예: 이 표를 카드 세 개로 바꾸고, 설명을 더 간결하게 해줘."
+                            : "글을 다듬거나, 파일을 비교하거나, 새 초안을 부탁해 보세요."
                     }
                     rows={3}
                     maxLength={4000}
@@ -528,6 +553,7 @@ export function CloudInspector({
                 <label className={styles.modelLabel}>
                   <span className={styles.srOnly}>AI 모델</span>
                   <select
+                    aria-label="AI 모델"
                     value={catalog.model}
                     onChange={(event) => catalog.setModel(event.target.value)}
                     disabled={project.submitting}
@@ -541,22 +567,33 @@ export function CloudInspector({
                 </label>
                 <BookOpen size={12} aria-hidden="true" />
                 <label className={styles.modelLabel}>
-                  <span className={styles.srOnly}>딥 리서치</span>
+                  <span className={styles.srOnly}>작성 방식</span>
                   <select
-                    value={researchGenre}
-                    onChange={(event) =>
-                      setResearchGenre(event.target.value as ResearchGenre | "")
-                    }
+                    aria-label="작성 방식"
+                    value={creationMode}
+                    onChange={(event) => {
+                      if (event.target.value) onClearSelection();
+                      setCreationMode(
+                        event.target.value as ResearchGenre | "html" | ""
+                      );
+                    }}
                     disabled={project.submitting}
-                    title="웹을 여러 번 조사한 뒤 출처와 그림을 갖춘 새 문서를 제안합니다."
+                    title="추가한 자료로 HTML을 만들거나, 웹을 조사해 새 문서를 작성합니다."
                   >
                     <option value="">일반 대화</option>
+                    <option value="html">HTML 페이지 만들기</option>
                     <option value="paper">딥 리서치: 논문</option>
                     <option value="blog">딥 리서치: 블로그</option>
                     <option value="linkedin">딥 리서치: LinkedIn</option>
                   </select>
                 </label>
               </div>
+              {creationMode === "html" && (
+                <p className={cloud.htmlGenerationHint}>
+                  프로젝트 파일과 추가한 출처를 참고해 새 페이지를 제안합니다.
+                  미리보기를 확인한 뒤 승인할 수 있어요.
+                </p>
+              )}
               {catalog.unavailable && (
                 <button
                   className={styles.modelRetry}
@@ -645,6 +682,8 @@ export function CloudInspector({
             key={`${id}/${path}`}
             document={document}
             hasSelection={!!selected}
+            selection={selected}
+            html={htmlDocument}
             onAdd={(source) => {
               void controller
                 .addSource(project.workspace.id, source)

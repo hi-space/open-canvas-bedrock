@@ -86,6 +86,7 @@ export interface CloudChatRequest {
   selection?: TextSelection;
   model?: string;
   researchGenre?: ResearchGenre;
+  outputFormat?: "html";
 }
 
 export interface WorkspaceService {

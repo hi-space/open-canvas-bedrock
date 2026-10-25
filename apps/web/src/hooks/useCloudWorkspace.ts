@@ -207,7 +207,7 @@ export function useCloudWorkspace() {
         try {
           if (!isDocumentFile(file.name))
             throw new Error(
-              `${file.name}: Markdown 또는 TXT 파일을 선택해 주세요.`
+              `${file.name}: Markdown, TXT 또는 HTML 파일을 선택해 주세요.`
             );
           const content = await readTextFile(file);
           await controller.createFile(

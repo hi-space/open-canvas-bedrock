@@ -3,6 +3,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
+import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 
 export interface DocumentReference extends SourceReference {
   label: string;
@@ -57,9 +58,31 @@ export function extractReferences(markdown: string): DocumentReference[] {
     } else if (node.type === "linkReference") {
       const definition = definitions.get(node.identifier.toLowerCase());
       if (definition) add(definition.url, plainText(node), definition.title);
+    } else if (node.type === "html") {
+      const walkHtml = (element: DefaultTreeAdapterMap["node"]) => {
+        if ("tagName" in element) {
+          if (["script", "style", "template"].includes(element.tagName)) return;
+          if (element.tagName === "a") {
+            const href = element.attrs.find(
+              (attr) => attr.name === "href"
+            )?.value;
+            const title = element.attrs.find(
+              (attr) => attr.name === "title"
+            )?.value;
+            if (href) add(href, htmlText(element).trim(), title);
+          }
+        }
+        if ("childNodes" in element) element.childNodes.forEach(walkHtml);
+      };
+      walkHtml(parseFragment(node.value));
     }
   });
   return [...references.values()];
+}
+
+function htmlText(node: DefaultTreeAdapterMap["node"]): string {
+  if (node.nodeName === "#text" && "value" in node) return node.value;
+  return "childNodes" in node ? node.childNodes.map(htmlText).join("") : "";
 }
 
 export function insertCitation(

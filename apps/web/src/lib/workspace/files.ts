@@ -27,7 +27,11 @@ export class FileConflictError extends Error {
 }
 
 export function isDocumentFile(name: string): boolean {
-  return /\.(md|markdown|txt)$/i.test(name);
+  return /\.(md|markdown|txt|html?)$/i.test(name);
+}
+
+export function isHtmlFile(name: string): boolean {
+  return /\.html?$/i.test(name);
 }
 
 export async function readTextFile(file: File): Promise<string> {
@@ -154,13 +158,29 @@ export async function requestWritePermission(
   }
 }
 
-export function downloadMarkdown(name: string, content: string): void {
-  const url = URL.createObjectURL(
-    new Blob([content], { type: "text/markdown;charset=utf-8" })
-  );
+export function documentDownload(
+  name: string,
+  content: string
+): { name: string; blob: Blob } {
+  const type = isHtmlFile(name)
+    ? "text/html"
+    : /\.txt$/i.test(name)
+      ? "text/plain"
+      : "text/markdown";
+  return {
+    name: isDocumentFile(name) ? name : `${name}.md`,
+    blob: new Blob([content], { type: `${type};charset=utf-8` }),
+  };
+}
+
+export function downloadDocument(name: string, content: string): void {
+  const download = documentDownload(name, content);
+  const url = URL.createObjectURL(download.blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = isDocumentFile(name) ? name : `${name}.md`;
+  anchor.download = download.name;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export const downloadMarkdown = downloadDocument;

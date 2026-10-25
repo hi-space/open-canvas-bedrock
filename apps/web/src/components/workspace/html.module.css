@@ -1,0 +1,192 @@
+.preview {
+  min-width: 0;
+  color: #344a37;
+}
+
+.controls {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #dfe6d9;
+  border-radius: 8px;
+  background: #f7f9f3;
+}
+
+.pickerHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pickerHeading label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pickerHeading > span {
+  color: #6b7964;
+  font-size: 11px;
+}
+
+.pickerRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pickerRow select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #d7e0d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #334b36;
+  text-overflow: ellipsis;
+  font: inherit;
+  font-size: 12px;
+}
+
+.pickerRow button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 11px;
+  border: 1px solid #d7e0d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #3f5e3a;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pickerRow button:not(:disabled):hover {
+  border-color: #b4c7a7;
+  background: #eaf1e4;
+}
+
+.pickerRow button:disabled,
+.pickerRow select:disabled {
+  color: #79836f;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pickerRow button:focus-visible,
+.pickerRow select:focus-visible,
+.frame:focus-visible {
+  outline: 2px solid #3d7049;
+  outline-offset: 3px;
+}
+
+.selection {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  color: #617159;
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.selection > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.selection > span {
+  min-width: 0;
+}
+
+.selectionCaption {
+  margin-right: 7px;
+  color: #617159;
+}
+
+.selection strong {
+  color: #315a3b;
+  font-weight: 600;
+}
+
+.selection code {
+  display: inline-block;
+  margin-left: 7px;
+  border-radius: 3px;
+  padding: 0 4px;
+  background: #e8efe1;
+  color: #4e6345;
+  font-size: 10px;
+}
+
+.hasSelection {
+  color: #315a3b;
+}
+
+.frameShell {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e0e5db;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  height: min(68vh, 780px);
+  min-height: 420px;
+  border: 0;
+  background: #fff;
+}
+
+.placeholder {
+  display: flex;
+  min-height: 420px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #66765f;
+  font-size: 12px;
+  text-align: center;
+}
+
+.compact .frame {
+  height: 320px;
+  min-height: 0;
+}
+
+.compact .placeholder {
+  min-height: 320px;
+}
+
+@media (max-width: 640px) {
+  .controls {
+    padding: 11px;
+  }
+
+  .pickerRow {
+    flex-wrap: wrap;
+  }
+
+  .pickerRow select {
+    flex-basis: 100%;
+  }
+
+  .pickerRow button {
+    flex: 1;
+  }
+
+  .frame {
+    min-height: 360px;
+  }
+}

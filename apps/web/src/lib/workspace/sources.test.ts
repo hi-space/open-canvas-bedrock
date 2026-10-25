@@ -7,6 +7,22 @@ import {
 } from "./sources";
 
 describe("reference links", () => {
+  it("finds citations in HTML without counting links inside scripts or comments", () => {
+    const html = `<html><head><style>a {color: green}</style></head><body>
+      <section><a href="https://example.org/source" title="자료">[1]</a>
+      <a href="https://example.org/source">[1]</a></section>
+      <!-- <a href="https://example.org/comment">ignored</a> -->
+      <script>const link = '<a href="https://example.org/script">ignored</a>';</script>
+      </body></html>`;
+    const links = extractReferences(html);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({
+      url: "https://example.org/source",
+      title: "자료",
+      count: 2,
+    });
+  });
+
   it("accepts real web links and rejects executable or credential-bearing URLs", () => {
     expect(referenceUrl(" https://example.org/a?x=1#part ")).toBe(
       "https://example.org/a?x=1#part"

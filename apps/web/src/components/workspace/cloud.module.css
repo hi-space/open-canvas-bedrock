@@ -1,6 +1,74 @@
 .layout {
   grid-template-columns: 244px minmax(0, 1fr) 394px;
 }
+.htmlPaper {
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dfe5d8;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px #33442e08;
+}
+.htmlPaper > div:first-child {
+  padding-inline: 18px;
+}
+.htmlProposalNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 18px;
+  background: #eff5e9;
+  color: #47623f;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.htmlReview {
+  display: grid;
+  gap: 12px;
+  padding-block: 8px 16px;
+  min-width: 0;
+}
+.htmlSelectionToolbar {
+  width: max-content;
+  max-width: calc(100% - 20px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.htmlReview > fieldset {
+  justify-self: start;
+}
+.htmlReviewHint,
+.htmlGenerationHint {
+  margin: 0;
+  color: #52644c;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.htmlGenerationHint {
+  padding: 9px 10px;
+  margin-top: 8px;
+  background: #f0f4e9;
+  border-radius: 6px;
+}
+.htmlSourceDiff > summary {
+  padding: 12px;
+  color: #46603e;
+  cursor: pointer;
+  font-size: 12px;
+}
+.htmlSourceDiff :global(ins),
+.htmlSourceDiff :global(del) {
+  overflow-wrap: anywhere;
+}
+.modal select {
+  padding: 10px 12px;
+  color: #344c37;
+  border: 1px solid #dfe5d8;
+  background: #fcfdf9;
+  border-radius: 6px;
+}
 .layout.closed {
   grid-template-columns: 244px minmax(0, 1fr);
 }

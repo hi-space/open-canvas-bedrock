@@ -1,5 +1,6 @@
 import {
   MAX_FILE_BYTES,
+  isDocumentFile,
   readFileSnapshot,
   requestWritePermission,
   writeFileSafely,
@@ -62,10 +63,10 @@ export function validateCloudFile(path: string, content: string): void {
         part.trim() !== part ||
         new TextEncoder().encode(part).byteLength > 240
     ) ||
-    !/\.(md|markdown|txt)$/i.test(path)
+    !isDocumentFile(path)
   ) {
     throw new Error(
-      "파일 경로는 숨김 폴더나 .. 없이 8단계 이내의 Markdown·TXT 경로로 입력해 주세요."
+      "파일 경로는 숨김 폴더나 .. 없이 8단계 이내의 Markdown·TXT·HTML 경로로 입력해 주세요."
     );
   }
   if (
@@ -85,6 +86,14 @@ export async function contentVersion(content: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0")
   ).join("");
+}
+
+/** Keep the actual local baseline when the server normalizes an uploaded file. */
+export async function uploadedSyncBaseline(
+  local: string,
+  saved: { content: string; version: string }
+): Promise<string> {
+  return saved.content === local ? saved.version : contentVersion(local);
 }
 
 function notFound(error: unknown): boolean {

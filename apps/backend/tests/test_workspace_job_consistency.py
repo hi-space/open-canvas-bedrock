@@ -71,6 +71,26 @@ class JobConsistencyTests(unittest.TestCase):
         self.assertEqual(records["job:" + job["id"]]["status"], "completed")
         self.assertEqual(records["source:" + source["id"]]["url"], source["url"])
 
+    def test_failed_jobs_log_the_safe_service_reason_without_request_content(self):
+        from botocore.exceptions import ClientError
+        from fastapi import HTTPException
+
+        runtime = ClientError({"Error": {
+            "Code": "RuntimeClientError",
+            "Message": "Runtime initialization time exceeded. Please make sure that initialization completes in 120s.",
+        }}, "InvokeAgentRuntime")
+        rejected = HTTPException(502, "AI가 확인되지 않은 출처를 추가했습니다.")
+        for error, expected in ((runtime, "initialization time exceeded"), (rejected, "status=502")):
+            job, payload = self.prepare()
+            with patch("api.workspaces.service.fetch_requested_sources", return_value=[]), \
+                    patch("api.workspaces.service.invoke_agent", side_effect=error), \
+                    self.assertLogs("api.workspaces.service", "WARNING") as logs:
+                run_job(self.files.owner, self.files.workspace, job["id"], payload)
+            self.assertIn(expected, logs.output[0])
+            self.assertNotIn("다듬기", logs.output[0])
+            with self.files.lock():
+                self.files.metadata.delete(self.files.namespace, "request:request-1")
+
     def test_rejection_metadata_failure_recovers_without_touching_changed_file(self):
         proposal = create_proposal({
             "path": "draft.md", "baseVersion": self.original["version"],

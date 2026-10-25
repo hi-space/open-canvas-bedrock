@@ -183,7 +183,7 @@ export function CloudFolderPanel({
       </div>
       {!folder.supported && (
         <p className={styles.warningBox}>
-          폴더 연결을 지원하지 않는 브라우저입니다. 파일 가져오기와 Markdown
+          폴더 연결을 지원하지 않는 브라우저입니다. 파일 가져오기와 문서
           다운로드를 사용할 수 있어요.
         </p>
       )}
@@ -263,7 +263,8 @@ export function CloudFolderPanel({
       )}
       <p className={styles.fieldHint}>
         폴더 연결만으로 파일을 업로드하지 않습니다. 삭제는 반대쪽에 자동으로
-        반영하지 않습니다. Markdown·TXT, 파일당 20만 자·2 MiB까지 지원합니다.
+        반영하지 않습니다. Markdown·TXT·HTML, 파일당 20만 자·2 MiB까지
+        지원합니다.
       </p>
       {!!folder.skipped.length && (
         <details className={styles.warningBox}>

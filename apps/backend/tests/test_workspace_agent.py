@@ -120,7 +120,8 @@ def test_model_gets_explicit_history_and_sources_without_owner_or_mount_context(
     assert payload["sources"][0]["excerpt"] not in json.dumps(request["system"])
     specs = request["toolConfig"]["tools"]
     assert {item["toolSpec"]["name"] for item in specs} == {
-        "list_files", "read_file", "search_files", "fetch_reference", "propose_edit",
+        "list_files", "read_file", "search_files", "fetch_reference", "propose_edit", "apply_edits",
+        "revise_document",
     }
     assert all(item["toolSpec"]["inputSchema"]["json"]["additionalProperties"] is False for item in specs)
 
@@ -267,11 +268,40 @@ def test_provider_errors_do_not_leak_documents_credentials_or_provider_messages(
     assert "private file" not in str(failure.value)
 
 
+def test_model_read_timeout_is_the_remaining_job_time(runtime, monkeypatch):
+    # Converse returns nothing until the turn ends; a whole-document rewrite
+    # turn took 181 seconds in a production-sized test. Only the job deadline
+    # bounds a call, and no call can outlast it.
+    from workspace_agent.agent import MAX_RUNTIME_SECONDS, run_agent
+
+    _, payload = runtime
+    configs = []
+    bedrock = BedrockFixture([response(None, tools=[("list", "list_files", {})]), response("Done.")])
+    now = [0.0]
+    converse = bedrock.converse
+
+    def slow_converse(**request):
+        now[0] += 100
+        return converse(**request)
+
+    def client(*_args, config, **_kwargs):
+        configs.append(config)
+        bedrock.converse = slow_converse
+        return bedrock
+
+    monkeypatch.setattr("workspace_agent.agent.boto3.client", client)
+    monkeypatch.setattr("workspace_agent.agent.time.monotonic", lambda: now[0])
+    run_agent(payload)
+    assert [config.read_timeout for config in configs] == [MAX_RUNTIME_SECONDS, MAX_RUNTIME_SECONDS - 100]
+
+
 def test_oversized_final_message_and_total_output_tokens_are_rejected(runtime, monkeypatch):
     from workspace_agent.agent import AgentError
 
+    from workspace_agent.agent import MAX_OUTPUT_TOKENS
+
     _, payload = runtime
-    for result in (response("x" * 16001), response(output_tokens=32769)):
+    for result in (response("x" * 16001), response(output_tokens=MAX_OUTPUT_TOKENS + 1)):
         with pytest.raises(AgentError):
             run_with(monkeypatch, payload, [result])
 
@@ -356,3 +386,77 @@ def test_default_model_and_region_are_taken_from_server_configuration(runtime, m
     assert configurations[0][0] == "bedrock-runtime"
     assert configurations[0][1]["region_name"] == "ap-northeast-2"
     assert "temperature" not in bedrock.calls[0]["inferenceConfig"]
+
+
+def test_whole_document_revision_runs_section_calls_outside_the_agent_transcript(runtime, monkeypatch):
+    from workspace_agent.agent import run_agent
+
+    directory, payload = runtime
+    original = "".join(f"## 절 {index}\n\n중복된 중복된 문장 {index}.\n\n" + "본문. " * 700 + "\n\n" for index in range(4))
+    (directory / "article.md").write_text(original, encoding="utf-8")
+    agent_turns = [
+        response(None, tools=[("revise", "revise_document", {
+            "path": "article.md", "instruction": "중복을 줄여 주세요.", "explanation": "중복 표현을 줄였습니다.",
+        })]),
+        response("문서 전체 수정안을 만들었습니다."),
+    ]
+    agent_requests, section_requests = [], []
+
+    class Bedrock:
+        def converse(self, **request):
+            if "toolConfig" in request:
+                agent_requests.append(request)
+                return agent_turns.pop(0)
+            section_requests.append(request)
+            passage = json.loads(request["messages"][0]["content"][0]["text"])["passage"]
+            return response(passage.replace("중복된 중복된", "중복된"))
+
+    monkeypatch.setattr("workspace_agent.agent.boto3.client", lambda *args, **kwargs: Bedrock())
+    result = run_agent(payload)
+    assert result["proposals"][0]["proposedContent"] == original.replace("중복된 중복된", "중복된")
+    assert len(section_requests) > 1
+    assert all(request["modelId"] == MODEL for request in section_requests)
+    assert "본문. 본문." not in json.dumps(agent_requests[-1]["messages"], ensure_ascii=False)
+    assert list(directory.iterdir()) == [directory / "article.md"]
+
+
+@pytest.mark.parametrize("first_turn_tokens", [128, 40000])
+def test_main_and_section_calls_share_the_invocation_output_limit(runtime, monkeypatch, first_turn_tokens):
+    from workspace_agent.agent import MAX_OUTPUT_TOKENS, run_agent
+
+    directory, payload = runtime
+    original = "".join(
+        f"## Section {index}\n\n" + "Original wording. " * 180 + "\n\n"
+        for index in range(8)
+    )
+    (directory / "article.md").write_text(original, encoding="utf-8")
+    turns = [
+        response(None, output_tokens=first_turn_tokens, tools=[("revise", "revise_document", {
+            "path": "article.md", "instruction": "Revise every section.", "explanation": "Clearer wording.",
+        })]),
+        response("Some sections were kept unchanged for review.", output_tokens=64),
+    ]
+    main_requests, section_requests = [], []
+
+    class Bedrock:
+        def converse(self, **request):
+            if "toolConfig" in request:
+                main_requests.append(request)
+                return turns.pop(0)
+            section_requests.append(request)
+            passage = json.loads(request["messages"][0]["content"][0]["text"])["passage"]
+            return response(passage.replace("Original", "Revised"), output_tokens=16384)
+
+    monkeypatch.setattr("workspace_agent.agent.boto3.client", lambda *args, **kwargs: Bedrock())
+    result = run_agent(payload)
+    used_before_final = first_turn_tokens + len(section_requests) * 16384
+    assert used_before_final + 64 <= MAX_OUTPUT_TOKENS
+    assert 0 < len(section_requests) < 8
+    assert main_requests[-1]["inferenceConfig"]["maxTokens"] <= MAX_OUTPUT_TOKENS - used_before_final
+    tool_result = main_requests[-1]["messages"][-1]["content"][0]["toolResult"]
+    assert tool_result["status"] == "success"
+    assert tool_result["content"][0]["json"]["unchanged"]
+    assert result["proposals"][0]["baseContent"] == original
+    assert "Original wording." in result["proposals"][0]["proposedContent"]
+    assert "Revised wording." in result["proposals"][0]["proposedContent"]
+    assert (directory / "article.md").read_text(encoding="utf-8") == original

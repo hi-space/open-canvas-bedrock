@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   FileConflictError,
+  documentDownload,
+  isDocumentFile,
   readTextFile,
   scanDirectory,
   writeFileSafely,
@@ -33,6 +35,24 @@ function fakeFile(initial: string, onOpen?: () => string) {
 }
 
 describe("local document files", () => {
+  it("recognizes HTML files while excluding executable application files", () => {
+    expect(isDocumentFile("pages/report.HTML")).toBe(true);
+    expect(isDocumentFile("page.htm")).toBe(true);
+    expect(isDocumentFile("page.js")).toBe(false);
+  });
+
+  it("downloads HTML as HTML with the exact source and filename", async () => {
+    const content = "<!doctype html><html><body><p>자료 🙂</p></body></html>";
+    const download = documentDownload("report.html", content);
+    expect(download.name).toBe("report.html");
+    expect(download.blob.type).toBe("text/html;charset=utf-8");
+    expect(await download.blob.text()).toBe(content);
+    expect(documentDownload("notes", "# Notes").name).toBe("notes.md");
+    expect(documentDownload("notes.txt", "Notes").blob.type).toBe(
+      "text/plain;charset=utf-8"
+    );
+  });
+
   it("preserves UTF-8 BOM and Windows line endings on import", async () => {
     const file = new File(["\uFEFF# 제목\r\n\r\n본문\r\n"], "draft.md");
     expect(await readTextFile(file)).toBe("\uFEFF# 제목\r\n\r\n본문\r\n");

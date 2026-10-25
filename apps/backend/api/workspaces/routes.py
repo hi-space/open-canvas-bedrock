@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from api.workspaces.files import ProjectFiles, now
 from api.workspaces.identity import owner_key
+from api.workspaces.jobs import job_is_stale
 from api.workspaces.models import CreateWorkspace, SaveFile, ChatRequest, Decisions, SourceInput
 from api.workspaces.proposals import apply_decisions
 from api.workspaces.service import prepare_job, run_job, sources_from
@@ -42,7 +43,7 @@ def authorized(owner, workspace):
 
 
 def expire_job(job):
-    if job["status"] in {"queued", "running"} and now() - job["updatedAt"] > 900000:
+    if job_is_stale(job, now()):
         return {**job, "status": "failed", "error": "작업 연결이 중단되었습니다. 다시 요청해 주세요."}
     return job
 
