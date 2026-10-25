@@ -441,6 +441,7 @@ export class CloudWorkspaceController {
       model?: string;
       researchGenre?: ResearchGenre;
       outputFormat?: "html";
+      contextPaths?: string[];
     } = {}
   ) {
     const id = this.state.activeId;
@@ -454,10 +455,24 @@ export class CloudWorkspaceController {
       );
     if (project.uncertainRequest)
       throw new Error("앞선 요청의 접수를 먼저 확인해 주세요.");
-    if (options.outputFormat && (options.selection || options.researchGenre))
+    if ((options.outputFormat || options.researchGenre) && options.selection)
+      throw new Error("새 문서 생성은 선택 영역 수정과 따로 요청해 주세요.");
+    if (
+      options.contextPaths &&
+      (!options.researchGenre || options.contextPaths.length > 5)
+    )
       throw new Error(
-        "HTML 생성은 영역 수정이나 딥 리서치와 따로 요청해 주세요."
+        "딥 리서치 자료는 프로젝트 파일 다섯 개까지 선택해 주세요."
       );
+    const contextPaths = options.contextPaths
+      ? [...new Set(options.contextPaths)]
+      : undefined;
+    const contextDrafts = new Map(
+      (contextPaths ?? []).flatMap((contextPath) => {
+        const context = project.documents[contextPath];
+        return context ? [[contextPath, context.content] as const] : [];
+      })
+    );
     const path = project.activePath;
     const draft = path ? project.documents[path] : undefined;
     const content = draft?.content;
@@ -471,6 +486,25 @@ export class CloudWorkspaceController {
     this.project(id, (current) => ({ ...current, submitting: true }));
     try {
       const file = draft && path ? await this.save(id, path) : undefined;
+      const savedContext = new Map<string, string>();
+      if (file && path && contextDrafts.has(path))
+        savedContext.set(path, file.content);
+      for (const [contextPath, captured] of contextDrafts) {
+        if (contextPath === path) continue;
+        if (
+          this.state.projects[id]?.documents[contextPath]?.content !== captured
+        )
+          throw new Error(
+            "자료를 저장하는 중 문서가 변경되었습니다. 내용을 확인한 뒤 다시 요청해 주세요."
+          );
+        const saved = await this.save(id, contextPath);
+        savedContext.set(contextPath, saved.content);
+      }
+      for (const [contextPath, saved] of savedContext)
+        if (this.state.projects[id]?.documents[contextPath]?.content !== saved)
+          throw new Error(
+            "자료를 저장하는 중 문서가 변경되었습니다. 내용을 확인한 뒤 다시 요청해 주세요."
+          );
       // Editing during Save must never send the selection against new typing.
       const current = path
         ? this.state.projects[id]?.documents[path]
@@ -503,6 +537,7 @@ export class CloudWorkspaceController {
           ? { researchGenre: options.researchGenre }
           : {}),
         ...(options.outputFormat ? { outputFormat: options.outputFormat } : {}),
+        ...(contextPaths ? { contextPaths } : {}),
       };
       await this.submitRequest(id, request);
     } finally {

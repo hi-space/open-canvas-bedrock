@@ -31,9 +31,62 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
 
 describe("HTML preview controls", () => {
+  it("shows readable text and a retry action when a research image is unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 }))
+    );
+    await act(async () =>
+      root.render(
+        <HtmlPreview
+          content={
+            content + '<img src="/api/research/assets/run/fig1.png" alt="그림">'
+          }
+        />
+      )
+    );
+    expect(container.querySelector("iframe")?.srcdoc).toContain("Text");
+    expect(container.textContent).toMatch(/그림.*불러오지/);
+    expect(
+      [...container.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("다시 불러오기")
+      )
+    ).toBe(true);
+  });
+
+  it("does not replace a newer document with an obsolete image result", async () => {
+    let finish!: (response: Response) => void;
+    const oldRequest = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => oldRequest)
+    );
+    await act(async () =>
+      root.render(
+        <HtmlPreview
+          content={
+            content + '<img src="/api/research/assets/run/fig1.png" alt="그림">'
+          }
+        />
+      )
+    );
+    await act(async () =>
+      root.render(<HtmlPreview content='<p data-oc-id="new">새 문서</p>' />)
+    );
+    await act(async () => {
+      finish(new Response("", { status: 404 }));
+      await oldRequest;
+    });
+    expect(container.querySelector("iframe")?.srcdoc).toContain("새 문서");
+    expect(container.querySelector("iframe")?.srcdoc).not.toContain("Text");
+    expect(container.textContent).not.toMatch(/그림.*불러오지/);
+  });
   it("isolates the document and offers a labeled native region picker", async () => {
     await act(async () => {
       root.render(

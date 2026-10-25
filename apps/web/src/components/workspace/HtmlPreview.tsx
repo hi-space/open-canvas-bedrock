@@ -16,6 +16,7 @@ import {
   type HtmlRegion,
 } from "../../lib/workspace/html";
 import { chooseDefaultHtmlRegion } from "../../lib/workspace/html-selection-policy";
+import { resolveHtmlResearchImages } from "../../lib/workspace/html-assets";
 import type { TextSelection } from "../../lib/workspace/types";
 import styles from "./html.module.css";
 
@@ -33,6 +34,7 @@ interface PreviewSession {
   token: string;
   source?: string;
   error?: string;
+  missing?: number;
 }
 
 export function HtmlPreview({
@@ -65,6 +67,7 @@ export function HtmlPreview({
     ? regionMap.get(currentSelection.parentId)
     : undefined;
   const [preview, setPreview] = useState<PreviewSession>();
+  const [imageRetry, setImageRetry] = useState(0);
   const currentPreview =
     preview?.content === content && preview.interactive === interactive
       ? preview
@@ -73,6 +76,7 @@ export function HtmlPreview({
   // DOMPurify needs the browser's window. Keep server rendering deterministic.
   useEffect(() => {
     const token = window.crypto.randomUUID();
+    const controller = new AbortController();
     try {
       setPreview({
         content,
@@ -80,6 +84,23 @@ export function HtmlPreview({
         token,
         source: createHtmlPreview(content, token, interactive),
       });
+      void resolveHtmlResearchImages(content, controller.signal)
+        .then((resolved) => {
+          if (controller.signal.aborted) return;
+          setPreview({
+            content,
+            interactive,
+            token,
+            source: createHtmlPreview(resolved.content, token, interactive),
+            missing: resolved.missing.length,
+          });
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setPreview((current) =>
+            current?.token === token ? { ...current, missing: 1 } : current
+          );
+        });
     } catch {
       setPreview({
         content,
@@ -89,7 +110,8 @@ export function HtmlPreview({
           "HTML 미리보기를 준비하지 못했어요. 소스에서 내용을 확인해 주세요.",
       });
     }
-  }, [content, interactive]);
+    return () => controller.abort();
+  }, [content, interactive, imageRetry]);
 
   const chooseRegion = useCallback(
     (region?: HtmlRegion) => {
@@ -219,6 +241,20 @@ export function HtmlPreview({
             )}
           </output>
         </div>
+      )}
+      {!!currentPreview?.missing && (
+        <output className={styles.imageNotice}>
+          <span>
+            그림 {currentPreview.missing}개를 불러오지 못했어요. 본문은 계속
+            읽을 수 있습니다.
+          </span>
+          <button
+            type="button"
+            onClick={() => setImageRetry((value) => value + 1)}
+          >
+            그림 다시 불러오기
+          </button>
+        </output>
       )}
       <div className={styles.frameShell}>
         {currentPreview?.source ? (

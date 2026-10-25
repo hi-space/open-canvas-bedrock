@@ -74,3 +74,17 @@ def test_table_of_contents_uses_unique_targets_without_changing_citations():
     assert len(navigation) == 3
     assert len(set(navigation)) == 3
     assert set(navigation) <= targets
+
+
+def test_linkedin_plain_source_urls_become_clickable_without_touching_code_or_link_labels():
+    url = "https://example.org/report?a=1&b=2"
+    content = render(
+        f"원문 {url}.\n\n[{url}]({url})\n\n`{url}`\n\n```text\n{url}\n```\n"
+    )
+    validate_html(content, {"s1"})
+    parsed = Elements(content)
+    anchors = [attrs for tag, attrs in parsed.tags if tag == "a"]
+    assert len(anchors) == 2
+    assert all(anchor["href"] == url for anchor in anchors)
+    assert all(anchor.get("data-source-ids") == '["s1"]' for anchor in anchors)
+    assert "&amp;b=2" in content

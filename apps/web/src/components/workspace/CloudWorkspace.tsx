@@ -33,6 +33,7 @@ import {
   isHtmlFile,
 } from "@/lib/workspace/files";
 import { EMPTY_HTML_DOCUMENT } from "@/lib/workspace/html-template";
+import { standaloneHtml } from "@/lib/workspace/html-assets";
 import { editingInstruction } from "@/lib/workspace/review-policy";
 import type { TextSelection } from "@/lib/workspace/types";
 import { DocumentPreview } from "./DocumentPreview";
@@ -196,6 +197,7 @@ export function CloudWorkspace({
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [creating, setCreating] = useState<"project" | "file">();
   const [dragging, setDragging] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [selectionState, setSelectionState] = useState<{
     id: string;
     path: string;
@@ -239,6 +241,23 @@ export function CloudWorkspace({
     project?.jobs.some(
       (job) => job.status === "queued" || job.status === "running"
     );
+
+  const download = async () => {
+    if (!document || downloading) return;
+    const name = document.name;
+    const content = virtualProposal?.proposedContent ?? document.content;
+    setDownloading(true);
+    try {
+      downloadDocument(
+        name,
+        htmlDocument ? await standaloneHtml(content) : content
+      );
+    } catch (error) {
+      controller.report(error);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     setInspectorOpen(window.matchMedia("(min-width: 900px)").matches);
@@ -506,17 +525,18 @@ export function CloudWorkspace({
                 </fieldset>
                 <button
                   className={styles.iconButton}
-                  onClick={() =>
-                    downloadDocument(
-                      document.name,
-                      virtualProposal?.proposedContent ?? document.content
-                    )
-                  }
+                  onClick={() => void download()}
+                  disabled={downloading}
+                  aria-busy={downloading}
                   aria-label={
                     htmlDocument ? "HTML 다운로드" : "Markdown 다운로드"
                   }
                 >
-                  <ArrowDownToLine size={17} />
+                  {downloading ? (
+                    <LoaderCircle size={17} className={styles.spin} />
+                  ) : (
+                    <ArrowDownToLine size={17} />
+                  )}
                 </button>
                 <button
                   className={styles.saveButton}

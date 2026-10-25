@@ -45,6 +45,8 @@ export interface CloudJob {
   message?: string;
   error?: string;
   proposalIds: string[];
+  contextPaths?: string[];
+  truncatedContextPaths?: string[];
 }
 
 export interface CloudProposalSummary {
@@ -89,6 +91,7 @@ export interface CloudChatRequest {
   model?: string;
   researchGenre?: ResearchGenre;
   outputFormat?: "html";
+  contextPaths?: string[];
 }
 
 export interface WorkspaceService {

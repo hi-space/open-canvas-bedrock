@@ -1,6 +1,7 @@
 """Render completed research as an editable, static HTML publication."""
 import html
 import json
+import re
 
 from markdown_it import MarkdownIt
 
@@ -83,9 +84,38 @@ def render_research_html(
     def table_close(renderer, tokens, index, options, environment):
         return renderer.renderToken(tokens, index, options, environment) + "</div>\n"
 
+    def text(_renderer, tokens, index, _options, _environment):
+        """LinkedIn uses bare source URLs; link only known evidence outside code/anchors."""
+        value = tokens[index].content
+        depth = sum(
+            1 if token.type == "link_open" else -1 if token.type == "link_close" else 0
+            for token in tokens[:index]
+        )
+        if depth:
+            return html.escape(value, quote=False)
+        parts, cursor = [], 0
+        for match in re.finditer(r"https?://[^\s<>\"']+", value):
+            url = match.group().rstrip(".,;!")
+            for opening, closing in (("(", ")"), ("[", "]"), ("{", "}")):
+                while url.endswith(closing) and url.count(closing) > url.count(opening):
+                    url = url[:-1]
+            source_id = source_ids.get(_normalize_link(url))
+            if not source_id:
+                continue
+            parts.append(html.escape(value[cursor:match.start()], quote=False))
+            provenance = html.escape(json.dumps([source_id], ensure_ascii=False), quote=True)
+            parts.append(
+                f'<a href="{html.escape(md.normalizeLink(url), quote=True)}" data-source-ids="{provenance}">'
+                f"{html.escape(url)}</a>"
+            )
+            cursor = match.start() + len(url)
+        parts.append(html.escape(value[cursor:], quote=False))
+        return "".join(parts)
+
     md.add_render_rule("link_open", link_open)
     md.add_render_rule("table_open", table_open)
     md.add_render_rule("table_close", table_close)
+    md.add_render_rule("text", text)
     environment = {}
     tokens = md.parse(markdown, environment)
     headings = []

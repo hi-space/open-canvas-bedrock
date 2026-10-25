@@ -135,6 +135,149 @@ describe("cloud workspace state and captured request context", () => {
     ).rejects.toThrow(/생성/);
   });
 
+  it("combines research, HTML and selected project files in the captured request", async () => {
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.send("출처와 그림이 있는 HTML 보고서", {
+      researchGenre: "blog",
+      outputFormat: "html",
+      contextPaths: ["a.md"],
+    });
+    expect(sent).toMatchObject({
+      researchGenre: "blog",
+      outputFormat: "html",
+      contextPaths: ["a.md"],
+      activePath: "a.md",
+      activeVersion: "v1",
+    });
+    expect(sent?.selection).toBeUndefined();
+  });
+
+  it("preserves an explicit web-only selection and rejects creating research on a text range", async () => {
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    await expect(
+      controller.send("선택 조사", {
+        researchGenre: "blog",
+        selection: { from: 0, to: 8, text: "original" },
+      })
+    ).rejects.toThrow(/선택/);
+    await controller.send("웹 조사", {
+      researchGenre: "blog",
+      contextPaths: [],
+    });
+    expect(sent?.contextPaths).toEqual([]);
+  });
+
+  it("saves a selected background document before research snapshots it", async () => {
+    const saved: string[] = [];
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file(), file("b.md")],
+        }),
+        save: async (_id, input) => {
+          saved.push(input.path);
+          return file(input.path, input.content, "v2");
+        },
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.openFile("a", "b.md");
+    controller.edit("a", "b.md", "연구에 쓸 최신 메모");
+    await controller.openFile("a", "a.md");
+    await controller.send("메모를 참고해 조사", {
+      researchGenre: "blog",
+      contextPaths: ["b.md"],
+    });
+    expect(saved).toContain("b.md");
+    expect(sent?.contextPaths).toEqual(["b.md"]);
+    expect(
+      controller.getSnapshot().projects.a.documents["b.md"].file.content
+    ).toBe("연구에 쓸 최신 메모");
+  });
+
+  it("accepts server-assigned HTML IDs in a selected research document", async () => {
+    const original = "<main>원문</main>";
+    const canonical = '<main data-oc-id="main">새 자료</main>';
+    let sent: CloudChatRequest | undefined;
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file("page.html", original)],
+        }),
+        file: async () => file("page.html", original),
+        save: async () => file("page.html", canonical, "v2"),
+        chat: async (_id, request) => {
+          sent = request;
+          return { job };
+        },
+      })
+    );
+    await controller.initialize();
+    controller.edit("a", "page.html", "<main>새 자료</main>");
+    await controller.send("이 자료로 조사", {
+      researchGenre: "blog",
+      contextPaths: ["page.html"],
+    });
+    expect(sent?.activeVersion).toBe("v2");
+    expect(sent?.contextPaths).toEqual(["page.html"]);
+  });
+
+  it("does not save background typing that arrived after the research request started", async () => {
+    const pending = deferred<CloudFile>();
+    const saved: string[] = [];
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) => ({
+          ...snapshot(id),
+          files: [file(), file("b.md")],
+        }),
+        save: async (_id, input) => {
+          saved.push(input.path);
+          return input.path === "a.md"
+            ? pending.promise
+            : file(input.path, input.content, "v2");
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.openFile("a", "b.md");
+    await controller.openFile("a", "a.md");
+    controller.edit("a", "a.md", "저장 중");
+    const sending = controller.send("자료로 조사", {
+      researchGenre: "blog",
+      contextPaths: ["b.md"],
+    });
+    controller.edit("a", "b.md", "요청 후 새로 입력");
+    pending.resolve(file("a.md", "저장 중", "v2"));
+    await expect(sending).rejects.toThrow(/변경/);
+    expect(saved).toEqual(["a.md"]);
+  });
+
   it("sends the canonical HTML version after the server assigns element IDs", async () => {
     const original = "<main><p>자료</p></main>";
     const edited = "<main><p>새 자료</p></main>";

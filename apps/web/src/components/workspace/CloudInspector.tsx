@@ -36,6 +36,7 @@ import { ReviewPanel } from "./ReviewPanel";
 import { SourcesPanel } from "./SourcesPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { CloudFolderPanel } from "./CloudFolderPanel";
+import { ResearchOptions } from "./ResearchOptions";
 import styles from "./workspace.module.css";
 import cloud from "./cloud.module.css";
 
@@ -100,9 +101,9 @@ export function CloudInspector({
     Record<string, { text: string; revision: number }>
   >({});
   // Deep research applies to composer messages only, never to quick editing actions.
-  const [creationMode, setCreationMode] = useState<ResearchGenre | "html" | "">(
-    ""
-  );
+  const [creationMode, setCreationMode] = useState<ResearchGenre | "">("");
+  const [outputFormat, setOutputFormat] = useState<"html" | "">("");
+  const [contextPaths, setContextPaths] = useState<string[]>([]);
   const transcript = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const selected = selection?.text.trim() ? selection : undefined;
@@ -138,9 +139,14 @@ export function CloudInspector({
   }, [id]);
   useEffect(() => {
     setCreationMode("");
+    setOutputFormat("");
+    setContextPaths(path ? [path] : []);
   }, [id, path]);
   useEffect(() => {
-    if (selected) setCreationMode("");
+    if (selected) {
+      setCreationMode("");
+      setOutputFormat("");
+    }
   }, [selected]);
   useEffect(() => {
     if (following.current && transcript.current)
@@ -156,17 +162,19 @@ export function CloudInspector({
       workspaceId: id,
       revision: composerDraft?.revision ?? 0,
     };
-    const research =
-      consumeDraft && creationMode && creationMode !== "html"
-        ? creationMode
-        : undefined;
-    const htmlGeneration = consumeDraft && creationMode === "html";
+    const research = consumeDraft && creationMode ? creationMode : undefined;
+    const htmlGeneration = consumeDraft && outputFormat === "html";
     try {
       await controller.send(instruction, {
         selection: research || htmlGeneration ? undefined : selected,
         model: catalog.model,
         researchGenre: research,
         outputFormat: htmlGeneration ? "html" : undefined,
+        contextPaths: research
+          ? contextPaths.filter((contextPath) =>
+              project?.files.some((file) => file.path === contextPath)
+            )
+          : undefined,
       });
       if (consumeDraft && id)
         setComposerDrafts((current) => {
@@ -387,6 +395,12 @@ export function CloudInspector({
                     className={`${cloud.job} ${job.status === "failed" ? cloud.failedJob : ""}`}
                     aria-live="polite"
                   >
+                    {!!job.truncatedContextPaths?.length && (
+                      <p>
+                        긴 자료 일부를 참고했습니다:{" "}
+                        {job.truncatedContextPaths.join(", ")}
+                      </p>
+                    )}
                     {job.status === "running" || job.status === "queued" ? (
                       <>
                         <LoaderCircle size={14} className={styles.spin} />
@@ -512,13 +526,15 @@ export function CloudInspector({
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
                     placeholder={
-                      creationMode === "html"
-                        ? "추가한 출처와 프로젝트 파일로 어떤 HTML 페이지를 만들까요?"
-                        : creationMode
-                          ? "조사할 주제와 관점을 적어 주세요. 결과는 새 문서 수정안으로 제안됩니다."
-                          : selected?.nodeId
-                            ? "예: 이 표를 카드 세 개로 바꾸고, 설명을 더 간결하게 해줘."
-                            : "글을 다듬거나, 파일을 비교하거나, 새 초안을 부탁해 보세요."
+                      outputFormat === "html" && creationMode
+                        ? "선택한 자료와 웹 조사로 어떤 HTML 보고서를 만들까요?"
+                        : outputFormat === "html"
+                          ? "추가한 출처와 프로젝트 파일로 어떤 HTML 페이지를 만들까요?"
+                          : creationMode
+                            ? "조사할 주제와 관점을 적어 주세요. 결과는 새 문서 수정안으로 제안됩니다."
+                            : selected?.nodeId
+                              ? "예: 이 표를 카드 세 개로 바꾸고, 설명을 더 간결하게 해줘."
+                              : "글을 다듬거나, 파일을 비교하거나, 새 초안을 부탁해 보세요."
                     }
                     rows={3}
                     maxLength={4000}
@@ -574,24 +590,52 @@ export function CloudInspector({
                     value={creationMode}
                     onChange={(event) => {
                       if (event.target.value) onClearSelection();
-                      setCreationMode(
-                        event.target.value as ResearchGenre | "html" | ""
-                      );
+                      setCreationMode(event.target.value as ResearchGenre | "");
                     }}
                     disabled={project.submitting}
-                    title="추가한 자료로 HTML을 만들거나, 웹을 조사해 새 문서를 작성합니다."
+                    title="일반 대화 또는 조사할 글의 종류를 선택하세요."
                   >
                     <option value="">일반 대화</option>
-                    <option value="html">HTML 페이지 만들기</option>
                     <option value="paper">딥 리서치: 논문</option>
                     <option value="blog">딥 리서치: 블로그</option>
                     <option value="linkedin">딥 리서치: LinkedIn</option>
                   </select>
                 </label>
+                <label className={styles.modelLabel}>
+                  <span className={styles.srOnly}>결과 형식</span>
+                  <select
+                    aria-label="결과 형식"
+                    value={outputFormat}
+                    disabled={project.submitting}
+                    onChange={(event) => {
+                      if (event.target.value) onClearSelection();
+                      setOutputFormat(event.target.value as "html" | "");
+                    }}
+                  >
+                    <option value="">Markdown 문서</option>
+                    <option value="html">HTML 페이지</option>
+                  </select>
+                </label>
               </div>
-              {creationMode === "html" && (
+              {creationMode && (
+                <ResearchOptions
+                  files={project.files}
+                  selectedPaths={contextPaths.filter((contextPath) =>
+                    project.files.some((file) => file.path === contextPath)
+                  )}
+                  onChange={setContextPaths}
+                  sourceCount={
+                    project.sources.filter((source) => source.excerpt?.trim())
+                      .length
+                  }
+                  disabled={project.submitting}
+                />
+              )}
+              {outputFormat === "html" && (
                 <p className={cloud.htmlGenerationHint}>
-                  프로젝트 파일과 추가한 출처를 참고해 새 페이지를 제안합니다.
+                  {creationMode
+                    ? "조사 결과의 출처·표·다이어그램을 담은 새 HTML을 제안합니다. "
+                    : "프로젝트 파일과 추가한 출처를 참고해 새 페이지를 제안합니다. "}
                   미리보기를 확인한 뒤 승인할 수 있어요.
                 </p>
               )}

@@ -1,6 +1,6 @@
 # Research-backed HTML Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Create research-backed HTML with project context, citations, tables, diagrams, review, and standalone export.
 
@@ -45,11 +45,11 @@
   `snapshot_context(files, paths: list[str]) -> list[dict]`.
 - Seed graph sources retain URLs, excerpts, and question associations.
 
-- [ ] Write tests proving selected files reach research, wrong project/path is rejected, supplied references can be cited, and the accepted snapshot survives later edits.
-- [ ] Run `.venv/bin/python -m pytest -q tests/test_workspace_research.py tests/test_deep_research.py`; verify missing context behavior fails.
-- [ ] Implement bounded snapshots and graph context across stages, including supplied source extraction.
-- [ ] Re-run those tests; expect all pass.
-- [ ] Record results and commit this tested input change.
+- [x] Write tests proving selected files reach research, wrong project/path is rejected, supplied references can be cited, and the accepted snapshot survives later edits.
+- [x] Run `.venv/bin/python -m pytest -q tests/test_workspace_research.py tests/test_deep_research.py`; verify missing context behavior fails.
+- [x] Implement bounded snapshots and graph context across stages, including supplied source extraction.
+- [x] Re-run those tests; expect all pass.
+- [x] Record results and commit this tested input change.
 
 ### Task 2: Static HTML research proposals
 
@@ -64,11 +64,11 @@
 - Reuses Task 1's `projectContext` for provenance in both output formats.
 - Returns common new-file proposal with `.html` path and valid static HTML.
 
-- [ ] Write tests for combined HTML/research requests, review before writes, unique `.html` paths, tables, images, repeated citation anchors, private provenance, and escaped raw HTML.
-- [ ] Run `.venv/bin/python -m pytest -q tests/test_research_html.py tests/test_workspace_research.py tests/test_workspace_html.py`; verify unsupported-mode/renderer failures.
-- [ ] Implement deterministic rendering, document provenance, and output adaptation. Preserve selection exclusivity.
-- [ ] Re-run targeted tests; expect all pass.
-- [ ] Record results and commit the HTML proposal path.
+- [x] Write tests for combined HTML/research requests, review before writes, unique `.html` paths, tables, images, repeated citation anchors, private provenance, and escaped raw HTML.
+- [x] Run `.venv/bin/python -m pytest -q tests/test_research_html.py tests/test_workspace_research.py tests/test_workspace_html.py`; verify unsupported-mode/renderer failures.
+- [x] Implement deterministic rendering, document provenance, and output adaptation. Preserve selection exclusivity.
+- [x] Re-run targeted tests; expect all pass.
+- [x] Record results and commit the HTML proposal path.
 
 ### Task 3: Managed images in preview and export
 
@@ -82,11 +82,11 @@
 - `standaloneHtml(content: string, signal?: AbortSignal): Promise<string>`
 - Injected image content is ephemeral and never sent as canonical editor content.
 
-- [ ] Write tests for same-origin managed PNGs, duplicate references, preserved links/source IDs, redirects/errors/MIME/size limits, export failure, and stale preview responses.
-- [ ] Run `yarn test src/lib/workspace/html-assets.test.ts src/components/workspace/HtmlPreview.test.tsx`; verify unresolved-image behavior fails.
-- [ ] Implement bounded authenticated image loading, preview warnings/retry and stale response cancellation, async download with errors.
-- [ ] Run targeted tests; expect all pass.
-- [ ] Record results and commit image delivery.
+- [x] Write tests for same-origin managed PNGs, duplicate references, preserved links/source IDs, redirects/errors/MIME/size limits, export failure, and stale preview responses.
+- [x] Run `yarn test src/lib/workspace/html-assets.test.ts src/components/workspace/HtmlPreview.test.tsx`; verify unresolved-image behavior fails.
+- [x] Implement bounded authenticated image loading, preview warnings/retry and stale response cancellation, async download with errors.
+- [x] Run targeted tests; expect all pass.
+- [x] Record results and commit image delivery.
 
 ### Task 4: Composer controls and selected project material
 
@@ -102,11 +102,11 @@
 - Separate output control; research material checkboxes default to active file and cap at five.
 - Quick edits never inherit creation options.
 
-- [ ] Write tests for combined payloads, empty selection, five-file limits, project changes, and ordinary edit behavior.
-- [ ] Run relevant Vitest tests; verify current mutually exclusive behavior fails.
-- [ ] Implement accessible controls using existing styles and update request state.
-- [ ] Run relevant tests plus `yarn typecheck` and `yarn lint`; expect pass.
-- [ ] Record results and commit composer changes.
+- [x] Write tests for combined payloads, empty selection, five-file limits, project changes, and ordinary edit behavior.
+- [x] Run relevant Vitest tests; verify current mutually exclusive behavior fails.
+- [x] Implement accessible controls using existing styles and update request state.
+- [x] Run relevant tests plus `yarn typecheck` and `yarn lint`; expect pass.
+- [x] Record results and commit composer changes.
 
 ### Task 5: Integration, documentation, and final review
 
@@ -119,9 +119,9 @@
 - Local deterministic fixture uses real API/proposals/rendering and produces a real PNG.
 - Chromium checks selected inputs, generated HTML preview, approval, offline download, and mobile layout.
 
-- [ ] Implement the fixture and browser workflow against local-only servers, with external model/search calls replaced.
-- [ ] Run the workflow, inspect desktop/mobile screenshots and offline image rendering; fix failures.
-- [ ] Run backend `pytest -q`, frontend `yarn test`, `yarn typecheck`, `yarn lint`, and production build.
-- [ ] Update the guide with the shipped controls and download behavior.
+- [x] Implement the fixture and browser workflow against local-only servers, with external model/search calls replaced.
+- [x] Run the workflow, inspect desktop/mobile screenshots and offline image rendering; fix failures.
+- [x] Run backend `pytest -q`, frontend `yarn test`, `yarn typecheck`, `yarn lint`, and production build.
+- [x] Update the guide with the shipped controls and download behavior.
 - [ ] Dispatch one fresh reviewer for the full feature; reproduce and fix material findings with tests.
 - [ ] Record final verification, finish on the feature branch, and report the concrete result.
