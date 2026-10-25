@@ -88,3 +88,19 @@ def test_linkedin_plain_source_urls_become_clickable_without_touching_code_or_li
     assert all(anchor["href"] == url for anchor in anchors)
     assert all(anchor.get("data-source-ids") == '["s1"]' for anchor in anchors)
     assert "&amp;b=2" in content
+
+
+def test_duplicate_source_urls_retain_every_contributing_excerpt_identity():
+    from api.workspaces.research_html import render_research_html
+    sources = [
+        {"id": "latency", "url": "https://example.org/report", "excerpt": "Latency is 12 ms."},
+        {"id": "accuracy", "url": "https://example.org/report", "excerpt": "Accuracy is 91%."},
+    ]
+    content = render_research_html(
+        "Latency is 12 ms [1](https://example.org/report).\n\nhttps://example.org/report",
+        "Measurements", sources=sources, genre="blog",
+    )
+    parsed = Elements(content)
+    citations = [attrs for tag, attrs in parsed.tags if tag == "a"]
+    assert len(citations) == 2
+    assert all(item.get("data-source-ids") == '["latency", "accuracy"]' for item in citations)

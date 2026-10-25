@@ -6,7 +6,7 @@ import re
 from markdown_it import MarkdownIt
 
 from api.workspaces.html_documents import prepare_html
-from api.writing.service import _normalize_link
+from core.research_sources import evidence_groups, source_key
 
 _STYLE = """
 :root { color-scheme: light; --ink: #23342f; --muted: #62746c; --accent: #246a56; }
@@ -69,13 +69,13 @@ def render_research_html(
 ) -> str:
     """Convert research without asking a model to restate its facts or citations."""
     md = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
-    source_ids = {_normalize_link(source["url"]): source["id"] for source in sources}
+    source_ids = {key: [item["id"] for item in group] for key, group in evidence_groups(sources).items()}
 
     def link_open(renderer, tokens, index, options, environment):
         token = tokens[index]
-        source_id = source_ids.get(_normalize_link(token.attrGet("href") or ""))
-        if source_id:
-            token.attrSet("data-source-ids", json.dumps([source_id], ensure_ascii=False))
+        ids = source_ids.get(source_key(token.attrGet("href") or ""))
+        if ids:
+            token.attrSet("data-source-ids", json.dumps(ids, ensure_ascii=False))
         return renderer.renderToken(tokens, index, options, environment)
 
     def table_open(renderer, tokens, index, options, environment):
@@ -99,11 +99,11 @@ def render_research_html(
             for opening, closing in (("(", ")"), ("[", "]"), ("{", "}")):
                 while url.endswith(closing) and url.count(closing) > url.count(opening):
                     url = url[:-1]
-            source_id = source_ids.get(_normalize_link(url))
-            if not source_id:
+            ids = source_ids.get(source_key(url))
+            if not ids:
                 continue
             parts.append(html.escape(value[cursor:match.start()], quote=False))
-            provenance = html.escape(json.dumps([source_id], ensure_ascii=False), quote=True)
+            provenance = html.escape(json.dumps(ids, ensure_ascii=False), quote=True)
             parts.append(
                 f'<a href="{html.escape(md.normalizeLink(url), quote=True)}" data-source-ids="{provenance}">'
                 f"{html.escape(url)}</a>"

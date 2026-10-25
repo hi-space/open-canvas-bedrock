@@ -90,6 +90,28 @@ async def main():
         assert "data:image/png" not in approved["content"]
         checks.append("explicit approval persists canonical image references and source identities")
 
+        # A valid IHDR without image data must fail the real browser decoder.
+        image_url = re.search(r'src="(/api/research/assets/[^"]+)"', approved["content"])[1]
+        image_bytes = await (await page.request.get(f"{BASE}{image_url}")).body()
+
+        async def broken_image(route):
+            await route.fulfill(status=200, content_type="image/png", body=image_bytes[:33])
+
+        await page.route("**/api/research/assets/**", broken_image)
+        await page.reload()
+        await expect(page.get_by_text(re.compile("그림 1개를 불러오지 못했어요")).first).to_be_visible()
+        await expect(approved_frame.get_by_role("heading", name=TITLE, exact=True)).to_be_visible()
+        unexpected_downloads = []
+        page.on("download", lambda download: unexpected_downloads.append(download))
+        await page.get_by_role("button", name="HTML 다운로드", exact=True).click()
+        await expect(page.get_by_text(re.compile("다운로드를 준비하지 못했습니다")).first).to_be_visible()
+        assert not unexpected_downloads
+        await page.unroute("**/api/research/assets/**", broken_image)
+        await page.get_by_role("button", name="그림 다시 불러오기", exact=True).first.click()
+        await expect(approved_frame.locator("img")).to_have_attribute("src", re.compile("^data:image/png;base64,"))
+        await approved_frame.locator("img").evaluate("(image) => image.decode()")
+        checks.append("corrupt PNG produces a readable preview notice, blocks export, and recovers on retry")
+
         async with page.expect_download() as pending:
             await page.get_by_role("button", name="HTML 다운로드", exact=True).click()
         download = await pending.value

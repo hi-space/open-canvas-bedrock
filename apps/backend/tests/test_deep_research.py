@@ -152,6 +152,38 @@ class DeepResearchGraphTests(unittest.TestCase):
                 self.assertIn("private/plan.md", context)
                 self.assertIn("project-material", context)
 
+    def test_duplicate_supplied_urls_keep_both_excerpts_and_registered_ids(self):
+        from agents.deep_research.nodes import _supplied_sources
+        from agents.deep_research.schemas import ResearchQuestion
+        sources = _supplied_sources({"suppliedSources": [
+            {"id": "latency", "url": "https://example.org/report", "title": "Latency", "excerpt": "Latency is 12 ms."},
+            {"id": "accuracy", "url": "https://example.org/report", "title": "Accuracy", "excerpt": "Accuracy is 91%."},
+        ]}, [ResearchQuestion(id="Q1", question="Measured results?", queries=["results"])])
+        self.assertEqual(len(sources), 1)
+        self.assertIn("Latency is 12 ms.", sources["S1"]["content"])
+        self.assertIn("Accuracy is 91%.", sources["S1"]["content"])
+        self.assertEqual(sources["S1"]["suppliedSourceIds"], ["latency", "accuracy"])
+
+    def test_new_citation_budget_does_not_count_supplied_sources(self):
+        sources = {
+            "S1": {"id": "S1", "url": "https://provided.example/source", "title": "Provided", "origin": "supplied"},
+            "S2": {"id": "S2", "url": "https://web.example/first", "title": "First"},
+            "S3": {"id": "S3", "url": "https://web.example/second", "title": "Second"},
+        }
+        for genre in ("paper", "blog", "linkedin"):
+            with self.subTest(genre=genre):
+                text = (
+                    "https://web.example/first\n\nhttps://web.example/second\n\nhttps://provided.example/source"
+                    if genre == "linkedin" else "First [S2]. Second [S3]. Provided [S1]."
+                )
+                result = assemble(
+                    "Bounded citations", [("s1", text)], [], sources, get_profile(genre), "en",
+                    max_cited=2, max_new_cited=1,
+                )
+                self.assertIn("https://web.example/first", result)
+                self.assertNotIn("https://web.example/second", result)
+                self.assertIn("https://provided.example/source", result)
+
     def run_graph(self, genre="blog"):
         from agents.open_canvas.graph import graph
         recorder = Recorder()

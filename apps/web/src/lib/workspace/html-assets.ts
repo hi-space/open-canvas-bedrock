@@ -5,6 +5,7 @@ const MANAGED_IMAGE =
 const MAX_IMAGES = 12;
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_PIXELS = 64 * 1024 * 1024;
 const LOAD_TIMEOUT_MS = 15000;
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
@@ -69,11 +70,16 @@ async function readPng(response: Response, limit: number): Promise<Uint8Array> {
     offset += chunk.byteLength;
   }
   if (
-    size < 24 ||
+    size < 33 ||
     !PNG_SIGNATURE.every((value, index) => bytes[index] === value) ||
     String.fromCharCode(...bytes.subarray(12, 16)) !== "IHDR"
   )
     throw new Error("Invalid research PNG");
+  const header = new DataView(bytes.buffer);
+  const width = header.getUint32(16);
+  const height = header.getUint32(20);
+  if (!width || !height || width * height > MAX_IMAGE_PIXELS)
+    throw new Error("Research PNG dimensions exceed the decoding limit");
   return bytes;
 }
 
@@ -82,6 +88,35 @@ function dataImage(bytes: Uint8Array): string {
   for (let offset = 0; offset < bytes.length; offset += 16384)
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 16384));
   return `data:image/png;base64,${btoa(binary)}`;
+}
+
+function verifyImage(embedded: string, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    let finished = false;
+    const finish = (error?: Error) => {
+      if (finished) return;
+      finished = true;
+      image.onload = null;
+      image.onerror = null;
+      signal.removeEventListener("abort", cancel);
+      image.removeAttribute("src");
+      if (error) reject(error);
+      else resolve();
+    };
+    const cancel = () => finish(new DOMException("Aborted", "AbortError"));
+    image.onload = () =>
+      finish(
+        image.naturalWidth && image.naturalHeight
+          ? undefined
+          : new Error("Research PNG could not be decoded")
+      );
+    image.onerror = () =>
+      finish(new Error("Research PNG could not be decoded"));
+    signal.addEventListener("abort", cancel, { once: true });
+    if (signal.aborted) cancel();
+    else image.src = embedded;
+  });
 }
 
 /** Resolve only authenticated managed figures, without changing canonical HTML. */
@@ -125,7 +160,9 @@ export async function resolveHtmlResearchImages(
           Math.min(MAX_IMAGE_BYTES, MAX_TOTAL_BYTES - totalBytes)
         );
         totalBytes += bytes.byteLength;
-        images.set(url, dataImage(bytes));
+        const embedded = dataImage(bytes);
+        await verifyImage(embedded, controller.signal);
+        images.set(url, embedded);
       } catch {
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
         missing.push(url);

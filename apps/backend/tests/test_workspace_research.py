@@ -264,5 +264,45 @@ class DocumentPathTests(unittest.TestCase):
         )
 
 
+class ResearchSourceBudgetTests(unittest.TestCase):
+    def test_nearly_full_library_keeps_new_registrations_within_the_remaining_slot(self):
+        from agents.deep_research.assemble import assemble
+        from agents.deep_research.genres import get_profile
+        from api.workspaces.research import run_research
+        from api.workspaces.service import within_source_limits
+
+        existing = [{"id": f"old-{index}", "title": "Registered", "url": f"https://provided.example/{index}"}
+                    for index in range(49)]
+        existing[0]["excerpt"] = "Provided measured result."
+        sources = {
+            "S1": {"id": "S1", "url": existing[0]["url"], "title": "Provided",
+                   "origin": "supplied", "content": "Provided measured result."},
+            "S2": {"id": "S2", "url": URL_A, "title": "First", "content": "A measured result."},
+            "S3": {"id": "S3", "url": URL_B, "title": "Second", "content": "Another measured result."},
+        }
+
+        async def stream(inputs, **_kwargs):
+            # Exercise the real adapter's budget contract and the real assembler.
+            options = {
+                "max_cited": inputs.get("maxCitedSources"),
+                "max_new_cited": inputs.get("maxNewCitedSources"),
+            }
+            markdown = assemble("Research", [("s1", "First [S2]. Second [S3].")], [], sources,
+                                get_profile("blog"), "en", **options)
+            yield {"generateArtifact": {
+                "artifact": {"contents": [{"title": "Research", "fullMarkdown": markdown}]},
+                "sources": sources, "findings": [], "figures": [],
+            }}
+
+        with patch("agents.deep_research.graph.graph.astream", side_effect=stream):
+            result = run_research({
+                "ownerKey": "a" * 64, "message": "Research", "history": [], "sources": existing,
+                "model": "global.anthropic.claude-sonnet-5-5", "researchGenre": "blog",
+            }, set(), lambda _status: None)
+        combined = {item["id"]: item for item in [*existing, *result["sources"]]}
+        self.assertTrue(within_source_limits(combined))
+        self.assertEqual(len(result["sources"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from api.writing.models import WritingSource
 from api.writing.service import _links_in, _normalize_link
+from core.research_sources import evidence_groups
 
 MAX_SOURCES = 50
 MAX_EXCERPT_CHARACTERS = 100000
@@ -92,7 +93,8 @@ async def _run_graph(payload: dict, slots: int, progress) -> dict:
     supplied = [source for source in payload.get("sources", []) if (source.get("excerpt") or "").strip()]
     inputs = {
         "messages": _messages(payload), "genre": payload["researchGenre"],
-        "maxCitedSources": slots + len(supplied), "assetOwner": payload["ownerKey"],
+        "maxCitedSources": slots + len(evidence_groups(supplied)),
+        "maxNewCitedSources": slots, "assetOwner": payload["ownerKey"],
         "projectContext": payload.get("projectContext", []), "suppliedSources": supplied,
     }
     beat = asyncio.create_task(heartbeat())

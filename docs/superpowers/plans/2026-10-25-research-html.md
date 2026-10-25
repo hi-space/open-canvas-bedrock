@@ -123,5 +123,29 @@
 - [x] Run the workflow, inspect desktop/mobile screenshots and offline image rendering; fix failures.
 - [x] Run backend `pytest -q`, frontend `yarn test`, `yarn typecheck`, `yarn lint`, and production build.
 - [x] Update the guide with the shipped controls and download behavior.
-- [ ] Dispatch one fresh reviewer for the full feature; reproduce and fix material findings with tests.
-- [ ] Record final verification, finish on the feature branch, and report the concrete result.
+- [x] Dispatch one fresh reviewer for the full feature; reproduce and fix material findings with tests.
+- [x] Record final verification, finish on the feature branch, and report the concrete result.
+
+## Verification record
+
+- Backend: `python -m pytest -q` — 350 passed, 101 subtests; two existing legacy
+  `datetime.utcnow()` deprecation warnings.
+- Frontend: `yarn test` — 215 passed across 25 files.
+- `yarn typecheck`, `yarn lint`, and production `yarn build` passed. Lint retains
+  existing warnings in legacy components; changed components have no new warnings.
+- The standalone production server was exercised with the real research graph,
+  workspace API/storage, PNG renderer fixture, and Chromium. External model and
+  web-search boundaries used deterministic fixtures.
+- Chromium verified selected material, proposal before writes, PNG preview,
+  explicit approval, corrupt-PNG notice/export rejection/retry, offline HTML
+  images and citations, and a 390-pixel mobile document layout.
+- The mobile application composer was checked separately at 390 × 844.
+- Independent review found three material issues: new citation registration slots,
+  duplicate supplied-URL evidence/provenance, and incomplete PNG validation.
+  Each was reproduced with failing tests and fixed in one pass; the final suites
+  and browser workflow passed after the fixes. No minor findings were deferred.
+- `core/research_sources.py` now shares evidence grouping between the graph and
+  HTML adapter; source registration budgets and browser decoding validation
+  preserve the accepted input and output contracts.
+- Research-result reuse, durable checkpoints, additional diagram engines, and
+  deployment remain outside this first release, as specified in the design.

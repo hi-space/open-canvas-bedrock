@@ -35,6 +35,32 @@ afterEach(async () => {
 });
 
 describe("HTML preview controls", () => {
+  it("reports an unreadable PNG instead of silently showing a broken image", async () => {
+    const header = Uint8Array.from([
+      137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1,
+      0, 0, 0, 1,
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(header, {
+            headers: { "Content-Type": "image/png" },
+          })
+      )
+    );
+    await act(async () =>
+      root.render(
+        <HtmlPreview
+          content={
+            content + '<img src="/api/research/assets/run/fig1.png" alt="그림">'
+          }
+        />
+      )
+    );
+    expect(container.textContent).toMatch(/그림.*불러오지/);
+    expect(container.querySelector("iframe")?.srcdoc).toContain("Text");
+  });
   it("shows readable text and a retry action when a research image is unavailable", async () => {
     vi.stubGlobal(
       "fetch",

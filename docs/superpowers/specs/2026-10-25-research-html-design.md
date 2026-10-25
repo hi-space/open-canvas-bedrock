@@ -69,8 +69,11 @@ These are builder choices, not additional user requirements.
 - Follow the application's restrained editorial style. Use a static inline
   stylesheet, local font fallbacks, scrollable wide tables/code, and print rules.
 - PNG downloads: at most 12 distinct assets, at most 2 MiB per image, 8 MiB total,
-  15-second timeout. Do not cache private asset contents globally. Shared
-  resolution within one document prevents duplicate downloads.
+  15-second timeout including native browser decoding. Check dimensions before
+  decoding (at most 64 × 1024 × 1024 pixels). Do not cache private asset contents
+  globally. Shared resolution within one document prevents duplicate downloads.
+- Supplied source aliases share combined evidence and all contributing source IDs.
+  Newly registered citations have a separate budget from existing supplied sources.
 - Build and test in the native worktree on `codex/research-html`; no deployment
   or external publishing is part of this change.
 

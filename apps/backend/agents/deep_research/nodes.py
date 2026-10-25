@@ -20,6 +20,7 @@ from agents.deep_research.schemas import Extraction, Outline, Review, ResearchBr
 from agents.deep_research.search import normalize_url, search_many
 from agents.deep_research.state import DeepResearchState
 from core.utils import format_messages, get_string_from_content
+from core.research_sources import evidence_groups
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +59,15 @@ def _project_material(state: DeepResearchState) -> str:
 
 
 def _supplied_sources(state: DeepResearchState, questions: list) -> dict:
-    sources, seen = {}, set()
-    for source in state.get("suppliedSources") or []:
-        content = source.get("excerpt") or ""
-        url = source.get("url")
-        if not content.strip() or not url or normalize_url(url) in seen:
-            continue
-        seen.add(normalize_url(url))
+    sources = {}
+    for group in evidence_groups(state.get("suppliedSources") or []).values():
+        source = group[0]
         sid = f"S{len(sources) + 1}"
         sources[sid] = {
-            "id": sid, "url": url, "title": source.get("title") or url,
-            "content": content, "question_ids": [question.id for question in questions],
+            "id": sid, "url": source["url"], "title": source.get("title") or source["url"],
+            "content": "\n\n".join(item["excerpt"] for item in group),
+            "suppliedSourceIds": [item["id"] for item in group],
+            "question_ids": [question.id for question in questions],
             "origin": "supplied", "score": 1.0,
         }
     return sources
@@ -499,7 +498,8 @@ async def generate_artifact_node(state: DeepResearchState, config: RunnableConfi
         finals.append((section["id"], text.strip() or drafts[section["id"]]))
 
     markdown = assemble(outline["title"], finals, state.get("figures") or [], state.get("sources") or {},
-                        profile, brief["language"], state.get("maxCitedSources"))
+                        profile, brief["language"], state.get("maxCitedSources"),
+                        max_new_cited=state.get("maxNewCitedSources"))
     artifact = {
         "type": "text",
         "contents": [{"type": "text", "index": 1, "title": outline["title"], "fullMarkdown": markdown}],

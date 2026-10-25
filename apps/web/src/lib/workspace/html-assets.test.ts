@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveHtmlResearchImages, standaloneHtml } from "./html-assets";
 
 const url = "/api/research/assets/run123/fig1.png";
@@ -13,6 +13,20 @@ const png = Uint8Array.from(
 const response = () =>
   new Response(png.slice(), { headers: { "Content-Type": "image/png" } });
 const source = `<section data-oc-id="s"><p>자료 <a href="https://example.org/source">[1]</a></p><img data-oc-id="image" src="${url}" alt="흐름"></section>`;
+
+// jsdom has no image decoder. Replace that browser boundary, not the resolver.
+class DecodedImage {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  naturalWidth = 1;
+  naturalHeight = 1;
+  set src(_value: string) {
+    void Promise.resolve().then(() => this.onload?.());
+  }
+  removeAttribute(_name: string) {}
+}
+
+beforeEach(() => vi.stubGlobal("Image", DecodedImage));
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -95,6 +109,50 @@ describe("research images in HTML", () => {
       vi.fn(async () => redirected)
     );
     expect((await resolveHtmlResearchImages(source)).missing).toEqual([url]);
+  });
+
+  it("rejects a truncated PNG that contains the signature and IHDR tag", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(png.slice(0, 24), {
+            headers: { "Content-Type": "image/png" },
+          })
+      )
+    );
+    expect((await resolveHtmlResearchImages(source)).missing).toEqual([url]);
+    await expect(standaloneHtml(source)).rejects.toThrow(/그림/);
+  });
+
+  it("rejects an image that the browser cannot decode despite a valid PNG header", async () => {
+    class BrokenImage extends DecodedImage {
+      override set src(_value: string) {
+        void Promise.resolve().then(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal("Image", BrokenImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => response())
+    );
+    expect((await resolveHtmlResearchImages(source)).missing).toEqual([url]);
+    await expect(standaloneHtml(source)).rejects.toThrow(/그림/);
+  });
+
+  it("includes image decoding in the loading deadline", async () => {
+    vi.useFakeTimers();
+    class PendingImage extends DecodedImage {
+      override set src(_value: string) {}
+    }
+    vi.stubGlobal("Image", PendingImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => response())
+    );
+    const loading = resolveHtmlResearchImages(source);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect((await loading).missing).toEqual([url]);
   });
 
   it("exports a self-contained image and preserves the source link", async () => {

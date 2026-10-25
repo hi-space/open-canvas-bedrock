@@ -1,12 +1,14 @@
 """Turn final sections into one Markdown document: numbered citations, figures, references."""
 import logging
 import re
+from typing import Callable
 from urllib.parse import urlsplit
 
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline import StateInline, autolink, backtick, escape, html_inline, image, link
 
 from agents.deep_research.genres import GenreProfile
+from core.research_sources import source_key
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,10 @@ def _domain(url: str) -> str:
     return (urlsplit(url).hostname or "").removeprefix("www.")
 
 
-def link_citations(text: str, sources: dict, order: dict[str, int], max_cited: int | None = None) -> str:
+def link_citations(
+    text: str, sources: dict, order: dict[str, int], max_cited: int | None = None,
+    allow_source: Callable[[dict], bool] | None = None,
+) -> str:
     """Replace [S#] markers with [[n]](url), numbering sources by first use. Unknown ids are dropped, and so
     are sources beyond `max_cited` distinct ones (a destination that accepts only so many sources)."""
     def replace(match: re.Match) -> str:
@@ -41,6 +46,8 @@ def link_citations(text: str, sources: dict, order: dict[str, int], max_cited: i
                 continue
             if sid not in order and max_cited is not None and len(order) >= max_cited:
                 continue
+            if allow_source is not None and not allow_source(source):
+                continue
             order.setdefault(sid, len(order) + 1)
             links.append(f"[[{order[sid]}]]({source['url']})")
         return "".join(links)
@@ -53,12 +60,12 @@ def strip_citations(text: str) -> str:
     return re.sub(r"[ \t]*" + CITATION.pattern, "", text)
 
 
-def drop_unknown_urls(text: str, sources: dict) -> str:
+def drop_unknown_urls(text: str, sources: dict, allow_source: Callable[[dict], bool] | None = None) -> str:
     """Keep only URLs of sources that were actually read. Writers also link papers from memory, and the
     workspace rejects a whole document that cites an unread URL. Parser spans protect code and link
     syntax; edits only remove source bytes, preserving known links, formatting, BOM and line endings."""
     markdown = MarkdownIt("commonmark", {"inline_definitions": True})
-    known = {markdown.normalizeLink(source["url"]).rstrip("/") for source in sources.values()}
+    known = {markdown.normalizeLink(source["url"]).rstrip("/"): source for source in sources.values()}
     # Markdown parses normalized newlines. Keep boundary offsets into the original text so none of
     # that normalization is written back to the document.
     characters, original_offsets = [], [0]
@@ -81,10 +88,10 @@ def drop_unknown_urls(text: str, sources: dict) -> str:
     removals = []
 
     def unread(url):
-        return (
-            url.lower().startswith(("http://", "https://"))
-            and markdown.normalizeLink(url).rstrip("/") not in known
-        )
+        if not url.lower().startswith(("http://", "https://")):
+            return False
+        source = known.get(markdown.normalizeLink(url).rstrip("/"))
+        return source is None or (allow_source is not None and not allow_source(source))
 
     def scan_inline(start, end):
         state = StateInline(normalized[start:end], markdown, environment, [])
@@ -167,21 +174,36 @@ def figure_block(figure: dict, language: str) -> str:
 
 
 def assemble(title: str, sections: list[tuple[str, str]], figures: list[dict], sources: dict,
-             profile: GenreProfile, language: str, max_cited: int | None = None) -> str:
+             profile: GenreProfile, language: str, max_cited: int | None = None,
+             *, max_new_cited: int | None = None) -> str:
     """sections: [(section_id, markdown)] in order. Figures go after the section that planned them."""
     by_section = {}
     for figure in figures:
         by_section.setdefault(figure["section_id"], []).append(figure)
     order: dict[str, int] = {}
+    new_sources: set[str] = set()
+
+    def allow_source(source: dict) -> bool:
+        if max_new_cited is None or source.get("origin") == "supplied":
+            return True
+        key = source_key(source["url"])
+        if key in new_sources:
+            return True
+        if len(new_sources) >= max_new_cited:
+            return False
+        new_sources.add(key)
+        return True
+
     parts = [] if profile.name == "linkedin" else [f"# {title}"]
     for section_id, text in sections:
         body = text.strip()
         if body.startswith("# "):  # writers sometimes repeat the document title; the document has one H1
             body = body.split("\n", 1)[1].strip() if "\n" in body else ""
         if profile.citation_style == "links":
-            body = drop_unknown_urls(strip_citations(body), sources)
+            body = drop_unknown_urls(strip_citations(body), sources, allow_source)
         else:
-            body = link_citations(drop_unknown_urls(body, sources), sources, order, max_cited)
+            body = link_citations(drop_unknown_urls(body, sources, allow_source),
+                                  sources, order, max_cited, allow_source)
         parts.append(body)
         parts.extend(figure_block(f, language) for f in by_section.get(section_id, []))
     if profile.citation_style == "numbered":
