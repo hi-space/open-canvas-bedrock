@@ -1,6 +1,45 @@
 # canvas.hi-yoo.com deployment
 
-## Current release: integrated cloud workspace, 2026-10-25
+## Current release: deep research writer, 2026-10-25
+
+Workspace chat offers a deep research genre (paper, blog, LinkedIn). The backend
+researches with Tavily, renders figures with draw.io and Chrome, and proposes the
+result as a new project file for approval. Source: commit `b65918e`.
+
+- Change set `research-writer-20261025` on `HtmlCanvasStack` changed only three
+  resources: task definition (CPU 512 → 2048, memory 1024 → 4096 MiB, both image
+  digests, `TAVILY_API_KEY` secret on `backend`), the service's task definition,
+  and `WritingReferenceSecretPolicy` (adds the Tavily secret). Stack `UPDATE_COMPLETE`.
+- ECS task definition `HtmlCanvasStackTaskDef2E995DD4:14`; one task running, both
+  containers healthy, rollout `COMPLETED`. Revision `:13` remains for rollback.
+- Frontend `sha256:05f85b808026327d36e4d9583d0cfc403dbb8001d68e6afa8a8fbcc7c868f590`;
+  backend `sha256:47e073c22af14b6ab5c169352b504d436a6cea7cd8232aa916c7205dce9e8e08`
+  (draw.io 32.6.1, checksum-verified; Chrome; Nanum fonts; diagram skills from a
+  named build context). AgentCore runtime and agent image unchanged.
+- New secret `canvas-writing/tavily-api-key` (tag `Application=open-canvas-writing`);
+  no value in templates, images or logs.
+- Figures are written per owner under `/mnt/workspace/research-assets/` on the
+  existing S3 Files access point and served only to the owner's session.
+
+Validation: 168 backend tests, 91 frontend tests and type checking pass. In the
+production image locally, both figure renderers and a full research job passed.
+A one-off task with the production task definition, task role, secret and S3 Files
+volume completed a real LinkedIn research job in 162 s: Tavily key injected, one
+figure on shared storage linked from the document, three cited sources with
+excerpts; its synthetic owner's files were removed and the task definition
+deregistered. Unauthenticated `/` and `/api/research/assets/...` redirect to Cognito.
+
+Cost: Fargate Seoul on-demand $0.04656 per vCPU-hour and $0.00511 per GB-hour
+(AWS Price List API, published 2026-10-19): about $20.7 → $82.9 per month at 730 hours
+(+$62.2). The secret adds $0.40 per month. Tavily and model usage are billed per use.
+
+Rollback: re-apply `template-before.json` from the private release directory
+`~/.local/state/open-canvas-deployments/research-20261025/` (task definition `:13`).
+
+Note: the AWS CLI 2.28 used here drops `s3filesVolumeConfiguration` when reading
+task definitions; register verification tasks with boto3 ≥ 1.43 so they mount S3 Files.
+
+## Previous release: integrated cloud workspace, 2026-10-25
 
 The home page now combines project files, document editing, agent conversations,
 review, sources, and history. Local-folder synchronization and explicit import

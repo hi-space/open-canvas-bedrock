@@ -331,7 +331,10 @@ async def create_diagrams_node(state: DeepResearchState, config: RunnableConfig)
     results = await gather_limited(make(i, s) for i, s in enumerate(planned, 1))
     figures = []
     for result in results:
-        if isinstance(result, BaseException) or not result[2]:
+        if isinstance(result, BaseException):
+            logger.warning("figure task failed (%s)", type(result).__name__)
+            continue
+        if not result[2]:
             continue
         section_id, figure, url = result
         figures.append({"section_id": section_id, "number": len(figures) + 1,

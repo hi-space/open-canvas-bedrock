@@ -22,8 +22,8 @@ async def render_figure(model, kind: str, request: str, evidence: str, language:
     renderer = RENDERERS.get(kind)
     if renderer is None or not renderer.available():
         return None
-    target = run_dir(owner, run_id) / f"{slug}.png"
     try:
+        target = run_dir(owner, run_id) / f"{slug}.png"
         with tempfile.TemporaryDirectory(prefix=f"fig-{slug}-") as tmp:
             ok = await renderer.create(model, request, evidence, language, Path(tmp), slug, target)
     except Exception:
