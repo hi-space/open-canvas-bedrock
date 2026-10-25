@@ -169,6 +169,61 @@
   min-height: 320px;
 }
 
+.preview.fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.fill .controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #dfe6d9;
+  border-radius: 0;
+}
+.fill .pickerHeading {
+  margin: 0;
+  white-space: nowrap;
+}
+.fill .pickerHeading > span {
+  display: none;
+}
+.fill .pickerRow {
+  grid-column: 2;
+}
+.fill .selection {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  line-height: 1.4;
+}
+.fill .selection > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fill .frameShell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+.fill .frame {
+  height: 100%;
+  min-height: 0;
+}
+.fill .placeholder {
+  flex: 1;
+  min-height: 0;
+}
+
 @media (max-width: 640px) {
   .controls {
     padding: 11px;
@@ -188,5 +243,21 @@
 
   .frame {
     min-height: 360px;
+  }
+
+  .fill .pickerRow {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .fill .pickerRow select {
+    flex-basis: auto;
+  }
+  .fill .pickerRow button {
+    flex: 0 0 44px;
+    width: 44px;
+    padding: 8px;
+  }
+  .fill .pickerRow button span {
+    display: none;
   }
 }

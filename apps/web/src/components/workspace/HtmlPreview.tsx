@@ -25,6 +25,7 @@ export interface HtmlPreviewProps {
   selection?: TextSelection;
   title?: string;
   compact?: boolean;
+  fill?: boolean;
 }
 
 interface PreviewSession {
@@ -41,6 +42,7 @@ export function HtmlPreview({
   selection,
   title = "HTML 문서 미리보기",
   compact = false,
+  fill = false,
 }: HtmlPreviewProps) {
   const frame = useRef<HTMLIFrameElement>(null);
   const pickerId = useId();
@@ -152,7 +154,7 @@ export function HtmlPreview({
 
   return (
     <section
-      className={`${styles.preview} ${compact ? styles.compact : ""}`}
+      className={`${styles.preview} ${compact ? styles.compact : ""} ${fill && !compact ? styles.fill : ""}`}
       aria-label={title}
     >
       {interactive && (

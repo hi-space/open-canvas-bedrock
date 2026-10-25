@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Cloud,
@@ -28,6 +28,7 @@ export function CloudSidebar({
   onSync,
   onClose,
   onSelect,
+  focusFileSearch = false,
   authenticationEnabled,
 }: {
   workspace: CloudWorkspaceHook;
@@ -38,9 +39,14 @@ export function CloudSidebar({
   onSync: () => void;
   onClose: () => void;
   onSelect: (path: string) => void;
+  focusFileSearch?: boolean;
   authenticationEnabled: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusFileSearch) searchInput.current?.focus();
+  }, [focusFileSearch]);
   const { controller, state, project } = workspace;
   const files = [...(project?.files ?? [])]
     .filter((file) =>
@@ -49,6 +55,7 @@ export function CloudSidebar({
     .sort((a, b) => a.path.localeCompare(b.path, "ko", { numeric: true }));
   return (
     <aside
+      id="cloud-workspace-files"
       className={`${styles.sidebar} ${cloud.sidebar}`}
       aria-label="프로젝트와 파일"
     >
@@ -65,7 +72,7 @@ export function CloudSidebar({
           <small>생각을 다듬는 작업실</small>
         </div>
         <button
-          className={`${styles.iconButton} ${styles.mobileOnly}`}
+          className={`${styles.iconButton} ${styles.mobileOnly} ${cloud.fileClose}`}
           onClick={onClose}
           aria-label="파일 목록 닫기"
         >
@@ -126,6 +133,7 @@ export function CloudSidebar({
       <label className={styles.searchField}>
         <Search size={15} aria-hidden="true" />
         <input
+          ref={searchInput}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="파일 찾기"
