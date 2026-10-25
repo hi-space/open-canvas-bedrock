@@ -4,15 +4,21 @@ import {
   Check,
   CheckCheck,
   CircleCheck,
+  Columns2,
   FileDiff,
   LoaderCircle,
   LocateFixed,
   ShieldCheck,
   X,
 } from "lucide-react";
-import { reviewLocations, reviewedContent } from "@/lib/workspace/review";
-import type { ReviewChange, WorkspaceDocument } from "@/lib/workspace/types";
-import { isHtmlFile } from "@/lib/workspace/files";
+import { reviewLocations, reviewedContent } from "../../lib/workspace/review";
+import type {
+  ReviewChange,
+  WorkspaceDocument,
+} from "../../lib/workspace/types";
+import { isHtmlFile } from "../../lib/workspace/files";
+import { proposalComparisonContent } from "../../lib/workspace/comparison";
+import { DocumentComparison } from "./DocumentComparison";
 import { HtmlPreview } from "./HtmlPreview";
 import styles from "./workspace.module.css";
 import cloud from "./cloud.module.css";
@@ -109,17 +115,7 @@ function ChangeDiff({ base, change }: { base: string; change: ReviewChange }) {
   );
 }
 
-export function ReviewPanel({
-  document,
-  pending,
-  onDecide,
-  onDismiss,
-  onCancel,
-  deciding = false,
-  acceptedLabel = "✓ 초안에 반영됨",
-  activeChangeId,
-  onLocateChange,
-}: {
+interface ReviewPanelProps {
   document: WorkspaceDocument;
   pending: boolean;
   onDecide: (changeId: string, decision: "accepted" | "rejected") => void;
@@ -129,29 +125,13 @@ export function ReviewPanel({
   acceptedLabel?: string;
   activeChangeId?: string;
   onLocateChange?: (changeId: string) => void;
-}) {
+}
+
+export function ReviewPanel(props: ReviewPanelProps) {
+  const { document, pending, onCancel } = props;
   const proposal = document.proposal;
   const html = isHtmlFile(document.path);
   const [comparison, setComparison] = useState<"before" | "after">("after");
-  const locations = useMemo(
-    () =>
-      new Map(
-        reviewLocations(document.content, proposal).map((item) => [
-          item.changeId,
-          item,
-        ])
-      ),
-    [document.content, proposal]
-  );
-  const remaining =
-    proposal?.changes.filter((change) => change.decision === "pending")
-      .length ?? 0;
-  const stale =
-    proposal &&
-    (reviewedContent(proposal) !== document.content ||
-      (proposal.kind === "external" &&
-        remaining > 0 &&
-        document.external?.content !== proposal.proposedContent));
 
   if (pending)
     return (
@@ -192,8 +172,8 @@ export function ReviewPanel({
       </div>
     );
 
-  const accepted = proposal.changes.filter(
-    (change) => change.decision === "accepted"
+  const remaining = proposal.changes.filter(
+    (change) => change.decision === "pending"
   ).length;
   return (
     <div className={styles.reviewPanel}>
@@ -208,6 +188,28 @@ export function ReviewPanel({
       {proposal.explanation && (
         <p className={styles.explanation}>{proposal.explanation}</p>
       )}
+      <DocumentComparison
+        key={`${document.id}/${proposal.id}`}
+        name={document.name}
+        path={document.path}
+        before={{
+          content: proposal.baseContent,
+          label: "수정 전",
+          detail: "제안 당시 원본",
+        }}
+        after={{
+          content: proposalComparisonContent(proposal),
+          label: "수정 후",
+          detail: "전체 수정안",
+        }}
+        description="제안 당시 원본과 전체 수정안을 비교합니다. 승인·거절 결과는 검토 목록에서 확인하세요."
+        trigger={
+          <button type="button" className={styles.secondaryButton}>
+            <Columns2 size={15} aria-hidden="true" /> 나란히 비교
+          </button>
+        }
+        controls={<ReviewDecisions {...props} onLocateChange={undefined} />}
+      />
       {html && (
         <div className={cloud.htmlReview}>
           <fieldset className={styles.viewToggle} aria-label="HTML 수정안 비교">
@@ -244,6 +246,46 @@ export function ReviewPanel({
           </p>
         </div>
       )}
+      <ReviewDecisions {...props} />
+    </div>
+  );
+}
+
+function ReviewDecisions({
+  document,
+  onDecide,
+  onDismiss,
+  deciding = false,
+  acceptedLabel = "✓ 초안에 반영됨",
+  activeChangeId,
+  onLocateChange,
+}: ReviewPanelProps) {
+  const proposal = document.proposal;
+  const html = isHtmlFile(document.path);
+  const locations = useMemo(
+    () =>
+      new Map(
+        reviewLocations(document.content, proposal).map((item) => [
+          item.changeId,
+          item,
+        ])
+      ),
+    [document.content, proposal]
+  );
+  if (!proposal) return null;
+  const remaining = proposal.changes.filter(
+    (change) => change.decision === "pending"
+  ).length;
+  const accepted = proposal.changes.filter(
+    (change) => change.decision === "accepted"
+  ).length;
+  const stale =
+    reviewedContent(proposal) !== document.content ||
+    (proposal.kind === "external" &&
+      remaining > 0 &&
+      document.external?.content !== proposal.proposedContent);
+  return (
+    <>
       {!!stale && remaining > 0 && (
         <div className={styles.warningBox} role="alert">
           검토 중 원문이나 외부 파일이 변경되었습니다. 현재 내용으로 다시 요청해
@@ -367,6 +409,6 @@ export function ReviewPanel({
           </article>
         ))}
       </div>
-    </div>
+    </>
   );
 }

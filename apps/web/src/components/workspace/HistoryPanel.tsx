@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, History, RotateCcw } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Columns2,
+  History,
+  RotateCcw,
+} from "lucide-react";
 import type { WorkspaceDocument } from "@/lib/workspace/types";
+import { DocumentComparison } from "./DocumentComparison";
 import styles from "./workspace.module.css";
 
 export function HistoryPanel({
@@ -44,6 +51,30 @@ export function HistoryPanel({
                   }).format(revision.createdAt)}
                 </time>
                 <div className={styles.historyActions}>
+                  {!current && (
+                    <DocumentComparison
+                      key={`${document.id}/${revision.id}`}
+                      name={document.name}
+                      path={document.path}
+                      before={{
+                        content: revision.content,
+                        label: "이전 버전",
+                        detail: new Intl.DateTimeFormat("ko-KR", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }).format(revision.createdAt),
+                      }}
+                      after={{ content: document.content, label: "현재 문서" }}
+                      description="선택한 저장 이력과 현재 문서를 비교합니다. 현재 문서에는 아직 저장하지 않은 편집도 포함됩니다."
+                      trigger={
+                        <button type="button" className={styles.textButton}>
+                          <Columns2 size={13} aria-hidden="true" /> 나란히 비교
+                        </button>
+                      }
+                    />
+                  )}
                   <button
                     className={styles.textButton}
                     onClick={() =>
