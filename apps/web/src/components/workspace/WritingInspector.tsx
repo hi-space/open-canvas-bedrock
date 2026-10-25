@@ -37,6 +37,8 @@ export function WritingInspector({
   onModelChange,
   modelUnavailable,
   onRetryModels,
+  activeChangeId,
+  onLocateChange,
 }: {
   document: WorkspaceDocument;
   workspace: WritingWorkspaceController;
@@ -50,6 +52,8 @@ export function WritingInspector({
   onModelChange: (model: string) => void;
   modelUnavailable: boolean;
   onRetryModels: () => void;
+  activeChangeId?: string;
+  onLocateChange: (changeId: string) => void;
 }) {
   const [instruction, setInstruction] = useState("");
   const busy = !!workspace.request;
@@ -242,6 +246,8 @@ export function WritingInspector({
             <ReviewPanel
               document={document}
               pending={thisRequest}
+              activeChangeId={activeChangeId}
+              onLocateChange={onLocateChange}
               onCancel={workspace.cancelRequest}
               onDecide={(id, decision) => {
                 workspace.decide(document.id, id, decision);

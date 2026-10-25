@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { ArrowUpRight, TextSelect } from "lucide-react";
 import { referenceUrl } from "@/lib/workspace/sources";
 import { mapRenderedSelection } from "@/lib/workspace/selection";
-import type { TextSelection } from "@/lib/workspace/types";
+import type { ReviewFocus, TextSelection } from "@/lib/workspace/types";
 import styles from "./workspace.module.css";
 
 interface PositionNode {
@@ -29,13 +29,82 @@ function attributes(node: PositionNode | undefined, sourceOffset: number) {
 export function DocumentPreview({
   content,
   onSelection,
+  reviewFocus,
+  onSourceUnavailable,
 }: {
   content: string;
   onSelection: (selection: TextSelection | undefined) => void;
+  reviewFocus?: ReviewFocus;
+  onSourceUnavailable: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const revealedRequest = useRef<number | undefined>(undefined);
   const [hint, setHint] = useState(false);
   const sourceOffset = content.startsWith("\uFEFF") ? 1 : 0;
+
+  // Markdown components can remount on a parent render. Reapply the visual
+  // annotations, but scroll only in response to an explicit location request.
+  useEffect(() => {
+    if (!root.current || !reviewFocus) {
+      revealedRequest.current = undefined;
+      return;
+    }
+    const blocks = Array.from(
+      root.current.querySelectorAll<HTMLElement>("[data-source-start]")
+    );
+    const matches = blocks.filter((block) => {
+      const from = Number(block.dataset.sourceStart);
+      const to = Number(block.dataset.sourceEnd);
+      return reviewFocus.from === reviewFocus.to
+        ? from <= reviewFocus.from && to >= reviewFocus.from
+        : from < reviewFocus.to && to > reviewFocus.from;
+    });
+    // Prefer paragraphs/cells over their enclosing lists, quotes, or tables.
+    const targets = matches.filter(
+      (block) =>
+        !matches.some((other) => other !== block && block.contains(other))
+    );
+    if (!targets.length) {
+      // Definitions and skipped HTML have source positions but no reading block.
+      // A nonempty change must be shown in the source, not on a nearby paragraph.
+      if (reviewFocus.from < reviewFocus.to) {
+        onSourceUnavailable();
+        return;
+      }
+      const next = blocks.find(
+        (block) => Number(block.dataset.sourceStart) >= reviewFocus.from
+      );
+      targets.push(next ?? blocks.at(-1) ?? root.current);
+    }
+    targets.forEach((block) => {
+      block.classList.add(styles.reviewSourceHighlight);
+      block.dataset.reviewSource = reviewFocus.changeId;
+    });
+    const anchor = targets[0];
+    anchor.dataset.reviewLabel = `변경 ${String(reviewFocus.number).padStart(2, "0")}${reviewFocus.from === reviewFocus.to ? " · 추가·삭제 위치" : ""}`;
+    let frame: number | undefined;
+    if (revealedRequest.current !== reviewFocus.request) {
+      frame = requestAnimationFrame(() => {
+        revealedRequest.current = reviewFocus.request;
+        anchor.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+            ? "instant"
+            : "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+      });
+    }
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      targets.forEach((block) => {
+        block.classList.remove(styles.reviewSourceHighlight);
+        delete block.dataset.reviewSource;
+        delete block.dataset.reviewLabel;
+      });
+    };
+  });
 
   const captureSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -150,9 +219,33 @@ export function DocumentPreview({
             h3: ({ node, children }) => (
               <h3 {...attributes(node, sourceOffset)}>{children}</h3>
             ),
+            h4: ({ node, children }) => (
+              <h4 {...attributes(node, sourceOffset)}>{children}</h4>
+            ),
+            h5: ({ node, children }) => (
+              <h5 {...attributes(node, sourceOffset)}>{children}</h5>
+            ),
+            h6: ({ node, children }) => (
+              <h6 {...attributes(node, sourceOffset)}>{children}</h6>
+            ),
             li: ({ node, children }) => (
               <li {...attributes(node, sourceOffset)}>{children}</li>
             ),
+            blockquote: ({ node, children }) => (
+              <blockquote {...attributes(node, sourceOffset)}>
+                {children}
+              </blockquote>
+            ),
+            pre: ({ node, children }) => (
+              <pre {...attributes(node, sourceOffset)}>{children}</pre>
+            ),
+            table: ({ node, children }) => (
+              <table {...attributes(node, sourceOffset)}>{children}</table>
+            ),
+            tr: ({ node, children }) => (
+              <tr {...attributes(node, sourceOffset)}>{children}</tr>
+            ),
+            hr: ({ node }) => <hr {...attributes(node, sourceOffset)} />,
             a: ({ href, title, children }) => {
               if (href?.startsWith("#"))
                 return (

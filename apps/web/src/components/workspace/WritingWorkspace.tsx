@@ -20,11 +20,13 @@ import {
   X,
 } from "lucide-react";
 import { useWritingWorkspace } from "@/hooks/useWritingWorkspace";
+import { useReviewFocus } from "@/hooks/useReviewFocus";
 import { downloadMarkdown } from "@/lib/workspace/files";
 import { editingInstruction } from "@/lib/workspace/review-policy";
 import { DEFAULT_MODEL_NAME } from "@/shared/models";
 import type { TextSelection } from "@/lib/workspace/types";
 import { DocumentPreview } from "./DocumentPreview";
+import { ReviewFocusToolbar } from "./ReviewFocusToolbar";
 import { FileSidebar } from "./FileSidebar";
 import { WritingInspector, type InspectorTab } from "./WritingInspector";
 import styles from "./workspace.module.css";
@@ -44,6 +46,12 @@ export function WritingWorkspace({
   const [mode, setMode] = useState<"read" | "edit">("read");
   const [selection, setSelection] = useState<TextSelection>();
   const [tab, setTab] = useState<InspectorTab>("review");
+  const review = useReviewFocus(
+    document?.id,
+    document?.content ?? "",
+    document?.proposal
+  );
+  const clearReviewFocus = review.clear;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -108,10 +116,11 @@ export function WritingWorkspace({
     if (previousDocumentId.current === document?.id) return;
     previousDocumentId.current = document?.id;
     setSelection(undefined);
+    clearReviewFocus();
     setFilename(document?.name ?? "");
     if (document && !document.content) setMode("edit");
     scrollArea.current?.scrollTo({ top: 0 });
-  }, [document]);
+  }, [document, clearReviewFocus]);
 
   useEffect(() => {
     if (!notice) return;
@@ -140,6 +149,7 @@ export function WritingWorkspace({
   const select = (selected: TextSelection | undefined) => {
     setSelection(selected);
     if (selected?.text.trim()) {
+      review.clear();
       setInspectorOpen(true);
       if (tab === "history") setTab("review");
     }
@@ -331,7 +341,10 @@ export function WritingWorkspace({
                 >
                   <button
                     aria-pressed={mode === "read"}
-                    onClick={() => setMode("read")}
+                    onClick={() => {
+                      review.requestReading();
+                      setMode("read");
+                    }}
                   >
                     <BookOpen size={14} />
                     <span>읽기</span>
@@ -429,6 +442,11 @@ export function WritingWorkspace({
                     <DocumentPreview
                       content={document.content}
                       onSelection={select}
+                      reviewFocus={review.focus}
+                      onSourceUnavailable={() => {
+                        if (review.readingRequested) review.clear();
+                        else setMode("edit");
+                      }}
                     />
                   ) : (
                     <MarkdownEditor
@@ -438,6 +456,7 @@ export function WritingWorkspace({
                         workspace.updateContent(document.id, content)
                       }
                       onSelection={select}
+                      reviewFocus={review.focus}
                     />
                   )}
                 </div>
@@ -477,6 +496,13 @@ export function WritingWorkspace({
                     <X size={14} />
                   </button>
                 </div>
+              )}
+              {review.focus && (
+                <ReviewFocusToolbar
+                  focus={review.focus}
+                  onReview={() => openInspector("review")}
+                  onClear={review.clear}
+                />
               )}
             </div>
             <footer className={styles.documentFooter}>
@@ -527,6 +553,13 @@ export function WritingWorkspace({
           onModelChange={setModel}
           modelUnavailable={modelUnavailable}
           onRetryModels={() => void loadModels()}
+          activeChangeId={review.focus?.changeId}
+          onLocateChange={(changeId) => {
+            setSelection(undefined);
+            review.locate(changeId);
+            if (window.matchMedia("(max-width: 899px)").matches)
+              setInspectorOpen(false);
+          }}
         />
       )}
       {notice && (

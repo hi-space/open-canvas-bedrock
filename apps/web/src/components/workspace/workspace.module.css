@@ -646,6 +646,77 @@
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
+.reviewSourceHighlight {
+  position: relative;
+  background: #fff5dd;
+  outline: 7px solid #fff5dd;
+  border-radius: 3px;
+  box-shadow: -10px 0 0 #b47a28;
+  scroll-margin-block: 65px;
+}
+.reviewSourceHighlight[data-review-label]:not(tr):not(table)::before {
+  content: attr(data-review-label);
+  display: inline-block;
+  margin-right: 9px;
+  vertical-align: 2px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  background: #89591c;
+  color: #fff;
+  font:
+    500 11px/1.8 "Pretendard Variable",
+    sans-serif;
+  white-space: nowrap;
+}
+.reviewFocusToolbar {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 5px 7px 5px 13px;
+  border: 1px solid #e2c78e;
+  border-radius: 10px;
+  background: #fffcf3;
+  color: #79521d;
+  box-shadow: 0 4px 20px #61411417;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.reviewFocusToolbar > output {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.reviewFocusToolbar:focus-visible {
+  outline: 2px solid #89591c;
+  outline-offset: 3px;
+}
+.reviewFocusToolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+.reviewFocusToolbar button:hover {
+  background: #f8ecd0;
+}
+.newContentAnchor {
+  padding: 12px 18px;
+  border: 1px dashed #b47a28;
+  border-radius: 6px;
+  background: #fff5dd;
+  color: #79521d;
+}
 .prose h1,
 .emptyDocument h1 {
   color: #283729;
@@ -1276,6 +1347,55 @@
 .changeHeader span:last-child {
   color: #839275;
   font-size: 9px;
+}
+.reviewLocationHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.reviewLocationHint svg {
+  flex-shrink: 0;
+}
+.changeActive {
+  border-color: #b47a28;
+  box-shadow: 0 0 0 2px #b47a2826;
+}
+.changeActive .changeHeader {
+  background: #fff3d9;
+  border-bottom-color: #edd8b0;
+  color: #79521d;
+}
+.changeActive.changeResolved {
+  opacity: 1;
+}
+.locateChangeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--green);
+  font-size: 11px;
+}
+.locateChangeButton:hover {
+  border-color: #e2c78e;
+  background: #fff5dd;
+}
+.locateChangeButton[aria-pressed="true"] {
+  background: #f5e4c0;
+  color: #79521d;
+}
+.locateChangeButton small {
+  color: var(--muted);
+  font-size: 10px;
 }
 .changeBefore,
 .changeAfter {
@@ -1987,6 +2107,13 @@
   }
 }
 @media (max-width: 899px) {
+  .locateChangeButton,
+  .reviewFocusToolbar button {
+    min-height: 44px;
+  }
+  .reviewFocusToolbar button:last-child {
+    min-width: 44px;
+  }
   .workspace,
   .inspectorClosed {
     grid-template-columns: minmax(0, 1fr);

@@ -1,6 +1,38 @@
 # canvas.hi-yoo.com deployment
 
-## Current release: deep research writer, 2026-10-25
+## Current release: revision source navigation, 2026-10-25
+
+Revision cards now include **본문에서 보기**. The action scrolls to the affected
+paragraph or Markdown range, highlights it with the same change number, and
+provides a return-to-review control on mobile. Locations account for earlier
+approvals; hidden Markdown definitions open in source view.
+
+- Release: `review-focus-20261025T064600Z`; completed at `2026-10-25T06:55:31Z`.
+- `HtmlCanvasStack`: `UPDATE_COMPLETE`.
+- ECS task definition: `HtmlCanvasStackTaskDef2E995DD4:15`; one healthy running
+  task, zero pending; rollout `COMPLETED`; one healthy ALB target.
+- Previous task revision `:14` remains `ACTIVE` for rollback.
+- Frontend image:
+  `sha256:06dc538e29a195f2921b1fa38b62206a52f742772a4c65f89393f7be9b55ba04`.
+- Backend image:
+  `sha256:47e073c22af14b6ab5c169352b504d436a6cea7cd8232aa916c7205dce9e8e08`.
+
+The template delta changes only the frontend image and the service's resulting
+task revision. The live task retains its 2,048 CPU units, 4,096 MiB, roles,
+networking, filesystem mount, and backend image.
+
+Verification: 97 frontend tests, type checking, lint, production build, and 22
+local browser scenarios pass. The exact release container passed all 10 source
+navigation browser scenarios with the deterministic local API fixture. Live AWS
+checks confirm the expected image digest, healthy frontend/backend containers
+and ALB target, no startup log errors, and Cognito redirects for unauthenticated
+HTTPS requests to `/` and `/api/workspaces`. Existing lint warnings remain.
+
+The captured baseline template, rollback image, source snapshot, reviewed change
+set, and verification results are stored privately under
+`~/.local/state/open-canvas-deployments/review-focus-20261025T064600Z/`.
+
+## Previous release: deep research writer, 2026-10-25
 
 Workspace chat offers a deep research genre (paper, blog, LinkedIn). The backend
 researches with Tavily, renders figures with draw.io and Chrome, and proposes the
@@ -39,7 +71,7 @@ Rollback: re-apply `template-before.json` from the private release directory
 Note: the AWS CLI 2.28 used here drops `s3filesVolumeConfiguration` when reading
 task definitions; register verification tasks with boto3 ≥ 1.43 so they mount S3 Files.
 
-## Previous release: integrated cloud workspace, 2026-10-25
+## Earlier release: integrated cloud workspace, 2026-10-25
 
 The home page now combines project files, document editing, agent conversations,
 review, sources, and history. Local-folder synchronization and explicit import

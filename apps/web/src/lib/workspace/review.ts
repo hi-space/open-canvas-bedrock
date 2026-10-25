@@ -2,6 +2,7 @@ import DiffMatchPatch from "diff-match-patch";
 import type {
   ChangeDecision,
   ReviewChange,
+  ReviewLocation,
   ReviewProposal,
   TextSelection,
 } from "./types";
@@ -132,6 +133,25 @@ export function reviewedContent(proposal: ReviewProposal): string {
   return result + proposal.baseContent.slice(cursor);
 }
 
+export function reviewLocations(
+  content: string,
+  proposal: ReviewProposal | undefined
+): ReviewLocation[] {
+  if (!proposal || reviewedContent(proposal) !== content) return [];
+  let offset = 0;
+  return proposal.changes.map((change, index) => {
+    const from = change.from + offset;
+    const text = change.decision === "accepted" ? change.after : change.before;
+    offset += text.length - change.before.length;
+    return {
+      changeId: change.id,
+      number: index + 1,
+      from,
+      to: from + text.length,
+    };
+  });
+}
+
 export function decideChanges(
   content: string,
   proposal: ReviewProposal,
@@ -175,6 +195,10 @@ export function editorOffsetToSource(content: string, offset: number): number {
     editorOffset++;
   }
   return sourceOffset;
+}
+
+export function sourceOffsetToEditor(content: string, offset: number): number {
+  return content.slice(0, offset).replace(/\r\n/g, "\n").length;
 }
 
 export function applyEditorChanges(

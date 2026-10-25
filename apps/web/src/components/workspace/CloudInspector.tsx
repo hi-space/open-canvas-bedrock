@@ -77,6 +77,8 @@ export function CloudInspector({
   onImport,
   onRestore,
   catalog,
+  activeChangeId,
+  onLocateChange,
 }: {
   workspace: CloudWorkspaceHook;
   folder: CloudFolderHook;
@@ -88,6 +90,8 @@ export function CloudInspector({
   onImport: () => void;
   onRestore: (content: string) => void;
   catalog: ReturnType<typeof useWorkspaceModels>;
+  activeChangeId?: string;
+  onLocateChange: (changeId: string) => void;
 }) {
   const { project, controller } = workspace;
   const [composerDrafts, setComposerDrafts] = useState<
@@ -613,6 +617,10 @@ export function CloudInspector({
                 pending={false}
                 deciding={!!proposal && project.deciding.includes(proposal.id)}
                 acceptedLabel="✓ 파일에 저장됨"
+                activeChangeId={activeChangeId}
+                onLocateChange={
+                  proposal?.path === path ? onLocateChange : undefined
+                }
                 onCancel={() => undefined}
                 onDismiss={() =>
                   controller.dismissProposal(project.workspace.id)

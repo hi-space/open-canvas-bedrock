@@ -26,6 +26,17 @@ export interface ReviewProposal {
   createdAt: number;
 }
 
+export interface ReviewLocation {
+  changeId: string;
+  number: number;
+  from: number;
+  to: number;
+}
+
+export interface ReviewFocus extends ReviewLocation {
+  request: number;
+}
+
 export interface SourceReference {
   id: string;
   title: string;

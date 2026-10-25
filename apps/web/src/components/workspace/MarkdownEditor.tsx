@@ -1,19 +1,44 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorView, type ViewUpdate } from "@codemirror/view";
+import {
+  Decoration,
+  EditorView,
+  WidgetType,
+  type ViewUpdate,
+} from "@codemirror/view";
 import {
   applyEditorChanges,
   editorOffsetToSource,
+  sourceOffsetToEditor,
 } from "@/lib/workspace/review";
-import type { TextSelection } from "@/lib/workspace/types";
+import type { ReviewFocus, TextSelection } from "@/lib/workspace/types";
 
 interface Props {
   content: string;
   onChange: (content: string) => void;
   onSelection: (selection: TextSelection) => void;
+  reviewFocus?: ReviewFocus;
+}
+
+class ReviewMarker extends WidgetType {
+  constructor(
+    readonly number: number,
+    readonly empty: boolean
+  ) {
+    super();
+  }
+  eq(other: ReviewMarker) {
+    return this.number === other.number && this.empty === other.empty;
+  }
+  toDOM() {
+    const marker = document.createElement("span");
+    marker.className = "cm-review-label";
+    marker.textContent = `변경 ${String(this.number).padStart(2, "0")}${this.empty ? " · 위치" : ""}`;
+    return marker;
+  }
 }
 
 function changedSource(content: string, update: ViewUpdate): string {
@@ -30,7 +55,56 @@ export default function MarkdownEditor({
   content,
   onChange,
   onSelection,
+  reviewFocus,
 }: Props) {
+  const [view, setView] = useState<EditorView>();
+  const revealedRequest = useRef<number | undefined>(undefined);
+  const focusExtension = useMemo(() => {
+    if (!reviewFocus) return [];
+    const from = sourceOffsetToEditor(content, reviewFocus.from);
+    const to = sourceOffsetToEditor(content, reviewFocus.to);
+    return EditorView.decorations.of((editor) => {
+      if (to > editor.state.doc.length) return Decoration.none;
+      const firstLine = editor.state.doc.lineAt(from);
+      const ranges = [
+        Decoration.widget({
+          widget: new ReviewMarker(reviewFocus.number, from === to),
+          side: -1,
+        }).range(from === to ? from : firstLine.from),
+      ];
+      if (from < to)
+        ranges.push(
+          Decoration.mark({ class: "cm-review-mark" }).range(from, to)
+        );
+      const lastLine = editor.state.doc.lineAt(Math.max(from, to - 1)).number;
+      for (let number = firstLine.number; number <= lastLine; number++)
+        ranges.push(
+          Decoration.line({
+            attributes: {
+              class: "cm-review-line",
+              "data-review-source": reviewFocus.changeId,
+            },
+          }).range(editor.state.doc.line(number).from)
+        );
+      return Decoration.set(ranges, true);
+    });
+  }, [content, reviewFocus]);
+
+  useEffect(() => {
+    if (!reviewFocus) {
+      revealedRequest.current = undefined;
+      return;
+    }
+    if (!view || revealedRequest.current === reviewFocus.request) return;
+    revealedRequest.current = reviewFocus.request;
+    view.dispatch({
+      effects: EditorView.scrollIntoView(
+        sourceOffsetToEditor(content, reviewFocus.from),
+        { y: "center" }
+      ),
+    });
+  }, [content, reviewFocus, view]);
+
   const extensions = useMemo(
     () => [
       markdown(),
@@ -65,15 +139,37 @@ export default function MarkdownEditor({
           background: "#cfe6d9 !important",
         },
         ".cm-cursor": { borderLeftColor: "#2d6347" },
+        ".cm-review-line": {
+          backgroundColor: "#fff8e8",
+          boxShadow: "inset 3px 0 #b47a28",
+        },
+        ".cm-review-mark": {
+          backgroundColor: "#f9e1a9",
+          borderRadius: "2px",
+        },
+        ".cm-review-label": {
+          display: "inline-block",
+          padding: "0 6px",
+          marginRight: "7px",
+          borderRadius: "4px",
+          backgroundColor: "#89591c",
+          color: "#fff",
+          fontSize: "11px",
+          fontFamily: "sans-serif",
+          lineHeight: "1.8",
+          verticalAlign: "1px",
+        },
       }),
+      focusExtension,
     ],
-    []
+    [focusExtension]
   );
 
   return (
     <CodeMirror
       value={content.replace(/\r\n/g, "\n")}
       extensions={extensions}
+      onCreateEditor={setView}
       basicSetup={{
         foldGutter: false,
         highlightActiveLine: false,

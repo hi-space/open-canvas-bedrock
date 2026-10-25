@@ -6,10 +6,11 @@ import {
   CircleCheck,
   FileDiff,
   LoaderCircle,
+  LocateFixed,
   ShieldCheck,
   X,
 } from "lucide-react";
-import { reviewedContent } from "@/lib/workspace/review";
+import { reviewLocations, reviewedContent } from "@/lib/workspace/review";
 import type { ReviewChange, WorkspaceDocument } from "@/lib/workspace/types";
 import styles from "./workspace.module.css";
 
@@ -94,6 +95,8 @@ export function ReviewPanel({
   onCancel,
   deciding = false,
   acceptedLabel = "✓ 초안에 반영됨",
+  activeChangeId,
+  onLocateChange,
 }: {
   document: WorkspaceDocument;
   pending: boolean;
@@ -102,8 +105,20 @@ export function ReviewPanel({
   onCancel: () => void;
   deciding?: boolean;
   acceptedLabel?: string;
+  activeChangeId?: string;
+  onLocateChange?: (changeId: string) => void;
 }) {
   const proposal = document.proposal;
+  const locations = useMemo(
+    () =>
+      new Map(
+        reviewLocations(document.content, proposal).map((item) => [
+          item.changeId,
+          item,
+        ])
+      ),
+    [document.content, proposal]
+  );
   const remaining =
     proposal?.changes.filter((change) => change.decision === "pending")
       .length ?? 0;
@@ -178,6 +193,12 @@ export function ReviewPanel({
           </button>
         </div>
       )}
+      {onLocateChange && !stale && (
+        <p className={styles.reviewLocationHint}>
+          <LocateFixed size={14} aria-hidden="true" />
+          본문에서 보기를 누르면 해당 구간을 강조해요.
+        </p>
+      )}
       {remaining > 0 ? (
         <div className={styles.reviewBulkActions}>
           <button
@@ -206,14 +227,46 @@ export function ReviewPanel({
         {proposal.changes.map((change, index) => (
           <article
             key={change.id}
-            className={`${styles.changeCard} ${change.decision !== "pending" ? styles.changeResolved : ""}`}
+            data-review-card={change.id}
+            className={`${styles.changeCard} ${change.decision !== "pending" ? styles.changeResolved : ""} ${activeChangeId === change.id ? styles.changeActive : ""}`}
           >
             <div className={styles.changeHeader}>
               <span>변경 {String(index + 1).padStart(2, "0")}</span>
-              <span>
-                {proposal.baseContent.slice(0, change.from).split("\n").length}
-                행
-              </span>
+              {onLocateChange ? (
+                <button
+                  type="button"
+                  className={styles.locateChangeButton}
+                  disabled={!!stale || deciding || !locations.has(change.id)}
+                  aria-label={`변경 ${index + 1} 본문에서 보기`}
+                  aria-pressed={activeChangeId === change.id}
+                  onClick={(event) => {
+                    event.currentTarget.closest("article")?.scrollIntoView({
+                      block: "nearest",
+                      inline: "nearest",
+                    });
+                    onLocateChange(change.id);
+                  }}
+                >
+                  <LocateFixed size={13} aria-hidden="true" />
+                  본문에서 보기
+                  <small>
+                    {
+                      document.content
+                        .slice(0, locations.get(change.id)?.from ?? change.from)
+                        .split("\n").length
+                    }
+                    행
+                  </small>
+                </button>
+              ) : (
+                <span>
+                  {
+                    proposal.baseContent.slice(0, change.from).split("\n")
+                      .length
+                  }
+                  행
+                </span>
+              )}
             </div>
             <div className={styles.changeBefore}>
               <span className={styles.diffLabel}>수정 전</span>

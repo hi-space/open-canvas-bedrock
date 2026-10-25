@@ -24,12 +24,14 @@ import {
 import { useCloudWorkspace } from "@/hooks/useCloudWorkspace";
 import { useCloudFolder } from "@/hooks/useCloudFolder";
 import { useWorkspaceModels } from "@/hooks/useWorkspaceModels";
+import { useReviewFocus } from "@/hooks/useReviewFocus";
 import { isDirty } from "@/lib/workspace/cloud-state";
 import { ownsSelection } from "@/lib/workspace/cloud-intent";
 import { downloadMarkdown, isDocumentFile } from "@/lib/workspace/files";
 import { editingInstruction } from "@/lib/workspace/review-policy";
 import type { TextSelection } from "@/lib/workspace/types";
 import { DocumentPreview } from "./DocumentPreview";
+import { ReviewFocusToolbar } from "./ReviewFocusToolbar";
 import { CloudSidebar } from "./CloudSidebar";
 import {
   CloudInspector,
@@ -187,6 +189,11 @@ export function CloudWorkspace({
     project && (draft || virtualProposal)
       ? workspaceDocument(project, path, virtualProposal)
       : undefined;
+  const review = useReviewFocus(
+    document?.id,
+    document?.content ?? "",
+    proposal?.path === path ? proposal : undefined
+  );
   const selection =
     selectionState && selectionState.id === id && selectionState.path === path
       ? selectionState.value
@@ -205,6 +212,7 @@ export function CloudWorkspace({
   }, []);
   useEffect(() => {
     scrollArea.current?.scrollTo({ top: 0 });
+    review.clear();
     if (document && !document.content && draft) setMode("edit");
     // Only navigation should change the author's chosen reading mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,6 +248,7 @@ export function CloudWorkspace({
   };
   const select = (value: TextSelection | undefined) => {
     setSelectionState(value && id && path ? { id, path, value } : undefined);
+    if (value?.text.trim()) review.clear();
   };
   const clearSelection = (expected?: TextSelection | null) => {
     if (expected === null) return;
@@ -445,7 +454,10 @@ export function CloudWorkspace({
                 >
                   <button
                     aria-pressed={mode === "read" || !!virtualProposal}
-                    onClick={() => setMode("read")}
+                    onClick={() => {
+                      review.requestReading();
+                      setMode("read");
+                    }}
                   >
                     <BookOpen size={14} />
                     <span>읽기</span>
@@ -587,6 +599,15 @@ export function CloudWorkspace({
                   </div>
                   {virtualProposal ? (
                     <div className={cloud.proposedFile}>
+                      {review.focus && (
+                        <p
+                          className={styles.newContentAnchor}
+                          data-review-source={review.focus.changeId}
+                        >
+                          변경 {String(review.focus.number).padStart(2, "0")} ·
+                          새 내용이 들어갈 위치
+                        </p>
+                      )}
                       <FileText size={35} strokeWidth={1.2} />
                       <h2>새 문서가 제안되었어요.</h2>
                       <p>
@@ -604,6 +625,11 @@ export function CloudWorkspace({
                     <DocumentPreview
                       content={document.content}
                       onSelection={select}
+                      reviewFocus={review.focus}
+                      onSourceUnavailable={() => {
+                        if (review.readingRequested) review.clear();
+                        else setMode("edit");
+                      }}
                     />
                   ) : (
                     <MarkdownEditor
@@ -613,6 +639,7 @@ export function CloudWorkspace({
                         if (id && path) controller.edit(id, path, content);
                       }}
                       onSelection={select}
+                      reviewFocus={review.focus}
                     />
                   )}
                 </div>
@@ -653,6 +680,13 @@ export function CloudWorkspace({
                     <X size={14} />
                   </button>
                 </div>
+              )}
+              {review.focus && (
+                <ReviewFocusToolbar
+                  focus={review.focus}
+                  onReview={() => openInspector("review")}
+                  onClear={review.clear}
+                />
               )}
             </div>
             <footer className={styles.documentFooter}>
@@ -738,6 +772,13 @@ export function CloudWorkspace({
         onClose={() => setInspectorOpen(false)}
         onImport={importDialog}
         catalog={catalog}
+        activeChangeId={review.focus?.changeId}
+        onLocateChange={(changeId) => {
+          clearSelection();
+          review.locate(changeId);
+          if (window.matchMedia("(max-width: 899px)").matches)
+            setInspectorOpen(false);
+        }}
         onRestore={(content) => {
           if (id && path) {
             controller.edit(id, path, content);

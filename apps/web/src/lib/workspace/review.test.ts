@@ -4,8 +4,11 @@ import {
   createProposal,
   decideChanges,
   editorOffsetToSource,
+  reviewLocations,
   reviewedContent,
+  sourceOffsetToEditor,
 } from "./review";
+import type { ReviewProposal } from "./types";
 
 describe("precise review", () => {
   it("changes only the selected occurrence, keeping Korean and emoji offsets", () => {
@@ -138,6 +141,12 @@ describe("lossless source editing", () => {
     expect(editorOffsetToSource("one\r\ntwo\r\nthree", 8)).toBe(10);
   });
 
+  it("maps review positions into the editor without losing BOM or emoji offsets", () => {
+    const source = "\uFEFF😀\r\n같은 문장\r\n같은 문장";
+    expect(sourceOffsetToEditor(source, 12)).toBe(10);
+    expect(sourceOffsetToEditor(source, source.length)).toBe(15);
+  });
+
   it("preserves BOM, mixed existing line endings, and untouched Markdown", () => {
     const source =
       "\uFEFF# Title\r\n\r\nold\n[ref](<https://example.org/a>)\r\n";
@@ -152,5 +161,91 @@ describe("lossless source editing", () => {
         { from: 4, to: 7, insert: "new\nline" },
       ])
     ).toBe("one\r\nnew\r\nline");
+  });
+});
+
+describe("review locations in the current document", () => {
+  const proposal: ReviewProposal = {
+    id: "review",
+    kind: "ai",
+    instruction: "",
+    explanation: "",
+    baseContent: "old\n\nsame\n\nsame",
+    proposedContent: "longer text\n\nsame\n\nnew",
+    changes: [
+      {
+        id: "first",
+        from: 0,
+        to: 3,
+        before: "old",
+        after: "longer text",
+        decision: "pending",
+      },
+      {
+        id: "last",
+        from: 11,
+        to: 15,
+        before: "same",
+        after: "new",
+        decision: "pending",
+      },
+    ],
+    createdAt: 0,
+  };
+
+  it("points to the requested occurrence when identical text is repeated", () => {
+    expect(reviewLocations(proposal.baseContent, proposal)).toEqual([
+      { changeId: "first", number: 1, from: 0, to: 3 },
+      { changeId: "last", number: 2, from: 11, to: 15 },
+    ]);
+  });
+
+  it("moves later locations after an earlier change is accepted", () => {
+    const accepted = decideChanges(
+      proposal.baseContent,
+      proposal,
+      "first",
+      "accepted"
+    );
+    expect(reviewLocations(accepted.content, accepted.proposal)).toEqual([
+      { changeId: "first", number: 1, from: 0, to: 11 },
+      { changeId: "last", number: 2, from: 19, to: 23 },
+    ]);
+  });
+
+  it("keeps locations aligned when accepting out of order and rejecting changes", () => {
+    const accepted = decideChanges(
+      proposal.baseContent,
+      proposal,
+      "last",
+      "accepted"
+    );
+    const rejected = decideChanges(
+      accepted.content,
+      accepted.proposal,
+      "first",
+      "rejected"
+    );
+    expect(reviewLocations(rejected.content, rejected.proposal)).toEqual([
+      { changeId: "first", number: 1, from: 0, to: 3 },
+      { changeId: "last", number: 2, from: 11, to: 14 },
+    ]);
+  });
+
+  it("retains a zero-width anchor for new content and accepted deletions", () => {
+    const insertion = createProposal("", "새 문서");
+    expect(reviewLocations("", insertion)).toEqual([
+      { changeId: insertion.changes[0].id, number: 1, from: 0, to: 0 },
+    ]);
+    const deletion = createProposal("지울 문장", "");
+    const accepted = decideChanges("지울 문장", deletion, "all", "accepted");
+    expect(reviewLocations(accepted.content, accepted.proposal)).toEqual([
+      { changeId: deletion.changes[0].id, number: 1, from: 0, to: 0 },
+    ]);
+  });
+
+  it("does not point at unrelated content after a manual edit", () => {
+    expect(reviewLocations("manually edited", proposal)).toEqual([]);
+    expect(reviewLocations(proposal.baseContent, undefined)).toEqual([]);
   });
 });
