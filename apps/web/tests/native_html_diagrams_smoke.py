@@ -86,6 +86,30 @@ async def main():
         await offline.set_viewport_size({"width": 390, "height": 844})
         assert await offline.evaluate("document.documentElement.scrollWidth <= innerWidth")
         await offline.screenshot(path=str(ARTIFACTS / "native-offline-mobile.png"), full_page=True)
+        wide_response = await page.request.get(f"{BACKEND}/__test/wide-native")
+        assert wide_response.ok
+        wide_file = ARTIFACTS / "wide-sequence.html"
+        wide_file.write_text(await wide_response.text())
+        await offline.goto(wide_file.as_uri())
+        metrics = await offline.locator("svg").evaluate("""svg => {
+          const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+          const texts = [...svg.querySelectorAll('g[data-component-id]')].flatMap(group => {
+            const box = group.querySelector('rect').getBBox();
+            return [...group.querySelectorAll('text')].map(text => {
+              const bounds = text.getBBox();
+              return {px: parseFloat(getComputedStyle(text).fontSize) * scale,
+                fits: bounds.x >= box.x && bounds.x + bounds.width <= box.x + box.width &&
+                  bounds.y >= box.y && bounds.y + bounds.height <= box.y + box.height};
+            });
+          });
+          return {scale, texts, scrollable: svg.parentElement.scrollWidth > svg.parentElement.clientWidth};
+        }""")
+        assert metrics["scale"] >= 1 and metrics["scrollable"], metrics
+        assert all(text["fits"] and text["px"] >= 13 for text in metrics["texts"]), metrics
+        await offline.locator("svg").evaluate("(svg) => svg.parentElement.focus()")
+        await offline.keyboard.press("ArrowRight")
+        await offline.wait_for_function("document.querySelector('svg').parentElement.scrollLeft > 0")
+        await offline.screenshot(path=str(ARTIFACTS / "wide-sequence-mobile.png"), full_page=True)
         diagnostics = await (await page.request.get(f"{BACKEND}/__test/diagram-calls")).json()
         assert diagnostics == {"skillCalls": [], "nativeOnly": True}
         assert not image_requests, image_requests
@@ -95,7 +119,8 @@ async def main():
     result = {
         "checks": ["HTML layers and SVG flow without skills", "all technical relationships rendered",
                    "atomic SVG selection", "approval and byte-preserving offline download",
-                   "mobile containment", "zero image requests or rasterizer calls"],
+                   "mobile containment", "six-participant readable text and keyboard scrolling",
+                   "zero image requests or rasterizer calls"],
         "artifacts": str(ARTIFACTS),
     }
     (ARTIFACTS / "results.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))

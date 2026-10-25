@@ -82,5 +82,29 @@ tests `test_workspace_svg.py`, `html.test.ts`; workspace agent prompt.
 - [x] Inspect desktop/mobile diagrams and verify atomic selection; retain the
   existing explicit-skill PNG/offline/corrupt-image regression workflow.
 - [x] Run full suites, typecheck, lint, and production build.
-- [ ] Dispatch one fresh code reviewer and fix material findings with regressions.
-- [ ] Record results, commit the reviewed change, and preserve the worktree.
+- [x] Dispatch one fresh code reviewer and fix material findings with regressions.
+- [x] Record results, commit the reviewed change, and preserve the worktree.
+
+## Verification record
+
+- Backend: 390 tests passed, plus 101 subtests. Two existing legacy timestamp
+  deprecation warnings remain.
+- Frontend: 221 tests passed across 26 files; typecheck, lint, and production
+  build passed. Lint retains existing warnings in legacy components.
+- The AgentCore image's isolated import test caught the new `svg.py` dependency;
+  `Dockerfile.agent` now copies it, and the test passes.
+- Real Chromium, using the real graph/API/renderers with deterministic external
+  model/search fixtures, verified native HTML layers and SVG flows, all
+  relationships, atomic SVG selection, approval, and byte-identical offline
+  download with no image requests or rasterizer calls.
+- A six-participant sequence was measured at mobile width: native text scale,
+  labels and responsibilities inside their boxes, and keyboard horizontal
+  scrolling all passed.
+- The existing explicitly selected skill/PNG workflow, including corrupt-image
+  rejection, retry, and offline download, also passed.
+- Independent review found swallowed figure markers, connector overpainting of
+  badges, and unreadably scaled wide SVGs. Each was reproduced with failing tests
+  and fixed. The related source-registration case after an unclosed fence is also
+  covered. No material findings remain; no minor findings were deferred.
+- Live model factual quality and inherited CSS policy outside this change were
+  outside this review. No deployment was performed.

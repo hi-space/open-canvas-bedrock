@@ -117,6 +117,26 @@ class WorkspaceResearchTests(unittest.TestCase):
         self.assertEqual(approved.status_code, 200, approved.text)
         self.assertEqual(approved.json()["file"]["content"], proposal["proposedContent"])
 
+    def test_native_figure_citations_after_an_unclosed_fence_are_registered(self):
+        from agents.deep_research.assemble import assemble
+        from agents.deep_research.genres import get_profile
+        figure = {
+            "section_id": "s1", "number": 1, "renderer": "native", "caption": "API",
+            "markup": '<svg viewBox="0 0 200 100"><text x="10" y="30">API</text></svg>',
+            "source_ids": ["S1"],
+        }
+        state = research_state()
+        markdown = assemble(
+            "Example", [("s1", '## Code\n\n```python\nprint("hello")')], [figure],
+            state["sources"], get_profile("blog"), "ko",
+        )
+        state["artifact"]["contents"][0]["fullMarkdown"] = markdown
+        state["figures"] = [figure]
+        job, _ = self.ask(state, outputFormat="html")
+        self.assertEqual(job["status"], "completed", job)
+        detail = self.client.get(f"/api/workspaces/{self.workspace}").json()
+        self.assertEqual([source["url"] for source in detail["sources"]], [URL_A])
+
     def test_html_research_lists_private_material_without_inventing_a_public_url(self):
         saved = self.client.put(f"/api/workspaces/{self.workspace}/files", json={
             "path": "notes/customer.md", "content": "고객이 요청한 조건은 세 가지입니다.",

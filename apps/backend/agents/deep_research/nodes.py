@@ -538,7 +538,9 @@ async def generate_artifact_node(state: DeepResearchState, config: RunnableConfi
                 logger.warning("final pass for %s hit max_tokens", section["id"])
         finals.append((section["id"], text.strip() or drafts[section["id"]]))
 
-    markdown = assemble(outline["title"], finals, state.get("figures") or [], state.get("sources") or {},
+    completed = {section_id for section_id, _text in finals}
+    figures = [figure for figure in state.get("figures") or [] if figure["section_id"] in completed]
+    markdown = assemble(outline["title"], finals, figures, state.get("sources") or {},
                         profile, brief["language"], state.get("maxCitedSources"),
                         max_new_cited=state.get("maxNewCitedSources"))
     artifact = {
@@ -548,10 +550,11 @@ async def generate_artifact_node(state: DeepResearchState, config: RunnableConfi
     return {
         "researchStatus": _say(
             state,
-            f"완성: {len(markdown.split())}단어, 출처 {len(state.get('sources') or {})}개 검토, 그림 {len(state.get('figures') or [])}개",
+            f"완성: {len(markdown.split())}단어, 출처 {len(state.get('sources') or {})}개 검토, 그림 {len(figures)}개",
             f"Done: {len(markdown.split())} words, {len(state.get('sources') or {})} sources reviewed, "
-            f"{len(state.get('figures') or [])} figures",
+            f"{len(figures)} figures",
         ),
+        "figures": figures,
         "artifact": artifact,
         "messages": [AIMessage(content=markdown)],
     }

@@ -120,6 +120,33 @@ def test_adjacent_returns_and_six_edge_flows_have_distinct_number_badges(edges):
             assert distance >= float(first["r"]) + float(second["r"])
 
 
+def test_all_connector_strokes_are_painted_before_number_badges():
+    spec = {**SPEC, "rows": [{"nodes": [
+        {"id": "api", "label": "API"}, {"id": "worker", "label": "Worker"}, {"id": "files", "label": "Store"},
+    ]}], "edges": [
+        {"source": "api", "target": "files", "label": "read"},
+        {"source": "files", "target": "api", "label": "return"},
+        {"source": "api", "target": "files", "label": "write"},
+        {"source": "files", "target": "api", "label": "confirm"},
+    ]}
+    elements = DiagramElements(render(spec)).elements
+    paths = [index for index, (tag, _) in enumerate(elements) if tag == "path"]
+    badges = [index for index, (tag, _) in enumerate(elements) if tag == "circle"]
+    # SVG's painter order must not let a later white connector erase an earlier label.
+    assert max(paths) < min(badges)
+
+
+def test_wide_sequences_keep_their_native_text_scale_in_a_scrollable_viewport():
+    spec = {**SPEC, "layout": "sequence", "rows": [
+        {"nodes": [{"id": f"p{i}", "label": f"Participant {i}"} for i in range(3)]},
+        {"nodes": [{"id": f"p{i}", "label": f"Participant {i}"} for i in range(3, 6)]},
+    ], "edges": [{"source": "p0", "target": "p5", "label": "Request"}]}
+    svg = next(attrs for tag, attrs in DiagramElements(render(spec)).elements if tag == "svg")
+    view_width = float(svg["viewbox"].split()[2])
+    styles = dict(part.split(":", 1) for part in svg["style"].split(";") if ":" in part)
+    assert float(styles["min-width"].removesuffix("px")) >= view_width
+
+
 @pytest.mark.parametrize("update", [
     {"edges": [{"source": "missing", "target": "api", "label": "unknown"}]},
     {"rows": [{"label": "", "nodes": [

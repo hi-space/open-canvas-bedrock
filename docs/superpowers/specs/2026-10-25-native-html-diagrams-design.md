@@ -42,6 +42,12 @@ value; an HTML diagram must not depend on a diagram skill or rasterizer.
   and twenty-four relationships; sequences have at most six participants.
 - Native markup is inserted at trusted figure placeholders after Markdown parsing.
   User/model-authored raw HTML remains escaped by the Markdown adapter.
+- Trusted figure boundaries split Markdown sections before parsing, preventing an
+  unclosed code fence from absorbing a figure. Source extraction uses the same
+  boundaries, and every expected native figure must be consumed.
+- Paint connector strokes before number badges. Keep SVG at its natural text
+  scale in a horizontally scrollable viewport, with width-aware text wrapping.
+  Sanitized SVG scroll wrappers are keyboard-focusable.
 - Static SVG elements: svg, g, rect, circle, ellipse, line, polyline, polygon,
   path, text, tspan, title, desc. SVG roots get editor IDs; SVG descendants do not
   become separate selectable regions.

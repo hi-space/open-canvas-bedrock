@@ -9,6 +9,7 @@ from markdown_it.token import Token
 from api.workspaces.html_documents import prepare_html
 from core.research_sources import evidence_groups, source_key
 from agents.deep_research.assemble import figure_label, native_figure_uri
+from api.writing.service import _links_in
 
 _STYLE = """
 :root { color-scheme: light; --ink: #23342f; --muted: #62746c; --accent: #246a56; }
@@ -68,6 +69,48 @@ li { margin-bottom: 7px; }
 """
 
 
+def _native_figures(figures: list[dict] | None) -> dict:
+    native = [figure for figure in figures or [] if figure.get("renderer") == "native"]
+    registry = {native_figure_uri(figure["number"]): figure for figure in native}
+    if len(registry) != len(native):
+        raise ValueError("리서치 도식 번호가 중복되었습니다.")
+    return registry
+
+
+def _native_chunks(markdown: str, native_figures: dict) -> list[tuple[str, str]]:
+    if not native_figures:
+        return [("markdown", markdown)]
+    chunks, consumed, cursor = [], set(), 0
+    pattern = r"^!\[[^\]\r\n]*\]\((oc-diagram:figure-\d+)\)[ \t]*\r?$"
+    for match in re.finditer(pattern, markdown, re.MULTILINE):
+        uri = match.group(1)
+        if uri not in native_figures:
+            continue
+        if uri in consumed:
+            raise ValueError("리서치 도식의 위치가 중복되었습니다.")
+        chunks.extend([("markdown", markdown[cursor:match.start()]), ("figure", uri)])
+        consumed.add(uri)
+        cursor = match.end()
+    chunks.append(("markdown", markdown[cursor:]))
+    if consumed != set(native_figures):
+        raise ValueError("리서치 도식의 위치를 확인할 수 없습니다.")
+    return chunks
+
+
+def research_links(markdown: str, figures: list[dict]) -> set[str]:
+    """Extract evidence using the same section boundaries as the HTML adapter."""
+    chunks = _native_chunks(markdown, _native_figures(figures))
+    environment = {}
+    parser = MarkdownIt("commonmark")
+    for kind, content in chunks:
+        if kind == "markdown":
+            parser.parse(content, environment)
+    return {
+        url for kind, content in chunks if kind == "markdown"
+        for url in _links_in(content, environment.get("references"))
+    }
+
+
 def render_research_html(
     markdown: str, title: str, *, sources: list[dict], genre: str, language: str = "ko",
     figures: list[dict] | None = None,
@@ -75,10 +118,7 @@ def render_research_html(
     """Convert research without asking a model to restate its facts or citations."""
     md = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
     source_ids = {key: [item["id"] for item in group] for key, group in evidence_groups(sources).items()}
-    native_figures = {
-        native_figure_uri(figure["number"]): figure
-        for figure in figures or [] if figure.get("renderer") == "native"
-    }
+    native_figures = _native_figures(figures)
 
     def native_block(figure):
         ids = list(dict.fromkeys(
@@ -147,25 +187,24 @@ def render_research_html(
     md.add_render_rule("text", text)
     md.add_render_rule("image", image)
     environment = {}
-    tokens = md.parse(markdown, environment)
-    # Only graph-produced placeholders become raw HTML; authored HTML stays escaped.
-    consumed, index = set(), 0
-    while index + 2 < len(tokens):
-        opening, inline, closing = tokens[index:index + 3]
-        children = inline.children or []
-        if (
-            opening.type == "paragraph_open" and inline.type == "inline"
-            and closing.type == "paragraph_close" and len(children) == 1 and children[0].type == "image"
-            and (children[0].attrGet("src") or "").startswith("oc-diagram:")
-        ):
-            uri = children[0].attrGet("src")
-            if uri not in native_figures or uri in consumed:
-                raise ValueError("리서치 도식의 위치가 없거나 중복되었습니다.")
-            consumed.add(uri)
-            block = Token("html_block", "", 0)
-            block.content = native_block(native_figures[uri])
-            tokens[index:index + 3] = [block]
-        index += 1
+    if native_figures:
+        # A trusted figure is a section boundary, even after an unclosed code fence.
+        # Parse each side independently so Markdown cannot swallow a generated figure.
+        chunks = _native_chunks(markdown, native_figures)
+        # Collect reference definitions before rendering any chunk.
+        for kind, content in chunks:
+            if kind == "markdown":
+                md.parse(content, environment)
+        tokens = []
+        for kind, content in chunks:
+            if kind == "markdown":
+                tokens.extend(md.parse(content, environment))
+            else:
+                block = Token("html_block", "", 0)
+                block.content = native_block(native_figures[content])
+                tokens.append(block)
+    else:
+        tokens = md.parse(markdown, environment)
     headings = []
     for index, token in enumerate(tokens):
         if token.type == "heading_open" and token.tag == "h2":

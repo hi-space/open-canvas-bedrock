@@ -127,7 +127,11 @@ def run_research(payload: dict, existing_paths: set[str], progress) -> dict:
     title = state["artifact"]["contents"][0].get("title") or "research"
     language = (state.get("brief") or {}).get("language") or "ko"
     known_urls = {_normalize_link(item["url"]) for item in existing if (item.get("excerpt") or "").strip()}
-    links = set(_links_in(markdown))
+    if payload.get("outputFormat") == "html":
+        from api.workspaces.research_html import research_links
+        links = research_links(markdown, state.get("figures", []))
+    else:
+        links = set(_links_in(markdown))
     used = [s for s in state.get("sources", {}).values() if _normalize_link(s["url"]) in links]
     cited = [s for s in used if _normalize_link(s["url"]) not in known_urls]
     per_source = min(MAX_EXCERPT_PER_SOURCE, budget // max(len(cited), 1))

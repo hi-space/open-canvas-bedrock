@@ -12,6 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from PIL import Image, ImageDraw, ImageFont
+from fastapi.responses import HTMLResponse
 
 if os.environ.get("WORKSPACE_AUTH_MODE") != "local" or not os.environ.get("WORKSPACE_ROOT"):
     raise RuntimeError("Use explicit local mode and a temporary WORKSPACE_ROOT for this fixture.")
@@ -173,6 +174,34 @@ def inputs():
 @app.get("/__test/diagram-calls")
 def diagram_calls():
     return {"skillCalls": skill_calls, "nativeOnly": NATIVE_ONLY}
+
+
+@app.get("/__test/wide-native", response_class=HTMLResponse)
+def wide_native():
+    from agents.deep_research.diagrams.native import NativeDiagramSpec, render_native
+    from agents.deep_research.assemble import assemble
+    from agents.deep_research.genres import get_profile
+    from api.workspaces.research_html import render_research_html
+
+    names = [
+        "Amazon API Gateway", "Amazon Bedrock AgentCore", "Research orchestration",
+        "Amazon Bedrock Knowledge Bases", "Amazon DynamoDB", "HTML publication adapter",
+    ]
+    participants = [{
+        "id": f"p{index}", "label": name,
+        "detail": "Validate structured requests and preserve document evidence.",
+    } for index, name in enumerate(names)]
+    spec = NativeDiagramSpec.model_validate({
+        "title": "Six-participant sequence", "description": "Illustrative request sequence for typography verification.",
+        "layout": "sequence", "rows": [{"nodes": participants[:3]}, {"nodes": participants[3:]}],
+        "edges": [{"source": f"p{index}", "target": f"p{index + 1}", "label": "Pass the validated request"}
+                  for index in range(5)],
+    })
+    figure = {"section_id": "s1", "number": 1, "renderer": "native", "caption": "Request sequence",
+              "markup": render_native(spec), "source_ids": []}
+    markdown = assemble("Wide diagram", [("s1", "## Sequence\n\nRead and scroll the complete diagram.")],
+                        [figure], {}, get_profile("blog"), "en")
+    return render_research_html(markdown, "Wide diagram", sources=[], genre="blog", language="en", figures=[figure])
 
 
 if __name__ == "__main__":

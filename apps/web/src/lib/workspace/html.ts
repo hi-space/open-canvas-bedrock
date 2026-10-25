@@ -544,6 +544,17 @@ export function createHtmlPreview(
   const head = clean.querySelector("head");
   const body = clean.querySelector("body");
   if (!head || !body) throw new Error("HTML 미리보기를 준비하지 못했어요.");
+  // Add only safe scroll targets back; arbitrary authored tab stops stay removed.
+  for (const diagram of body.querySelectorAll("svg")) {
+    const wrapper = diagram.parentElement;
+    if (
+      wrapper?.localName === "div" &&
+      [wrapper.style.overflowX, wrapper.style.overflow].some((value) =>
+        ["auto", "scroll"].includes(value)
+      )
+    )
+      wrapper.setAttribute("tabindex", "0");
+  }
 
   const nonce = [...window.crypto.getRandomValues(new Uint8Array(18))]
     .map((byte) => byte.toString(16).padStart(2, "0"))

@@ -62,6 +62,18 @@ describe("native SVG regions and preview", () => {
     expect(htmlRegions(content)[0]?.text).toBe(content);
   });
 
+  it("makes sanitized SVG scrolling keyboard-accessible without preserving arbitrary tab stops", () => {
+    const content = `<div style="overflow-x:auto;">${svg}</div><div tabindex="99">Other</div>`;
+    const preview = new DOMParser().parseFromString(
+      createHtmlPreview(content, "token", false),
+      "text/html"
+    );
+    expect(
+      preview.querySelector("svg")?.parentElement?.getAttribute("tabindex")
+    ).toBe("0");
+    expect(preview.querySelector('[tabindex="99"]')).toBeNull();
+  });
+
   it("removes nested SVG viewports just as the save validator rejects them", () => {
     const content =
       '<svg data-oc-id="outer"><g><svg><text>Nested</text></svg></g><text>Outer</text></svg>';

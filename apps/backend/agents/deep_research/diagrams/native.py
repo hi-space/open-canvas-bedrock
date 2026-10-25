@@ -88,9 +88,26 @@ def _lines(value: str, limit: int) -> list[str]:
         size = 0 if unicodedata.combining(character) else (
             2 if unicodedata.east_asian_width(character) in {"W", "F"} else 1
         )
-        if character == "\n" or (current and width + size > limit):
-            lines.append(current)
+        if character == "\n":
+            lines.append(current.rstrip())
             current, width = "", 0
+        elif current and width + size > limit:
+            if character.isspace():
+                lines.append(current.rstrip())
+                current, width = "", 0
+                continue
+            boundary = current.rfind(" ")
+            if boundary > 0:
+                lines.append(current[:boundary])
+                current = current[boundary + 1:]
+                width = sum(
+                    0 if unicodedata.combining(item) else
+                    2 if unicodedata.east_asian_width(item) in {"W", "F"} else 1
+                    for item in current
+                )
+            else:
+                lines.append(current)
+                current, width = "", 0
         if character != "\n":
             current += character
             width += size
@@ -106,13 +123,25 @@ def _text(x, y, lines, *, size=16, color="#233e33", bold=False, anchor="start"):
     )
     return (
         f'<text x="{x:g}" y="{y:g}" font-size="{size}" fill="{color}" '
+        'font-family="ui-monospace, SFMono-Regular, Consolas, monospace" '
         f'font-weight="{700 if bold else 400}" text-anchor="{anchor}">{spans}</text>'
     )
 
 
+def _node_lines(node: NativeNode, width: float):
+    labels = _lines(node.label, max(8, int((width - 30) / (16 * 0.65))))
+    details = _lines(node.detail, max(8, int((width - 30) / (13 * 0.65)))) if node.detail else []
+    return labels, details
+
+
+def _node_height(node: NativeNode, width: float) -> int:
+    labels, details = _node_lines(node, width)
+    return 48 + len(labels) * 21 + len(details) * 18
+
+
 def _node(node: NativeNode, x: float, y: float, width: float, height: float) -> str:
     fill, stroke = _COLORS[node.kind]
-    labels, details = _lines(node.label, 23), _lines(node.detail, 28) if node.detail else []
+    labels, details = _node_lines(node, width)
     return (
         f'<g data-component-id="{node.id}" aria-label="{_e(node.label + ": " + node.detail)}">'
         f'<rect x="{x:g}" y="{y:g}" width="{width:g}" height="{height:g}" rx="9" '
@@ -123,7 +152,7 @@ def _node(node: NativeNode, x: float, y: float, width: float, height: float) -> 
     )
 
 
-def _path(points: list[tuple[float, float]], edge: NativeEdge, number: int, badge=None) -> str:
+def _path(points: list[tuple[float, float]], edge: NativeEdge) -> str:
     path = "M " + " L ".join(f"{x:g} {y:g}" for x, y in points)
     (px, py), (x, y) = points[-2:]
     length = math.hypot(x - px, y - py)
@@ -137,13 +166,14 @@ def _path(points: list[tuple[float, float]], edge: NativeEdge, number: int, badg
         'stroke-width="2" stroke-linejoin="round"/>'
         '<polygon points="' + " ".join(f"{ax:g},{ay:g}" for ax, ay in arrow) + '" fill="#557766"/>'
     )
-    if badge:
-        bx, by = badge
-        markup += (
-            f'<circle cx="{bx:g}" cy="{by:g}" r="12" fill="#fffefa" stroke="#9aafa1"/>'
-            + _text(bx, by + 4, [str(number)], size=12, bold=True, anchor="middle")
-        )
     return markup + "</g>"
+
+
+def _badge(bx: float, by: float, number: int) -> str:
+    return (
+        f'<g data-edge-number="{number}"><circle cx="{bx:g}" cy="{by:g}" r="12" fill="#fffefa" stroke="#9aafa1"/>'
+        + _text(bx, by + 4, [str(number)], size=12, bold=True, anchor="middle") + "</g>"
+    )
 
 
 def _flow(spec: NativeDiagramSpec) -> tuple[str, int, int]:
@@ -153,9 +183,7 @@ def _flow(spec: NativeDiagramSpec) -> tuple[str, int, int]:
     parallel = max((len(indices) for indices in pairs.values()), default=1)
     node_width, gap_x, gap_y = max(220, parallel * 28 + 48), 80, 104
     height = max(
-        96, parallel * 28 + 48, *(48 + len(_lines(node.label, 23)) * 21
-              + (len(_lines(node.detail, 28)) * 18 if node.detail else 0)
-              for row in spec.rows for node in row.nodes)
+        96, parallel * 28 + 48, *(_node_height(node, node_width) for row in spec.rows for node in row.nodes)
     )
     columns = max(len(row.nodes) for row in spec.rows)
     grid_right = 48 + columns * node_width + (columns - 1) * gap_x
@@ -170,7 +198,7 @@ def _flow(spec: NativeDiagramSpec) -> tuple[str, int, int]:
         abs(positions[edge.source][1] - positions[edge.target][1]) != 1
     ]
     canvas_width = grid_right + max(80, 48 + len(remote) * 32)
-    paths = []
+    paths, badges = [], []
     for number, edge in enumerate(spec.edges, 1):
         row, col, x, y = positions[edge.source]
         target_row, target_col, tx, ty = positions[edge.target]
@@ -191,13 +219,14 @@ def _flow(spec: NativeDiagramSpec) -> tuple[str, int, int]:
             channel = grid_right + 40 + remote.index(number - 1) * 32
             points = [(sx, y), (sx, sy), (channel, sy), (channel, ey), (ex, ey), (ex, ty)]
             badge = (channel, (sy + ey) / 2)
-        paths.append(_path(points, edge, number, badge))
+        paths.append(_path(points, edge))
+        badges.append(_badge(*badge, number))
     nodes = []
     for row in spec.rows:
         for node in row.nodes:
             _, _, x, y = positions[node.id]
             nodes.append(_node(node, x, y, node_width, height))
-    return "".join(paths + nodes), canvas_width, canvas_height
+    return "".join(paths + nodes + badges), canvas_width, canvas_height
 
 
 def _sequence(spec: NativeDiagramSpec) -> tuple[str, int, int]:
@@ -205,15 +234,12 @@ def _sequence(spec: NativeDiagramSpec) -> tuple[str, int, int]:
     width, pitch = 196, 244
     canvas_width = len(participants) * pitch + 72
     positions = {node.id: 36 + index * pitch for index, node in enumerate(participants)}
-    box_height = max(
-        110, *(48 + len(_lines(node.label, 23)) * 21
-               + (len(_lines(node.detail, 28)) * 18 if node.detail else 0) for node in participants)
-    )
+    box_height = max(110, *(_node_height(node, width) for node in participants))
     messages = []
     y = box_height + 104
     for number, edge in enumerate(spec.edges, 1):
         start, end = positions[edge.source] + width / 2, positions[edge.target] + width / 2
-        lines = _lines(f"{number}. {edge.label}", max(18, int(abs(end - start) / 8)))
+        lines = _lines(f"{number}. {edge.label}", max(18, int(abs(end - start) / (14 * 0.65))))
         y += len(lines) * 19 + 18
         if start == end:
             points = [(start, y), (start + 54, y), (start + 54, y + 30), (start, y + 30)]
@@ -222,7 +248,7 @@ def _sequence(spec: NativeDiagramSpec) -> tuple[str, int, int]:
             points = [(start, y), (end, y)]
             label_x, anchor = (start + end) / 2, "middle"
         messages.append(_text(label_x, y - len(lines) * 19, lines, size=14, anchor=anchor))
-        messages.append(_path(points, edge, number))
+        messages.append(_path(points, edge))
         y += 64
     nodes = []
     for node in participants:
@@ -271,7 +297,7 @@ def render_native(spec: NativeDiagramSpec) -> str:
             + '<div style="max-width:100%;overflow-x:auto;" tabindex="0">'
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
             f'role="img" aria-label="{_e(spec.description)}" '
-            'style="display:block;width:100%;min-width:640px;height:auto;font-family:inherit;">'
+            f'style="display:block;width:100%;min-width:{width}px;height:auto;font-family:inherit;">'
             f"<title>{_e(spec.title)}</title><desc>{_e(spec.description)}</desc>"
             + drawing + "</svg></div>"
         )

@@ -1,5 +1,7 @@
 """HTML research chooses native technical diagrams and embeds trusted figures."""
 import asyncio
+import html
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -95,3 +97,38 @@ def test_native_figures_are_placed_with_captions_and_citations_without_image_url
 def test_unknown_native_placeholders_cannot_become_broken_or_untrusted_images():
     with pytest.raises(ValueError):
         render_research_html("![unknown](oc-diagram:figure-999)", "Unknown", sources=[], genre="blog")
+
+
+def test_unclosed_section_code_fence_cannot_swallow_its_native_figure():
+    figure = {"section_id": "s1", "number": 1, "renderer": "native",
+              "caption": "API path", "markup": MARKUP, "source_ids": []}
+    markdown = assemble(
+        "Example", [("s1", '## Code\n\n```python\nprint("hello")'), ("s2", "## Next\n\nContinue.")],
+        [figure], {}, get_profile("blog"), "en",
+    )
+    result = render_research_html(markdown, "Example", sources=[], genre="blog", language="en", figures=[figure])
+    assert "<svg" in result
+    assert "Figure 1. API path" in result
+    assert "oc-diagram:" not in result
+    assert any(element.tag == "pre" for element in validate_html(result))
+    assert 'print("hello")' in html.unescape(result)
+    assert ">Next</h2>" in result
+
+
+def test_expected_native_figures_must_be_consumed():
+    figure = {"section_id": "s1", "number": 1, "renderer": "native", "caption": "Missing", "markup": MARKUP}
+    with pytest.raises(ValueError):
+        render_research_html("# No diagram", "Missing", sources=[], genre="blog", figures=[figure])
+
+
+def test_failed_sections_do_not_leave_phantom_expected_native_figures():
+    class FinalModel:
+        async def astream(self, _messages):
+            yield SimpleNamespace(content="## Kept\n\nCompleted.", response_metadata={})
+
+    state = {**STATE, "drafts": {"s1": "Completed."}, "figures": [
+        {"section_id": "failed-section", "number": 1, "renderer": "native", "caption": "Unused", "markup": MARKUP},
+    ]}
+    with patch.object(nodes, "get_model", return_value=FinalModel()):
+        result = asyncio.run(nodes.generate_artifact_node(state, {}))
+    assert result["figures"] == []
