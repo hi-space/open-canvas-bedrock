@@ -99,7 +99,7 @@ function CommandModelItem({
         />
       ) : (
         <button
-          className="ml-auto flex-shrink-0 flex size-6 items-center justify-center focus:outline-none focus:ring-0"
+          className="ml-auto flex-shrink-0 flex size-6 items-center justify-center focus:outline-hidden focus:ring-0"
           onClick={(e) => {
             e.stopPropagation();
             setOpenConfigModelId(model.name);
@@ -142,6 +142,12 @@ export default function ModelSelector({
       LANGCHAIN_USER_ONLY_MODELS.some((m) => m === model.name)
     ) {
       return false;
+    }
+
+    // Bedrock hosts every catalog provider using AWS credentials. Direct-provider
+    // feature flags must not hide the same models when served through Bedrock.
+    if (model.config.provider === "bedrock") {
+      return process.env.NEXT_PUBLIC_BEDROCK_ENABLED !== "false";
     }
 
     if (
@@ -187,13 +193,6 @@ export default function ModelSelector({
     ) {
       return false;
     }
-    if (
-      model.config.provider === "bedrock" &&
-      process.env.NEXT_PUBLIC_BEDROCK_ENABLED === "false"
-    ) {
-      return false;
-    }
-
     // By default, return true if the environment variable is not set or is set to true
     return true;
   });
@@ -214,13 +213,18 @@ export default function ModelSelector({
     return acc;
   }, {} as Record<string, typeof allAllowedModels>);
 
-  // Define category order
-  const categoryOrder = ["Anthropic", "Amazon", "Meta", "DeepSeek", "Other"];
+  const preferredCategories = ["Anthropic", "OpenAI", "xAI", "Moonshot AI"];
+  const categoryOrder = [
+    ...preferredCategories,
+    ...Object.keys(modelsByCategory).filter(
+      (category) => !preferredCategories.includes(category)
+    ),
+  ];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="min-w-[180px] w-[250px] bg-transparent shadow-none focus:outline-none cursor-pointer hover:bg-gray-100 rounded transition-colors border-none text-gray-600 h-9 px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
+        className="min-w-[180px] w-[250px] bg-transparent shadow-none focus:outline-hidden cursor-pointer hover:bg-gray-100 rounded-sm transition-colors border-none text-gray-600 h-9 px-3 py-2 text-sm focus:ring-1 focus:ring-ring"
         asChild
       >
         <div className="flex items-center pr-2 truncate">

@@ -9,8 +9,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Open Canvas",
-  description: "Open Canvas Chat UX by LangChain",
+  title: "Open Canvas · 글쓰기 작업실",
+  description:
+    "내 파일을 중심으로 쓰고, AI 수정안을 검토하고, 근거를 연결하는 글쓰기 작업 공간.",
 };
 
 export default function RootLayout({
@@ -19,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-screen">
+    <html lang="ko" className="h-screen">
       <body className={cn("min-h-full", inter.className)}>
         <NuqsAdapter>{children}</NuqsAdapter>
       </body>

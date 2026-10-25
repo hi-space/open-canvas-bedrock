@@ -1,0 +1,31 @@
+# Build with: docker buildx build --platform linux/arm64 -f deploy/Dockerfile.agent .
+# AgentCore HTTP runtimes require an ARM64 image on port 8080.
+FROM python:3.13-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    WORKSPACE_ROOT=/mnt/workspace \
+    BEDROCK_REGION=ap-northeast-2
+
+WORKDIR /app
+
+COPY apps/backend/requirements.lock.txt ./
+RUN pip install --no-cache-dir -r requirements.lock.txt \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --create-home app \
+    && mkdir -p /mnt/workspace \
+    && chown app:app /mnt/workspace
+
+COPY --chown=app:app apps/backend/workspace_agent/ ./workspace_agent/
+COPY --chown=app:app apps/backend/api/__init__.py ./api/__init__.py
+COPY --chown=app:app apps/backend/api/writing/ ./api/writing/
+COPY --chown=app:app apps/backend/core/ ./core/
+
+USER app
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ping', timeout=2).read()"]
+
+CMD ["uvicorn", "workspace_agent.app:app", "--host", "0.0.0.0", "--port", "8080"]

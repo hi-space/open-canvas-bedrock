@@ -36,7 +36,7 @@ export function CopyText(props: CopyTextProps) {
                 duration: 5000,
               });
             });
-          } catch (_) {
+          } catch {
             toast({
               title: "Copy error",
               description:

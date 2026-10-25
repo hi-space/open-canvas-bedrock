@@ -77,6 +77,9 @@ export const AskOpenCanvas = forwardRef<HTMLDivElement, AskOpenCanvasProps>(
     return (
       <div
         ref={ref}
+        role="toolbar"
+        aria-label="Selection actions"
+        tabIndex={-1}
         className={cn(
           "absolute bg-white border border-gray-200 shadow-md p-2 flex gap-2",
           isInputVisible ? "rounded-3xl" : "rounded-md"
@@ -95,7 +98,7 @@ export const AskOpenCanvas = forwardRef<HTMLDivElement, AskOpenCanvasProps>(
             className="relative w-full overflow-hidden flex flex-row items-center gap-1"
           >
             <Input
-              className="w-full transition-all duration-300 focus:ring-0 ease-in-out p-1 focus:outline-none border-0 focus-visible:ring-0"
+              className="w-full transition-all duration-300 focus:ring-0 ease-in-out p-1 focus:outline-hidden border-0 focus-visible:ring-0"
               placeholder="Ask Open Canvas..."
               autoFocus
               value={inputValue}

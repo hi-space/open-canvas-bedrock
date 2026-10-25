@@ -1,4 +1,3 @@
-import { cn } from "@/lib/utils";
 import {
   Artifact,
   ArtifactMarkdown,
@@ -34,22 +33,16 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     selectedBlocks,
     isStreaming,
     isLoadingThread,
-    isArtifactSaved,
-    artifactUpdateFailed,
-    setSelectedArtifact,
     streamMessage,
     setArtifact,
     chatStarted,
     isDiffMode,
     diffBaseVersionIndex,
-    setIsDiffMode,
-    setDiffBaseVersionIndex,
-    refreshArtifactMetadata,
   } = graphData;
   const [isHoveringOverArtifact, setIsHoveringOverArtifact] = useState(false);
   
   // Use version management hook - MUST be called before any early returns
-  const { metadata, getVersionNavigation, getVersionContent } =
+  const { getVersionContent } =
     useArtifactVersions(artifact);
   
   // Create empty artifact if none exists (like "New Markdown" button)
@@ -83,19 +76,6 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
   if (!artifact || !currentArtifactContent) {
     return <div className="w-full h-full"></div>;
   }
-
-  // In diff mode, navigation controls the base version (left side)
-  // In normal mode, navigation controls the current version
-  const navigationIndex =
-    isDiffMode && diffBaseVersionIndex !== undefined
-      ? diffBaseVersionIndex
-      : currentArtifactContent.index;
-
-  const navigation = getVersionNavigation(navigationIndex, isDiffMode);
-  const { previousVersionIndex, nextVersionIndex, isBackwardsDisabled: navBackwardsDisabled, isForwardDisabled: navForwardDisabled } = navigation;
-
-  const isBackwardsDisabled = navBackwardsDisabled || isStreaming;
-  const isForwardDisabled = navForwardDisabled || isStreaming;
 
   // Show diff viewer if in diff mode and base version is set
   if (isDiffMode && diffBaseVersionIndex !== undefined && artifact) {

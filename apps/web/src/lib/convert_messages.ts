@@ -1,6 +1,6 @@
 import {
   useExternalMessageConverter,
-  ToolCallContentPart,
+  ToolCallMessagePart,
 } from "@assistant-ui/react";
 import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
 
@@ -94,7 +94,7 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
       };
     case "ai":
       const aiMsg = message as AIMessage;
-      const toolCallsContent: ToolCallContentPart[] = aiMsg.tool_calls?.length
+      const toolCallsContent: ToolCallMessagePart[] = aiMsg.tool_calls?.length
         ? aiMsg.tool_calls.map((tc) => ({
             type: "tool-call" as const,
             toolCallId: tc.id ?? "",

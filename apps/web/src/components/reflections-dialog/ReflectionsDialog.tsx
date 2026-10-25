@@ -206,7 +206,7 @@ export function ReflectionsDialog(props: ReflectionsDialogProps) {
           ) : null}
           <Button
             onClick={() => setOpen(false)}
-            className="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded shadow transition"
+            className="bg-black hover:bg-gray-800 text-white px-4 py-2 rounded-sm shadow-sm transition"
           >
             <TighterText>Close</TighterText>
           </Button>

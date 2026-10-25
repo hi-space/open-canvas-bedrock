@@ -62,7 +62,7 @@ export function contextDocumentToFile(document: ContextDocument): File {
   }
 }
 
-export async function transcribeAudio(file: File, userId: string) {
+export async function transcribeAudio(_file: File, _userId: string) {
   // Supabase disabled - audio transcription not available
   throw new Error(
     "Audio transcription requires Supabase storage which is not configured."
@@ -241,7 +241,7 @@ const MAX_AUDIO_SIZE = 26214400;
 
 export async function load(
   ffmpeg: FFmpeg,
-  messageRef: React.RefObject<HTMLDivElement>
+  messageRef: React.RefObject<HTMLDivElement | null>
 ) {
   // Check if FFmpeg is already loaded
   if (ffmpeg.loaded) {
@@ -312,7 +312,7 @@ export async function convertToAudio(
 
 export interface ConvertDocumentsProps {
   ffmpeg: FFmpeg;
-  messageRef: React.RefObject<HTMLDivElement>;
+  messageRef: React.RefObject<HTMLDivElement | null>;
   documents: FileList;
   userId: string;
   toast: ReturnType<typeof useToast>["toast"];

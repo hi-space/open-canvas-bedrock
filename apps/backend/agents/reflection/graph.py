@@ -71,7 +71,12 @@ async def reflect_node(
     
     # Get model
     model = get_bedrock_model(config, temperature=0)
-    model_with_tools = model.bind_tools([generate_reflections], tool_choice="generate_reflections")
+    supported_choices = model.supports_tool_choice_values or ()
+    choice = (
+        "generate_reflections" if "tool" in supported_choices
+        else "auto" if "auto" in supported_choices else None
+    )
+    model_with_tools = model.bind_tools([generate_reflections], tool_choice=choice)
     
     # Format prompts
     formatted_system_prompt = REFLECT_SYSTEM_PROMPT.replace(

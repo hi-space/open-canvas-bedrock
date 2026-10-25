@@ -1,7 +1,6 @@
-import { type NextRequest } from "next/server";
 import { redirect } from "next/navigation";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   // Authentication disabled
   redirect("/error");
 }

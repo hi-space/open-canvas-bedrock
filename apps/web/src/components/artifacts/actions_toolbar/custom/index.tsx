@@ -22,8 +22,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { TighterText } from "@/components/ui/header";
 import { GraphInput } from "@/shared/types";
-// Authentication disabled - no user type needed
-type User = undefined;
+import type { User } from "@/contexts/UserContext";
 
 export interface CustomQuickActionsProps {
   isTextSelected: boolean;
@@ -110,7 +109,7 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
 
   useEffect(() => {
     // Authentication disabled - allow without user
-    if (typeof window === undefined || !assistantId) return;
+    if (typeof window === "undefined" || !assistantId) return;
     getAndSetCustomQuickActions(user?.id || "anonymous");
   }, [assistantId]);
 
@@ -153,7 +152,7 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
           variant: "destructive",
         });
       }
-    } catch (_) {
+    } catch {
       toast({
         title: "Failed to delete custom quick action",
         variant: "destructive",

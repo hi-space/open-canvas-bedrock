@@ -1,0 +1,1 @@
+"""Stateless document revision proposals."""

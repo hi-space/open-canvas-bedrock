@@ -11,8 +11,8 @@ import { CircleXIcon, FileIcon } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 import {
   AttachmentPrimitive,
-  useAttachment,
-  useThreadConfig,
+  useAui,
+  useAuiState,
 } from "@assistant-ui/react";
 import {
   TooltipIconButton,
@@ -59,8 +59,8 @@ const useFileSrc = (file: File | undefined) => {
 };
 
 const useAttachmentSrc = () => {
-  const { file, src } = useAttachment(
-    useShallow((a): { file?: File; src?: string } => {
+  const { file, src } = useAuiState(
+    useShallow(({ attachment: a }): { file?: File; src?: string } => {
       if (a.type !== "image") return {};
       if (a.file) return { file: a.file };
       const src = a.content?.filter((c) => c.type === "image")[0]?.image;
@@ -92,7 +92,7 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
         overflow: "clip",
       }}
       onLoad={() => setIsLoaded(true)}
-      alt="Image Preview"
+      alt="Attachment preview"
     />
   );
 };
@@ -108,7 +108,7 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
         {children}
       </DialogTrigger>
       <DialogContent>
-        <DialogTitle className="aui-sr-only">
+        <DialogTitle className="sr-only">
           Image Attachment Preview
         </DialogTitle>
         <AttachmentPreview src={src} />
@@ -118,7 +118,7 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const AttachmentThumb: FC = () => {
-  const isImage = useAttachment((a) => a.type === "image");
+  const isImage = useAuiState((s) => s.attachment.type === "image");
   const src = useAttachmentSrc();
   return (
     <AvatarRoot className="aui-attachment-thumb">
@@ -131,9 +131,9 @@ const AttachmentThumb: FC = () => {
 };
 
 export const AttachmentUI: FC = () => {
-  const canRemove = useAttachment((a) => a.source !== "message");
-  const typeLabel = useAttachment((a) => {
-    const type = a.type;
+  const canRemove = useAui().attachment.source !== "message";
+  const typeLabel = useAuiState((s) => {
+    const type = s.attachment.type;
     switch (type) {
       case "image":
         return "Image";
@@ -142,8 +142,7 @@ export const AttachmentUI: FC = () => {
       case "file":
         return "File";
       default:
-        const _exhaustiveCheck: never = type;
-        throw new Error(`Unknown attachment type: ${_exhaustiveCheck}`);
+        return "File";
     }
   });
   return (
@@ -184,16 +183,10 @@ const AttachmentRemove = forwardRef<
   AttachmentRemoveTypes["Element"],
   AttachmentRemoveTypes["Props"]
 >((props, ref) => {
-  const {
-    strings: {
-      composer: { removeAttachment: { tooltip = "Remove file" } = {} } = {},
-    } = {},
-  } = useThreadConfig();
-
   return (
     <AttachmentPrimitive.Remove asChild>
       <TooltipIconButton
-        tooltip={tooltip}
+        tooltip="Remove file"
         className="aui-attachment-remove"
         side="top"
         {...props}

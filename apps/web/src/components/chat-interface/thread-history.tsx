@@ -9,9 +9,7 @@ import { Thread } from "@langchain/langgraph-sdk";
 import { PiChatsCircleLight } from "react-icons/pi";
 import { TighterText } from "../ui/header";
 import { useGraphContext } from "@/contexts/GraphContext";
-import { useToast } from "@/hooks/use-toast";
 import React from "react";
-import { useUserContext } from "@/contexts/UserContext";
 import { useThreadContext } from "@/contexts/ThreadProvider";
 
 interface ThreadHistoryProps {
@@ -195,13 +193,11 @@ function ThreadsList(props: ThreadsListProps) {
 }
 
 export function ThreadHistoryComponent(props: ThreadHistoryProps) {
-  const { toast } = useToast();
   const {
     graphData: { setMessages, switchSelectedThread },
   } = useGraphContext();
   const { deleteThread, getUserThreads, userThreads, isUserThreadsLoading } =
     useThreadContext();
-  const { user } = useUserContext();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {

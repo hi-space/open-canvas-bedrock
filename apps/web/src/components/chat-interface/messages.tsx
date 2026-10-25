@@ -8,10 +8,10 @@ import {
 } from "@/components/ui/accordion";
 import {
   ActionBarPrimitive,
-  getExternalStoreMessage,
+  getExternalStoreMessages,
   MessagePrimitive,
-  MessageState,
-  useMessage,
+  useAuiState,
+  type AssistantState,
 } from "@assistant-ui/react";
 import React, { Dispatch, SetStateAction, type FC } from "react";
 
@@ -28,6 +28,8 @@ import { Globe } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { TextHighlight } from "@/shared/types";
 import useLocalStorage from "@/hooks/useLocalStorage";
+
+type MessageState = AssistantState["message"];
 
 interface AssistantMessageProps {
   runId: string | undefined;
@@ -200,14 +202,7 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
   feedbackSubmitted,
   setFeedbackSubmitted,
 }) => {
-  let message;
-  try {
-    message = useMessage();
-  } catch (error) {
-    // Handle "Entry not available in the store" error gracefully
-    console.warn("AssistantMessage: Failed to get message from store", error);
-    return null;
-  }
+  const message = useAuiState((s) => s.message);
   
   if (!message || !message.id) {
     return null;
@@ -242,7 +237,7 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
       </Avatar>
 
       <div className="text-foreground col-span-2 col-start-2 row-start-1 my-1.5 max-w-xl break-words leading-7">
-        <MessagePrimitive.Content components={{ Text: MarkdownText }} />
+        <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
         {isLast && runId && (
           <MessagePrimitive.If lastOrHover assistant>
             <AssistantMessageBar
@@ -258,16 +253,9 @@ export const AssistantMessage: FC<AssistantMessageProps> = ({
 };
 
 export const UserMessage: FC = () => {
-  let msg;
-  try {
-    msg = useMessage(getExternalStoreMessage<HumanMessage>);
-  } catch (error) {
-    // Handle "Entry not available in the store" error gracefully
-    console.warn("UserMessage: Failed to get message from store", error);
-    return null;
-  }
-  
-  const humanMessage = Array.isArray(msg) ? msg[0] : msg;
+  const humanMessage = useAuiState(
+    (s) => getExternalStoreMessages<HumanMessage>(s.message)[0]
+  );
 
   // Return null if message is not available yet (prevents rendering issues on first message)
   if (!humanMessage) return null;
@@ -294,7 +282,7 @@ export const UserMessage: FC = () => {
           selectedText ? "row-start-3" : "row-start-2"
         } max-w-xl break-words rounded-3xl px-5 py-2.5`}
       >
-        <MessagePrimitive.Content />
+        <MessagePrimitive.Parts />
       </div>
     </MessagePrimitive.Root>
   );

@@ -23,56 +23,68 @@ const MarkdownTextImpl = () => {
       remarkPlugins={[remarkGfm, remarkMath]}
       rehypePlugins={[rehypeKatex]}
       components={{
-        h1: ({ node: _node, className, ...props }) => (
+        h1: ({ node: _node, className, children, ...props }) => (
           <h1
             className={cn(
               "mb-8 scroll-m-20 text-4xl font-extrabold tracking-tight last:mb-0",
               className
             )}
             {...props}
-          />
+          >
+            {children}
+          </h1>
         ),
-        h2: ({ node: _node, className, ...props }) => (
+        h2: ({ node: _node, className, children, ...props }) => (
           <h2
             className={cn(
               "mb-4 mt-8 scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0 last:mb-0",
               className
             )}
             {...props}
-          />
+          >
+            {children}
+          </h2>
         ),
-        h3: ({ node: _node, className, ...props }) => (
+        h3: ({ node: _node, className, children, ...props }) => (
           <h3
             className={cn(
               "mb-4 mt-6 scroll-m-20 text-2xl font-semibold tracking-tight first:mt-0 last:mb-0",
               className
             )}
             {...props}
-          />
+          >
+            {children}
+          </h3>
         ),
-        h4: ({ node: _node, className, ...props }) => (
+        h4: ({ node: _node, className, children, ...props }) => (
           <h4
             className={cn(
               "mb-4 mt-6 scroll-m-20 text-xl font-semibold tracking-tight first:mt-0 last:mb-0",
               className
             )}
             {...props}
-          />
+          >
+            {children}
+          </h4>
         ),
-        h5: ({ node: _node, className, ...props }) => (
+        h5: ({ node: _node, className, children, ...props }) => (
           <h5
             className={cn(
               "my-4 text-lg font-semibold first:mt-0 last:mb-0",
               className
             )}
             {...props}
-          />
+          >
+            {children}
+          </h5>
         ),
-        h6: ({ node: _node, className, ...props }) => (
+        h6: ({ node: _node, className, children, ...props }) => (
           <h6
             className={cn("my-4 font-semibold first:mt-0 last:mb-0", className)}
             {...props}
-          />
+          >
+            {children}
+          </h6>
         ),
         p: ({ node: _node, className, ...props }) => (
           <p
@@ -83,7 +95,7 @@ const MarkdownTextImpl = () => {
             {...props}
           />
         ),
-        a: ({ node: _node, className, ...props }) => (
+        a: ({ node: _node, className, children, ...props }) => (
           <a
             target="_blank"
             className={cn(
@@ -91,7 +103,9 @@ const MarkdownTextImpl = () => {
               className
             )}
             {...props}
-          />
+          >
+            {children}
+          </a>
         ),
         blockquote: ({ node: _node, className, ...props }) => (
           <blockquote
@@ -170,7 +184,7 @@ const MarkdownTextImpl = () => {
           return (
             <code
               className={cn(
-                !isCodeBlock && "bg-aui-muted rounded border font-semibold",
+                !isCodeBlock && "bg-muted rounded-sm border font-semibold",
                 className
               )}
               {...props}

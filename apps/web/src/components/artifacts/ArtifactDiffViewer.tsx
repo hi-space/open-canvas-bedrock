@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useMemo } from "react";
-import { diff_match_patch as DiffMatchPatch } from "diff-match-patch";
+import React, { useEffect, useRef } from "react";
 import { Artifact, ArtifactMarkdown, ArtifactCode } from "@/shared/types";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -21,18 +20,6 @@ interface ArtifactDiffViewerProps {
   setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
   chatCollapsed: boolean;
   setChatCollapsed: (c: boolean) => void;
-}
-
-/**
- * Extracts plain text content from artifact for diff comparison
- */
-function getArtifactTextContent(content: ArtifactMarkdown | ArtifactCode): string {
-  if (content.type === "text") {
-    return content.fullMarkdown || "";
-  } else if (content.type === "code") {
-    return content.code || "";
-  }
-  return "";
 }
 
 /**
@@ -84,9 +71,6 @@ export function ArtifactDiffViewer({
   baseVersionIndex,
   isEditing,
   isHovering,
-  setIsEditing,
-  chatCollapsed,
-  setChatCollapsed,
 }: ArtifactDiffViewerProps) {
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
@@ -119,20 +103,6 @@ export function ArtifactDiffViewer({
       loadVersion(baseVersionIndex);
     }
   }, [baseVersionIndex, isVersionLoaded, isVersionLoading, loadVersion]);
-
-  // Compute diff
-  const diffOps = useMemo(() => {
-    if (!baseContent || !currentContent) return [];
-
-    const baseText = getArtifactTextContent(baseContent);
-    const currentText = getArtifactTextContent(currentContent);
-
-    const dmp = new DiffMatchPatch();
-    const diffs = dmp.diff_main(baseText, currentText);
-    dmp.diff_cleanupSemantic(diffs);
-
-    return diffs;
-  }, [baseContent, currentContent]);
 
   // Synchronized scrolling between left and right panels
   useEffect(() => {
@@ -207,23 +177,6 @@ export function ArtifactDiffViewer({
   }
 
   const artifactType = baseContent.type === "text" ? "text" : "code";
-
-  // Split the diff operations for left and right sides
-  const leftDiffOps = diffOps.map(([op, text]) => {
-    // Left side shows: unchanged (0) and deleted (-1)
-    if (op === 0 || op === -1) {
-      return [op, text] as [number, string];
-    }
-    return [0, ""] as [number, string];
-  });
-
-  const rightDiffOps = diffOps.map(([op, text]) => {
-    // Right side shows: unchanged (0) and added (1)
-    if (op === 0 || op === 1) {
-      return [op, text] as [number, string];
-    }
-    return [0, ""] as [number, string];
-  });
 
   return (
     <div className="w-full h-full flex flex-row border-t-[1px] border-gray-200">

@@ -1,24 +1,21 @@
-"use client";
+import { CloudWorkspace } from "@/components/workspace/CloudWorkspace";
 
-import { Canvas } from "@/components/canvas";
-import { AssistantProvider } from "@/contexts/AssistantContext";
-import { GraphProvider } from "@/contexts/GraphContext";
-import { ThreadProvider } from "@/contexts/ThreadProvider";
-import { UserProvider } from "@/contexts/UserContext";
-import { Suspense } from "react";
-
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const parameters = await searchParams;
+  const legacyThreadId =
+    parameters.legacyThreadId ?? parameters.threadId ?? parameters.thread_id;
   return (
-    <Suspense>
-      <UserProvider>
-        <ThreadProvider>
-          <AssistantProvider>
-            <GraphProvider>
-              <Canvas />
-            </GraphProvider>
-          </AssistantProvider>
-        </ThreadProvider>
-      </UserProvider>
-    </Suspense>
+    <CloudWorkspace
+      legacyThreadId={
+        typeof legacyThreadId === "string" ? legacyThreadId : undefined
+      }
+      authenticationEnabled={Boolean(
+        process.env.COGNITO_DOMAIN && process.env.COGNITO_CLIENT_ID
+      )}
+    />
   );
 }

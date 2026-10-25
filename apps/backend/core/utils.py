@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableConfig
 import uuid
 import base64
 import os
+from copy import deepcopy
 
 
 def format_reflections(
@@ -60,38 +61,32 @@ def get_model_config(
     config: RunnableConfig,
     is_tool_calling: bool = False
 ) -> Dict[str, Any]:
-    """Get model configuration from config, supporting only AWS Bedrock."""
-    from core.models import DEFAULT_MODEL_NAME
-    
-    configurable = config.get("configurable", {}) if config else {}
-    custom_model_name = configurable.get("customModelName")
-    
-    # Debug logging
-    if not custom_model_name:
-        print(f"WARNING: customModelName not found in config. Configurable keys: {list(configurable.keys())}")
-        print(f"WARNING: Full config: {config}")
-        # Use default model name as fallback
-        custom_model_name = DEFAULT_MODEL_NAME
-        print(f"WARNING: Using default model name: {custom_model_name}")
+    """Resolve Bedrock settings while leaving credentials to the server chain.
 
-    model_config = configurable.get("modelConfig", {})
-    
-    # Remove bedrock/ prefix if present (for compatibility with frontend)
-    # The actual Bedrock model ID doesn't need the prefix
-    if custom_model_name.startswith("bedrock/"):
-        actual_model_name = custom_model_name.replace("bedrock/", "", 1)
-    else:
-        actual_model_name = custom_model_name
-    
+    Existing graph callers still pass ``configurable.customModelName/modelConfig``.
+    """
+    from core.models import get_default_model_name, get_model_definition
+
+    configurable = config.get("configurable", {}) if config else {}
+    definition = get_model_definition(
+        configurable.get("customModelName") or get_default_model_name()
+    )
+    model_config = definition["config"]
+    overrides = configurable.get("modelConfig") or {}
+    for key in ("temperatureRange", "maxTokens"):
+        if isinstance(overrides.get(key), dict):
+            model_config[key].update(deepcopy(overrides[key]))
     return {
-        "modelName": actual_model_name,
+        "modelName": definition["name"],
         "modelProvider": "bedrock",
         "modelConfig": model_config,
-        "region": os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-        "credentials": {
-            "aws_access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
-            "aws_secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
-        }
+        "region": (
+            configurable.get("region")
+            or os.getenv("BEDROCK_REGION")
+            or os.getenv("AWS_REGION")
+            or os.getenv("AWS_DEFAULT_REGION")
+            or "us-east-1"
+        ),
     }
 
 
@@ -167,14 +162,21 @@ def create_ai_message_from_web_results(web_results: List[Dict[str, Any]]) -> AIM
 
 
 def get_string_from_content(content: Any) -> str:
-    """Extract string from message content."""
+    """Extract visible text without serializing reasoning or multimodal blocks."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return "\n".join([
-            item.get("text", "") if isinstance(item, dict) and "text" in item else str(item)
-            for item in content
-        ])
+        text = []
+        for item in content:
+            if isinstance(item, str):
+                text.append(item)
+            elif (
+                isinstance(item, dict)
+                and item.get("type", "text") == "text"
+                and isinstance(item.get("text"), str)
+            ):
+                text.append(item["text"])
+        return "\n".join(text)
     return str(content)
 
 
@@ -393,61 +395,13 @@ def extract_urls(text: str) -> List[str]:
 
 
 def convert_pdf_to_text(base64_pdf: str) -> str:
-    """Convert base64-encoded PDF to text."""
-    try:
-        import PyPDF2
-        import io
-        
-        # Clean the base64 input
-        cleaned_base64 = clean_base64(base64_pdf)
-        
-        # Convert to bytes
-        pdf_bytes = base64.b64decode(cleaned_base64)
-        
-        # Parse PDF
-        pdf_file = io.BytesIO(pdf_bytes)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        
-        # Extract text from all pages
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
-        
-        return text.strip()
-    except Exception as e:
-        print(f"Error converting PDF to text: {e}", flush=True)
-        # Fallback: try pdf-parse if available
-        try:
-            import subprocess
-            import tempfile
-            import os
-            
-            cleaned_base64 = clean_base64(base64_pdf)
-            pdf_bytes = base64.b64decode(cleaned_base64)
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                tmp_file.write(pdf_bytes)
-                tmp_path = tmp_file.name
-            
-            try:
-                # Try using pdf-parse via node if available
-                result = subprocess.run(
-                    ['node', '-e', 
-                     f'const pdfParse = require("pdf-parse"); const fs = require("fs"); '
-                     f'const dataBuffer = fs.readFileSync("{tmp_path}"); '
-                     f'pdfParse(dataBuffer).then(data => console.log(data.text));'],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                if result.returncode == 0:
-                    return result.stdout.strip()
-            finally:
-                os.unlink(tmp_path)
-            
-            raise e
-        except:
-            raise e
+    """Convert a base64 PDF with the maintained pypdf implementation."""
+    import io
+    from pypdf import PdfReader
+
+    pdf_bytes = base64.b64decode(clean_base64(base64_pdf), validate=True)
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    return "\n".join(page.extract_text() or "" for page in reader.pages).strip()
 
 
 def create_context_document_messages(

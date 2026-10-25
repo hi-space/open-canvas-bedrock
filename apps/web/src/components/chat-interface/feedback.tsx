@@ -41,7 +41,7 @@ export const FeedbackButton: FC<FeedbackButtonProps> = ({
           variant: "destructive",
         });
       }
-    } catch (_) {
+    } catch {
       toast({
         title: "Failed to submit feedback",
         description: "Please try again later.",

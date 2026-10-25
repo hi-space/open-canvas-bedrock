@@ -80,8 +80,8 @@ Open Canvas is an open-source web application for collaborating with AI agents t
 
 ## Tech Stack
 
-- **Framework**: Next.js 14
-- **UI Library**: React, Radix UI, Tailwind CSS
+- **Framework**: Next.js 16
+- **UI Library**: React 19, Radix UI, Tailwind CSS 4
 - **Agent UI**: @assistant-ui/react
 - **Editor**: BlockNote (markdown)
 - **State Management**: Zustand, React Context
@@ -90,8 +90,8 @@ Open Canvas is an open-source web application for collaborating with AI agents t
 
 ### Prerequisites
 
-- Node.js 18+
-- Yarn package manager
+- Node.js 22.18+ (verified with Node.js 22.19.0)
+- Yarn 1.22.22, pinned in `package.json`
 
 ### Running Development Server
 

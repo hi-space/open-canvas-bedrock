@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { LoginWithEmailInput } from "./Login";
 
-export async function login(input: LoginWithEmailInput) {
+export async function login(_input: LoginWithEmailInput) {
   // Authentication disabled
   redirect("/auth/login?error=true");
 }

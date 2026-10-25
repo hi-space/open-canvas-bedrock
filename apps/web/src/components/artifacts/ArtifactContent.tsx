@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Artifact, ArtifactCode, ArtifactMarkdown } from "@/shared/types";
 import { HumanMessage } from "@langchain/core/messages";
 import { v4 as uuidv4 } from "uuid";
 import { TextRenderer } from "./TextRenderer";
@@ -12,10 +11,10 @@ import { getArtifactContent } from "@/shared/utils/artifacts";
 export interface ArtifactContentProps {
   isEditing: boolean;
   isHovering: boolean;
-  contentRef?: React.RefObject<HTMLDivElement>;
-  artifactContentRef?: React.RefObject<HTMLDivElement>;
-  highlightLayerRef?: React.RefObject<HTMLDivElement>;
-  scrollContainerRef?: React.RefObject<HTMLDivElement>; // For diff mode scroll synchronization
+  contentRef?: React.RefObject<HTMLDivElement | null>;
+  artifactContentRef?: React.RefObject<HTMLDivElement | null>;
+  highlightLayerRef?: React.RefObject<HTMLDivElement | null>;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>; // For diff mode scroll synchronization
   forceVersionIndex?: number; // Force display a specific version (for diff mode)
 }
 

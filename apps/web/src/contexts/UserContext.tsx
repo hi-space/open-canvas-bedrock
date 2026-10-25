@@ -1,12 +1,10 @@
-// Authentication disabled - no user type needed
-type User = undefined;
-import {
-  createContext,
-  ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+// Authentication is disabled, but the context retains the user contract used
+// by canvas consumers and their anonymous-user fallback.
+export type User = {
+  id: string;
+  email?: string;
+};
+import { createContext, ReactNode, useContext } from "react";
 
 type UserContentType = {
   getUser: () => Promise<User | undefined>;
@@ -16,26 +14,13 @@ type UserContentType = {
 
 const UserContext = createContext<UserContentType | undefined>(undefined);
 
+const contextValue: UserContentType = {
+  getUser: async () => undefined,
+  user: undefined,
+  loading: false,
+};
+
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User>();
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // Authentication disabled - user is always undefined
-    setLoading(false);
-  }, []);
-
-  async function getUser() {
-    // Authentication disabled - always return undefined
-    return undefined;
-  }
-
-  const contextValue: UserContentType = {
-    getUser,
-    user,
-    loading,
-  };
-
   return (
     <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>
   );

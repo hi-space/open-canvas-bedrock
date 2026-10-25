@@ -47,3 +47,7 @@ credentials.json
 .langgraph_api
 
 origin/*
+
+# python
+__pycache__/
+*.pyc

@@ -4,7 +4,6 @@ import {
   ArtifactCode,
   ArtifactMarkdown,
   ArtifactToolResponse,
-  ProgrammingLanguageOptions,
   RewriteArtifactMetaToolResponse,
 } from "@/shared/types";
 import {
@@ -189,7 +188,6 @@ export const updateRewrittenArtifact = ({
   prevCurrentContent,
   newArtifactIndex,
   isFirstUpdate,
-  artifactLanguage,
 }: UpdateRewrittenArtifactArgs): Artifact => {
   // Create a deep copy of the previous artifact
   const basePrevArtifact = {
@@ -203,7 +201,7 @@ export const updateRewrittenArtifact = ({
     isFirstUpdate
   );
 
-  let artifactContents: ArtifactMarkdown[];
+  let artifactContents: (ArtifactCode | ArtifactMarkdown)[];
 
   if (isFirstUpdate) {
     artifactContents = [
@@ -255,7 +253,7 @@ export function handleGenerateArtifactToolCallChunk(toolCallChunkArgs: string) {
       title: newArtifactText.title ?? "",
       type: newArtifactText.type ?? "",
     };
-  } catch (_) {
+  } catch {
     return "continue";
   }
 

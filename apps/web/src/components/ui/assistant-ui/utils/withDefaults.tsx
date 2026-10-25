@@ -1,5 +1,5 @@
 import { ComponentPropsWithoutRef, ElementType, forwardRef } from "react";
-import classNames from "classnames";
+import { clsx as classNames } from "clsx";
 import { ComponentRef } from "react";
 
 export const withDefaultProps =

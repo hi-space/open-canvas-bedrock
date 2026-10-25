@@ -7,7 +7,7 @@ export function IsNewBadge() {
       className={cn(
         "before:absolute relative p-[1px] before:p-[4px] rounded-md before:rounded-md before:shadow-[0_0_4px_rgba(236,72,153,0.2)] w-[58px]",
         "animate-gradient-xy before:animate-gradient-xy-enhanced",
-        "before:inset-0 before:blur-sm before:-z-10 ",
+        "before:inset-0 before:blur-xs before:-z-10 ",
         "from-pink-500/50 before:from-pink-500/20",
         "bg-gradient-to-r before:bg-gradient-to-r  ",
         "via-purple-500/50 before:via-purple-500/20",

@@ -63,7 +63,12 @@ async def generate_title_node(
     
     # Get model
     model = get_bedrock_model(config, temperature=0)
-    model_with_tools = model.bind_tools([generate_title], tool_choice="generate_title")
+    supported_choices = model.supports_tool_choice_values or ()
+    choice = (
+        "generate_title" if "tool" in supported_choices
+        else "auto" if "auto" in supported_choices else None
+    )
+    model_with_tools = model.bind_tools([generate_title], tool_choice=choice)
     
     # Format prompts
     formatted_user_prompt = TITLE_USER_PROMPT.replace(

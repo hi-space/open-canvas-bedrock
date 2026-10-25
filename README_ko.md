@@ -4,11 +4,17 @@
 
 Open Canvas는 AI 에이전트와의 협업을 통해 문서를 생성하고 개선하는 플랫폼입니다. 백엔드(Agents)와 프론트엔드(Web)가 긴밀하게 통합되어 다음과 같은 핵심 기능을 제공합니다.
 
+홈 화면에서 **프로젝트 파일·문서 편집·에이전트 대화**를 함께 사용합니다. 클라우드 구성은 S3 Files 작업 폴더를 읽는 AgentCore 에이전트와, 승인한 변경만 저장하는 API로 나뉩니다. 문장별 수정안과 출처 링크를 검토하고, 선택적으로 로컬 Markdown 폴더를 연결해 충돌을 확인하며 동기화할 수 있습니다. 이전 대화 링크도 작업실 안에서 열리며, 기존 브라우저 초안은 명시적으로 가져올 수 있습니다.
+
+[통합 작업실 사용법](./docs/cloud-workspace.md) · [의존성 업데이트 기록](./docs/dependency-upgrade.md) · [최신 Bedrock 모델 설정](./docs/bedrock-models.md)
+
+아래 이미지는 계속 제공되는 기존 대화형 캔버스입니다.
+
 ![screenshot](./static/screenshot.png)
 
 ## 🔄 시스템 아키텍처 및 데이터 흐름
 
-### 전체 흐름
+### 대화형 캔버스 흐름
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -42,7 +48,7 @@ Open Canvas는 AI 에이전트와의 협업을 통해 문서를 생성하고 개
                       ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  AWS Bedrock (LLM)                                          │
-│  - Claude, Nova, Llama, DeepSeek                            │
+│  - Claude, GPT, Grok, Kimi                                  │
 └─────────────────────┬───────────────────────────────────────┘
                       ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -236,13 +242,14 @@ Open Canvas는 AI 에이전트와의 협업을 통해 문서를 생성하고 개
 #### 모델 선택
 - **모델 셀렉터**: 대화마다 사용할 모델 선택
 - **모델 설정**:
-  - Temperature: 창의성 조절 (0.0 ~ 1.0)
+  - Temperature: 현재 추론 모델은 제공사의 기본 설정 사용
   - Max Tokens: 최대 응답 길이 설정
 - **지원 모델**:
-  - Anthropic Claude (Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1)
-  - Amazon Nova (Premier, Pro, Lite, Micro)
-  - Meta Llama 3.3 70B
-  - DeepSeek (R1, V3)
+  - Anthropic Claude Opus 5.5(기본), Sonnet 5.5, Haiku 5.5, Fable 5.1
+  - OpenAI GPT-6.1 Sol, GPT-6 Astra, GPT-6 Luna
+  - xAI Grok 4.7
+  - Moonshot AI Kimi K3
+  - 정확한 모델 ID와 리전, 확인 날짜는 [모델 검증 기록](./docs/bedrock-models.md) 참고
 
 ### 9. 🔗 통합 기능
 
@@ -273,8 +280,8 @@ Open Canvas는 AI 에이전트와의 협업을 통해 문서를 생성하고 개
   - LangSmith: 트레이싱 및 관찰성
 
 ### Frontend (Web)
-- **Next.js 14**: React 기반 풀스택 프레임워크
-- **React 18**: UI 라이브러리
+- **Next.js 16**: React 기반 풀스택 프레임워크
+- **React 19**: UI 라이브러리
 - **TypeScript**: 타입 안전성
 - **@assistant-ui/react**: 채팅 UI 컴포넌트
 - **Radix UI**: 접근성 높은 UI 프리미티브

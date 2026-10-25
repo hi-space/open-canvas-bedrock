@@ -1,62 +1,74 @@
-"""
-AWS Bedrock client wrapper for LangChain.
-"""
-from typing import Optional, Dict, Any, List
-from langchain_aws import ChatBedrockConverse
-from langchain_core.messages import BaseMessage
-from langchain_core.runnables import RunnableConfig
-import os
+"""AWS Bedrock Converse model construction with the server credential chain."""
+from typing import Optional
+import math
+
 import boto3
+from botocore.config import Config
+from langchain_aws import ChatBedrockConverse
+from langchain_core.runnables import RunnableConfig
+
+from core.bedrock_messages import prepare_converse_messages
+from core.models import TEMPERATURE_EXCLUDED_MODELS, get_base_model_name, get_model_definition
+
+
+def _prepare_converse_history(params, **kwargs):
+    """Apply compatibility rules after LangChain produces native Converse blocks."""
+    if "messages" in params:
+        params["messages"] = prepare_converse_messages(params["modelId"], params["messages"])
 
 
 def get_bedrock_model(
     config: RunnableConfig,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
-    is_tool_calling: bool = False
+    is_tool_calling: bool = False,
 ) -> ChatBedrockConverse:
-    """Get AWS Bedrock model instance using the Converse API."""
-    from core.utils import get_model_config
-    
-    model_config = get_model_config(config, is_tool_calling=is_tool_calling)
-    model_name = model_config["modelName"]
-    config_dict = model_config.get("modelConfig", {})
-    region = model_config.get("region", "us-east-1")
-    credentials = model_config.get("credentials", {})
-    
-    # Get temperature and max_tokens from config or defaults
-    temp = temperature
-    if temp is None:
-        temp_range = config_dict.get("temperatureRange", {})
-        temp = temp_range.get("current", temp_range.get("default", 0.5))
-    
-    max_toks = max_tokens
-    if max_toks is None:
-        max_toks_config = config_dict.get("maxTokens", {})
-        max_toks = max_toks_config.get("current", max_toks_config.get("default", 4096))
-    
-    # Create boto3 session with credentials if provided
-    session_kwargs = {"region_name": region}
-    if credentials.get("aws_access_key_id") and credentials.get("aws_secret_access_key"):
-        session_kwargs.update({
-            "aws_access_key_id": credentials["aws_access_key_id"],
-            "aws_secret_access_key": credentials["aws_secret_access_key"],
-        })
-    
-    # Create boto3 session
-    boto_session = boto3.Session(**session_kwargs)
-    
-    # Create ChatBedrockConverse instance
-    # Note: ChatBedrockConverse uses temperature and max_tokens as direct parameters, not in model_kwargs
-    model = ChatBedrockConverse(
-        model_id=model_name,
-        temperature=temp,
-        max_tokens=max_toks,
-        credentials_profile_name=None,  # Use boto3 session instead
-    )
-    
-    # Set the boto3 session
-    model.client = boto_session.client("bedrock-runtime", region_name=region)
-    
-    return model
+    """Construct both AWS clients before LangChain performs initialization.
 
+    boto3 resolves environment credentials (including session tokens), profiles,
+    workload roles, and the remaining default providers. Never take credentials
+    from a browser-supplied graph config.
+    """
+    from core.utils import get_model_config
+
+    resolved = get_model_config(config, is_tool_calling=is_tool_calling)
+    model_name = resolved["modelName"]
+    base_model_name = get_base_model_name(model_name)
+    settings = resolved["modelConfig"]
+    token_settings = settings["maxTokens"]
+    tokens = max_tokens if max_tokens is not None else token_settings["current"]
+    ceiling = get_model_definition(model_name)["config"]["maxTokens"]["max"]
+    if isinstance(tokens, bool) or not isinstance(tokens, int) or not 1 <= tokens <= ceiling:
+        raise ValueError(f"max_tokens must be an integer between 1 and {ceiling}.")
+
+    sampling = None
+    if model_name not in TEMPERATURE_EXCLUDED_MODELS:
+        sampling = temperature if temperature is not None else settings["temperatureRange"]["current"]
+        if (
+            isinstance(sampling, bool)
+            or not isinstance(sampling, (int, float))
+            or not math.isfinite(sampling)
+            or not 0 <= sampling <= 1
+        ):
+            raise ValueError("temperature must be between 0 and 1.")
+
+    session = boto3.Session(region_name=resolved["region"])
+    client_config = Config(
+        connect_timeout=10, read_timeout=180, retries={"mode": "standard", "max_attempts": 2}
+    )
+    runtime_client = session.client("bedrock-runtime", config=client_config)
+    for operation in ("Converse", "ConverseStream"):
+        runtime_client.meta.events.register(
+            f"provide-client-params.bedrock-runtime.{operation}",
+            _prepare_converse_history,
+        )
+    return ChatBedrockConverse(
+        model_id=model_name,
+        base_model_id=base_model_name,
+        provider=base_model_name.partition(".")[0],
+        region_name=resolved["region"],
+        temperature=sampling,
+        max_tokens=tokens,
+        client=runtime_client,
+        bedrock_client=session.client("bedrock", config=client_config),
+    )

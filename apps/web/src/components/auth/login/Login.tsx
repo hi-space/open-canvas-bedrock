@@ -39,7 +39,7 @@ export function Login() {
   };
 
   const onLoginWithOauth = async (
-    provider: "google" | "github"
+    _provider: "google" | "github"
   ): Promise<void> => {
     setIsError(false);
     // OAuth authentication disabled

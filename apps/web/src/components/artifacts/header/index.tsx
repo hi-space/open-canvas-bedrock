@@ -142,8 +142,8 @@ export function ArtifactHeader(props: ArtifactHeaderProps) {
             setSelectedArtifact={handleVersionNavigation}
             currentArtifactIndex={props.currentArtifactContent.index}
             totalArtifactVersions={metadata.totalVersions}
-            previousIndex={navigation.previousVersionIndex}
-            nextIndex={navigation.nextVersionIndex}
+            previousIndex={navigation.previousIndex}
+            nextIndex={navigation.nextIndex}
           />
         )}
         <ReflectionsDialog selectedAssistant={selectedAssistant} />

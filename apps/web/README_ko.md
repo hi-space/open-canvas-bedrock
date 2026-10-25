@@ -80,8 +80,8 @@ Open Canvas는 AI 에이전트와 협업하여 문서를 작성하는 오픈소�
 
 ## 기술 스택
 
-- **프레임워크**: Next.js 14
-- **UI 라이브러리**: React, Radix UI, Tailwind CSS
+- **프레임워크**: Next.js 16
+- **UI 라이브러리**: React 19, Radix UI, Tailwind CSS 4
 - **에이전트 UI**: @assistant-ui/react
 - **에디터**: BlockNote (마크다운)
 - **상태 관리**: Zustand, React Context
@@ -90,8 +90,8 @@ Open Canvas는 AI 에이전트와 협업하여 문서를 작성하는 오픈소�
 
 ### 필수 요구사항
 
-- Node.js 18+
-- Yarn 패키지 매니저
+- Node.js 22.18 이상 (검증 환경: Node.js 22.19.0)
+- `package.json`에 고정된 Yarn 1.22.22
 
 ### 개발 서버 실행
 

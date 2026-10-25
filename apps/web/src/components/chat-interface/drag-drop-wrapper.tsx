@@ -1,5 +1,5 @@
 import React, { DragEvent } from "react";
-import { useComposer, useComposerRuntime } from "@assistant-ui/react";
+import { useAui, useAuiState } from "@assistant-ui/react";
 import { useToast } from "@/hooks/use-toast";
 
 interface DragAndDropWrapperProps {
@@ -8,8 +8,8 @@ interface DragAndDropWrapperProps {
 
 export function DragAndDropWrapper({ children }: DragAndDropWrapperProps) {
   const { toast } = useToast();
-  const disabled = useComposer((c) => !c.isEditing);
-  const composerRuntime = useComposerRuntime();
+  const disabled = useAuiState((s) => !s.composer.isEditing);
+  const composerRuntime = useAui().composer;
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -33,7 +33,7 @@ export function DragAndDropWrapper({ children }: DragAndDropWrapperProps) {
     if (!disabled) {
       try {
         const files = Array.from(e.dataTransfer.files);
-        const attachmentAccept = composerRuntime.getAttachmentAccept();
+        const attachmentAccept = composerRuntime.getState().attachmentAccept;
         const addAttachmentPromises = files.map(async (file) => {
           if (
             attachmentAccept === "*" ||

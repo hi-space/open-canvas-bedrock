@@ -83,7 +83,7 @@ export function ModelConfigPanel({
   return (
     <Popover open={isOpen} onOpenChange={onOpenChange}>
       <PopoverTrigger onClick={onClick} asChild>
-        <button className="flex-shrink-0 flex size-6 items-center justify-center focus:outline-none focus:ring-0 focus:ring-offset-0">
+        <button className="flex-shrink-0 flex size-6 items-center justify-center focus:outline-hidden focus:ring-0 focus:ring-offset-0">
           <GearIcon className="size-4" />
         </button>
       </PopoverTrigger>

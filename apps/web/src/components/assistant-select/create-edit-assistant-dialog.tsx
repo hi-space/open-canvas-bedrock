@@ -183,7 +183,7 @@ export function CreateEditAssistantDialog(
           },
         },
         assistantId: props.assistant.assistant_id,
-        userId: props.userId,
+        userId: props.userId || "anonymous",
       });
       success = !!updatedAssistant;
       if (updatedAssistant) {
@@ -203,7 +203,7 @@ export function CreateEditAssistantDialog(
             iconColor,
           },
         },
-        userId: props.userId,
+        userId: props.userId || "anonymous",
       });
       success = !!assistant;
       if (assistant) {

@@ -1,0 +1,327 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowUpRight,
+  BookOpen,
+  Link2,
+  LoaderCircle,
+  Plus,
+  Quote,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  extractReferences,
+  mergeReferences,
+  referenceUrl,
+} from "@/lib/workspace/sources";
+import type { SourceReference, WorkspaceDocument } from "@/lib/workspace/types";
+import styles from "./workspace.module.css";
+
+export function SourcesPanel({
+  document,
+  hasSelection,
+  onAdd,
+  onCite,
+  onRemove,
+}: {
+  document: WorkspaceDocument;
+  hasSelection: boolean;
+  onAdd: (source: SourceReference) => void;
+  onCite: (source: SourceReference) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [excerpt, setExcerpt] = useState("");
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState("");
+  const controller = useRef<AbortController | undefined>(undefined);
+  const urlRef = useRef(url);
+  const references = useMemo(
+    () => mergeReferences(document.content, document.sources),
+    [document.content, document.sources]
+  );
+  const cited = useMemo(
+    () => extractReferences(document.content),
+    [document.content]
+  );
+
+  useEffect(() => () => controller.current?.abort(), []);
+
+  const fetchSource = async (): Promise<
+    { title: string; excerpt: string } | undefined
+  > => {
+    const safeUrl = referenceUrl(url);
+    if (!safeUrl) {
+      setError("http 또는 https로 시작하는 링크를 입력해 주세요.");
+      return;
+    }
+    controller.current?.abort();
+    const request = new AbortController();
+    controller.current = request;
+    setFetching(true);
+    setError("");
+    const timeout = setTimeout(() => request.abort(), 30000);
+    try {
+      const response = await fetch("/api/firecrawl/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls: [safeUrl] }),
+        signal: request.signal,
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        documents?: {
+          data?: string;
+          name?: string;
+          metadata?: { title?: string };
+        }[];
+      };
+      const result = data.documents?.[0];
+      if (
+        !response.ok ||
+        !data.success ||
+        typeof result?.data !== "string" ||
+        !result.data.trim()
+      ) {
+        throw new Error("링크를 읽지 못했습니다.");
+      }
+      const retrieved = {
+        title:
+          result.metadata?.title || result.name || new URL(safeUrl).hostname,
+        excerpt: result.data.slice(0, 20000),
+      };
+      if (
+        controller.current !== request ||
+        referenceUrl(urlRef.current) !== safeUrl
+      )
+        return;
+      setTitle(retrieved.title);
+      setExcerpt(retrieved.excerpt);
+      return retrieved;
+    } catch {
+      if (request.signal.aborted && controller.current !== request) return;
+      setError(
+        "참고 글을 불러오지 못했습니다. 제목과 필요한 발췌를 직접 입력해도 출처를 추가할 수 있습니다."
+      );
+    } finally {
+      clearTimeout(timeout);
+      if (controller.current === request) {
+        controller.current = undefined;
+        setFetching(false);
+      }
+    }
+  };
+
+  const add = async () => {
+    const safeUrl = referenceUrl(url);
+    if (!safeUrl) {
+      setError("올바른 링크를 입력해 주세요.");
+      return;
+    }
+    if (safeUrl.length > 2048) {
+      setError("참고 자료 링크는 2,048자 이하로 입력해 주세요.");
+      return;
+    }
+    if (
+      document.sources.length >= 50 &&
+      !document.sources.some((source) => source.url === safeUrl)
+    ) {
+      setError("문서당 참고 자료는 50개까지 추가할 수 있습니다.");
+      return;
+    }
+    const retrieved =
+      !title.trim() && !excerpt.trim() ? await fetchSource() : undefined;
+    if (referenceUrl(urlRef.current) !== safeUrl) return;
+    onAdd({
+      id:
+        document.sources.find((source) => source.url === safeUrl)?.id ??
+        crypto.randomUUID(),
+      url: safeUrl,
+      title: (
+        retrieved?.title ||
+        title.trim() ||
+        new URL(safeUrl).hostname
+      ).slice(0, 500),
+      excerpt:
+        (retrieved?.excerpt || excerpt.trim()).slice(0, 20000) || undefined,
+    });
+    setUrl("");
+    urlRef.current = "";
+    setTitle("");
+    setExcerpt("");
+    if (retrieved || title.trim() || excerpt.trim()) setError("");
+    setShowForm(false);
+  };
+
+  return (
+    <div className={styles.sourcesPanel}>
+      <div className={styles.panelIntro}>
+        <BookOpen size={21} strokeWidth={1.5} />
+        <h3>글에 근거를 더하세요.</h3>
+        <p>문장 옆에 인용을 남기고, 한 번의 클릭으로 원문을 확인하세요.</p>
+      </div>
+      <button
+        className={styles.addSourceButton}
+        onClick={() => {
+          setShowForm(!showForm);
+          setError("");
+        }}
+      >
+        {showForm ? <X size={15} /> : <Plus size={15} />}
+        {showForm ? "입력 닫기" : "참고 자료 추가"}
+      </button>
+      {showForm && (
+        <form
+          className={styles.sourceForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void add();
+          }}
+        >
+          <label>
+            원문 링크
+            <input
+              type="url"
+              required
+              value={url}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (referenceUrl(next) !== referenceUrl(urlRef.current)) {
+                  controller.current?.abort();
+                  controller.current = undefined;
+                  setFetching(false);
+                  setTitle("");
+                  setExcerpt("");
+                  setError("");
+                }
+                urlRef.current = next;
+                setUrl(next);
+              }}
+              placeholder="https://…"
+            />
+          </label>
+          <button
+            className={styles.textButton}
+            type="button"
+            onClick={() => void fetchSource()}
+            disabled={fetching || !referenceUrl(url)}
+          >
+            {fetching ? (
+              <LoaderCircle size={14} className={styles.spin} />
+            ) : (
+              <Link2 size={14} />
+            )}{" "}
+            링크에서 제목·발췌 불러오기
+          </button>
+          <label>
+            제목
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={500}
+              placeholder="참고 글의 제목"
+            />
+          </label>
+          <label>
+            참고할 발췌 <span>선택</span>
+            <textarea
+              value={excerpt}
+              onChange={(event) => setExcerpt(event.target.value)}
+              maxLength={20000}
+              rows={4}
+              placeholder="AI가 근거로 활용할 내용을 붙여넣으세요."
+            />
+          </label>
+          <p className={styles.fieldHint}>
+            발췌가 있는 자료를 AI 교정의 근거로 사용합니다.
+          </p>
+          <button
+            className={styles.acceptButton}
+            disabled={fetching}
+            type="submit"
+          >
+            {fetching ? "불러오는 중…" : "출처 추가"}
+          </button>
+        </form>
+      )}
+      {error && (
+        <p className={styles.fieldError} aria-live="polite">
+          {error}
+        </p>
+      )}
+      <div className={styles.sourceList}>
+        {references.map((source, index) => {
+          const citation = cited.find((item) => item.url === source.url);
+          const stored = document.sources.some((item) => item.id === source.id);
+          return (
+            <article className={styles.sourceCard} key={source.url}>
+              <div className={styles.sourceCardHeading}>
+                <span className={styles.sourceNumber}>
+                  {citation?.label.match(/^\d+$/)
+                    ? citation.label
+                    : String(index + 1).padStart(2, "0")}
+                </span>
+                <span>
+                  {new URL(source.url).hostname.replace(/^www\./, "")}
+                </span>
+                {stored && (
+                  <button
+                    className={styles.iconButton}
+                    title="참고 자료 목록에서 제거 (본문 링크는 유지)"
+                    aria-label={`${source.title} 참고 자료 제거`}
+                    onClick={() => onRemove(source.id)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.sourceTitle}
+              >
+                {source.title}
+                <ArrowUpRight size={14} />
+              </a>
+              {source.excerpt && (
+                <p className={styles.sourceExcerpt}>{source.excerpt}</p>
+              )}
+              <div className={styles.sourceCardFooter}>
+                <span>
+                  {citation
+                    ? `본문 ${citation.count}회 인용`
+                    : source.excerpt
+                      ? "발췌 준비됨"
+                      : "발췌 없음"}
+                </span>
+                <button
+                  className={styles.textButton}
+                  onClick={() => onCite(source)}
+                >
+                  <Quote size={13} /> 인용 넣기
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      {!references.length && (
+        <p className={styles.emptyHint}>
+          아직 연결된 출처가 없습니다.
+          <br />
+          URL을 추가하면 이곳에서 함께 관리할 수 있어요.
+        </p>
+      )}
+      {!!references.length && (
+        <p className={styles.fieldHint}>
+          {hasSelection
+            ? "선택한 문장 바로 뒤에 인용을 넣습니다."
+            : "커서 위치 또는 문서 끝에 인용을 넣습니다."}
+        </p>
+      )}
+    </div>
+  );
+}

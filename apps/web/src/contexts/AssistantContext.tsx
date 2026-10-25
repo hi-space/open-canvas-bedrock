@@ -252,7 +252,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const editCustomAssistant = async ({
     editedAssistant,
     assistantId,
-    userId,
   }: EditCustomAssistantArgs): Promise<Assistant | undefined> => {
     setIsEditingAssistant(true);
     try {
@@ -304,7 +303,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getOrCreateAssistant = async (userId: string) => {
+  const getOrCreateAssistant = async (_userId: string) => {
     // Early return if already have an assistant
     if (selectedAssistant) {
       return;

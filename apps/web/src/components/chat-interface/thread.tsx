@@ -14,7 +14,6 @@ import { AssistantMessage, UserMessage } from "./messages";
 import ModelSelector from "./model-selector";
 import { ThreadHistory } from "./thread-history";
 import { ThreadWelcome } from "./welcome";
-import { useUserContext } from "@/contexts/UserContext";
 import { useAssistantContext } from "@/contexts/AssistantContext";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
@@ -75,7 +74,6 @@ export const Thread: FC<ThreadProps> = (props: ThreadProps) => {
     modelConfigs,
     setThreadId,
   } = useThreadContext();
-  const { user } = useUserContext();
   const [expandNodeAccordions, setExpandNodeAccordions] = useLocalStorage<boolean>(
     "expandNodeAccordions",
     false

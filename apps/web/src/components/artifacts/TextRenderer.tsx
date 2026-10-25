@@ -285,7 +285,7 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
           editor.replaceBlocks(editor.document, markdownAsBlocks);
           setManuallyUpdatingArtifact(false);
         })();
-      } catch (_) {
+      } catch {
         setManuallyUpdatingArtifact(false);
       }
     }
@@ -383,7 +383,7 @@ const TextRendererComponentInner = forwardRef<HTMLDivElement, TextRendererProps>
       )}
       {isRawView ? (
         <Textarea
-          className="whitespace-pre-wrap font-mono text-sm px-[54px] border-0 shadow-none h-full outline-none ring-0 rounded-none  focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="whitespace-pre-wrap font-mono text-sm px-[54px] border-0 shadow-none h-full outline-hidden ring-0 rounded-none  focus-visible:ring-0 focus-visible:ring-offset-0"
           value={rawMarkdown}
           onChange={onChangeRawMarkdown}
         />

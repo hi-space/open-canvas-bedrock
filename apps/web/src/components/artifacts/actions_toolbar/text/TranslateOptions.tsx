@@ -1,7 +1,6 @@
 import {
   UsaFlag,
   KoreaFlag,
-  IndiaFlag,
   SpanishFlag,
   FrenchFlag,
 } from "@/components/icons/flags";

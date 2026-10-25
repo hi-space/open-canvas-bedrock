@@ -21,12 +21,13 @@ Open Canvas 에이전트의 Python FastAPI 구현체로, AWS Bedrock을 사용�
 
 AWS Bedrock 모델만 지원됩니다. 주요 지원 모델:
 
-- Claude Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1
-- Amazon Nova Premier, Pro, Micro, Lite
-- Llama 3.3 70B Instruct
-- DeepSeek R1, V3
+- Claude Opus 5.5(기본), Sonnet 5.5, Haiku 5.5, Fable 5.1
+- OpenAI GPT-6.1 Sol, GPT-6 Astra, GPT-6 Luna
+- xAI Grok 4.7
+- Moonshot AI Kimi K3
 
-전체 모델 목록은 [core/models.py](./core/models.py)를 참조하세요.
+전체 모델 목록은 [core/models.py](./core/models.py), 정확한 ID와 사용 조건은
+[모델 검증 기록](../../docs/bedrock-models.md)을 참조하세요.
 
 
 ## 기술 스택

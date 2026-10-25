@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="146" viewBox="0 0 480 146" role="img" aria-label="Open Canvas — 생각을 다듬는 작업실">
+  <g transform="translate(64 25) rotate(-12 18 29)">
+    <rect x="0" y="10" width="8" height="44" rx="3" fill="#496646"/>
+    <rect x="13" y="0" width="8" height="56" rx="3" fill="#779365"/>
+    <rect x="26" y="18" width="8" height="36" rx="3" fill="#a4b58b"/>
+  </g>
+  <text x="115" y="73" fill="#29372e" font-family="Georgia, 'Times New Roman', serif" font-size="54" font-weight="400" letter-spacing="-2.2">open canvas<tspan fill="#86a267">.</tspan></text>
+  <text x="240" y="115" text-anchor="middle" fill="#697367" font-family="'Noto Sans CJK KR', 'Noto Sans KR', sans-serif" font-size="20" letter-spacing=".4">생각을 다듬는 작업실</text>
+</svg>

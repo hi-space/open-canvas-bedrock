@@ -1,5 +1,5 @@
 import { ProgrammingLanguageOptions } from "@/shared/types";
-import { ThreadPrimitive, useThreadRuntime } from "@assistant-ui/react";
+import { ThreadPrimitive, useAui } from "@assistant-ui/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FC, useMemo } from "react";
 import { TighterText } from "../ui/header";
@@ -54,7 +54,7 @@ interface QuickStartPromptsProps {
 }
 
 const QuickStartPrompts = ({ searchEnabled }: QuickStartPromptsProps) => {
-  const threadRuntime = useThreadRuntime();
+  const threadRuntime = useAui().thread;
 
   const handleClick = (text: string) => {
     threadRuntime.append({

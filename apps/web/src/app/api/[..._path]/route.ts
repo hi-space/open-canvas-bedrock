@@ -1,5 +1,6 @@
 import { API_URL } from "../../../constants";
 import { NextRequest, NextResponse } from "next/server";
+import { backendHeaders } from "@/lib/workspace-proxy";
 
 function getCorsHeaders() {
   return {
@@ -10,7 +11,7 @@ function getCorsHeaders() {
 }
 
 async function handleRequest(req: NextRequest, method: string) {
-  // Authentication disabled - allow all requests
+  // ALB authenticates the browser; the workspace backend verifies its signature.
   try {
     // Keep /api/ prefix - pass pathname as-is to backend
     // pathname is like /api/agent/stream, we send /api/agent/stream to backend
@@ -23,19 +24,19 @@ async function handleRequest(req: NextRequest, method: string) {
       ? `?${searchParams.toString()}`
       : "";
 
+    const outgoingHeaders = backendHeaders(req.headers, process.env.LANGCHAIN_API_KEY);
     const options: RequestInit = {
       method,
-      headers: {
-        "x-api-key": process.env.LANGCHAIN_API_KEY || "",
-      },
+      headers: outgoingHeaders,
+      cache: "no-store",
     };
 
     if (["POST", "PUT", "PATCH"].includes(method)) {
-      options.headers = {
-        ...options.headers,
-        "Content-Type": "application/json",
-      };
+      outgoingHeaders.set("Content-Type", "application/json");
       const bodyText = await req.text();
+      if (bodyText.length > 2500000) {
+        return NextResponse.json({ detail: "요청이 너무 큽니다." }, { status: 413 });
+      }
 
       if (typeof bodyText === "string" && bodyText.length > 0) {
         const parsedBody = JSON.parse(bodyText);
@@ -64,11 +65,13 @@ async function handleRequest(req: NextRequest, method: string) {
       return new Response(res.body, {
         status: res.status,
         statusText: res.statusText,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
       });
     }
 
     const headers = new Headers({
-      ...getCorsHeaders(),
+      ...(path.startsWith("/api/workspaces") ? {} : getCorsHeaders()),
+      "Cache-Control": "no-store",
     });
     // Safely add headers from the original response
     res.headers.forEach((value, key) => {
@@ -86,9 +89,10 @@ async function handleRequest(req: NextRequest, method: string) {
     });
   } catch (e: any) {
     console.error("Error in proxy");
-    console.error(e);
-    console.error("\n\n\nEND ERROR\n\n");
-    return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
+    return NextResponse.json(
+      { detail: "서버 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요." },
+      { status: e instanceof SyntaxError ? 400 : 502 }
+    );
   }
 }
 

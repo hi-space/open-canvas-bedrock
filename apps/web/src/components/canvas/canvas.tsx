@@ -9,7 +9,6 @@ import {
 } from "@/shared/models";
 import { useGraphContext } from "@/contexts/GraphContext";
 import { useToast } from "@/hooks/use-toast";
-import { getLanguageTemplate } from "@/lib/get_language_template";
 import {
   Artifact,
   ArtifactMarkdown,
@@ -46,7 +45,7 @@ export function CanvasComponent() {
       if (chatCollapsedSearchParam) {
         setChatCollapsed(JSON.parse(chatCollapsedSearchParam));
       }
-    } catch (e) {
+    } catch {
       setChatCollapsed(false);
       const queryParams = new URLSearchParams(searchParams.toString());
       queryParams.delete(CHAT_COLLAPSED_QUERY_PARAM);
@@ -56,7 +55,7 @@ export function CanvasComponent() {
 
   const handleQuickStart = async (
     type: "text" | "code",
-    language?: ProgrammingLanguageOptions
+    _language?: ProgrammingLanguageOptions
   ) => {
     setChatStarted(true);
 
@@ -95,7 +94,7 @@ export function CanvasComponent() {
   };
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="h-screen">
+    <ResizablePanelGroup orientation="horizontal" className="h-screen">
       {!chatStarted && (
         <NoSSRWrapper>
           <ContentComposerChatInterface
@@ -148,12 +147,11 @@ export function CanvasComponent() {
       )}
       {!chatCollapsed && chatStarted && (
         <ResizablePanel
-          defaultSize={25}
-          minSize={15}
-          maxSize={50}
+          defaultSize="25%"
+          minSize="15%"
+          maxSize="50%"
           className="transition-all duration-700 h-screen mr-auto bg-gray-50/70 shadow-inner-right"
           id="chat-panel-main"
-          order={1}
         >
           <NoSSRWrapper>
             <ContentComposerChatInterface
@@ -210,13 +208,12 @@ export function CanvasComponent() {
 
       {chatStarted && (
         <>
-          <ResizableHandle />
+          {!chatCollapsed && <ResizableHandle />}
           <ResizablePanel
-            defaultSize={chatCollapsed ? 100 : 75}
-            maxSize={85}
-            minSize={50}
+            defaultSize={chatCollapsed ? "100%" : "75%"}
+            maxSize={chatCollapsed ? "100%" : "85%"}
+            minSize="50%"
             id="canvas-panel"
-            order={2}
             className="flex flex-row w-full"
           >
             <div className="w-full ml-auto">

@@ -4,6 +4,7 @@ Business logic for Firecrawl web scraping.
 from typing import List, Dict, Any
 import os
 from urllib.parse import urlparse
+from firecrawl import Firecrawl
 
 
 def scrape_urls(urls: List[str]) -> Dict[str, Any]:
@@ -18,34 +19,21 @@ def scrape_urls(urls: List[str]) -> Dict[str, Any]:
     if not urls:
         raise ValidationError("`urls` is required.")
 
-    # Import FireCrawlLoader
-    try:
-        from langchain_community.document_loaders import FireCrawlLoader
-    except ImportError:
-        from core.exceptions import InternalServerError
-        raise InternalServerError(
-            "FireCrawlLoader not available. Please install langchain-community."
-        )
-
+    client = Firecrawl(api_key=firecrawl_api_key, timeout=30, max_retries=1)
     context_documents = []
 
     for url in urls:
         try:
-            loader = FireCrawlLoader(
-                url=url,
-                mode="scrape",
-                api_key=firecrawl_api_key,
-                params={"formats": ["markdown"]}
-            )
-            docs = loader.load()
+            doc = client.scrape(url, formats=["markdown"])
             
-            if docs:
+            if doc.markdown:
                 # Extract URL components for naming
                 parsed_url = urlparse(url)
                 cleaned_url = f"{parsed_url.hostname}{parsed_url.path}"
                 
                 # Combine all page content
-                text = "\n".join([doc.page_content for doc in docs])
+                text = doc.markdown
+                title = doc.metadata.title if doc.metadata else None
                 
                 context_documents.append({
                     "name": cleaned_url,
@@ -53,6 +41,7 @@ def scrape_urls(urls: List[str]) -> Dict[str, Any]:
                     "data": text,
                     "metadata": {
                         "url": url,
+                        "title": title or cleaned_url,
                     },
                 })
         except Exception as url_error:
@@ -61,7 +50,7 @@ def scrape_urls(urls: List[str]) -> Dict[str, Any]:
             continue
 
     return {
-        "success": True,
+        "success": bool(context_documents),
         "documents": context_documents
     }
 

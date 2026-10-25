@@ -4,13 +4,17 @@
 
 Open Canvas is a platform for generating and improving documents and code through collaboration with AI agents. The backend (Agents) and frontend (Web) are tightly integrated to provide the following core features.
 
+The home page combines **project files, document editing, and agent conversations**. Review and approve individual edits before they change canonical files, retain clickable citations, and synchronize an optional local Markdown folder with conflict checks. The cloud architecture uses shared S3 Files and a read-only AgentCore agent; the API applies approved writes. Previous conversation links open inside the workspace, and old browser drafts can be explicitly imported.
+
+See the [cloud workspace guide](./docs/cloud-workspace.md), [dependency upgrade audit](./docs/dependency-upgrade.md), and [current Bedrock model configuration](./docs/bedrock-models.md). The demo below shows the earlier conversation canvas.
+
 [![Demo](./static/screenshot.png)](https://www.youtube.com/watch?v=vJb0TTRrEvU)
 
 (_Click on the image to watch the demo video on YouTube_)
 
 ## 🔄 System Architecture and Data Flow
 
-### Overall Flow
+### Conversation Canvas Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -44,7 +48,7 @@ Open Canvas is a platform for generating and improving documents and code throug
                       ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  AWS Bedrock (LLM)                                          │
-│  - Claude, Nova, Llama, DeepSeek                            │
+│  - Claude, GPT, Grok, Kimi                                  │
 └─────────────────────┬───────────────────────────────────────┘
                       ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -238,13 +242,14 @@ Continuously learns by analyzing conversations and artifacts.
 #### Model Selection
 - **Model Selector**: Select model to use for each conversation
 - **Model Settings**:
-  - Temperature: Control creativity (0.0 ~ 1.0)
+  - Temperature: Provider defaults for the current reasoning models
   - Max Tokens: Set maximum response length
 - **Supported Models**:
-  - Anthropic Claude (Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1)
-  - Amazon Nova (Premier, Pro, Lite, Micro)
-  - Meta Llama 3.3 70B
-  - DeepSeek (R1, V3)
+  - Anthropic Claude Opus 5.5 (default), Sonnet 5.5, Haiku 5.5, Fable 5.1
+  - OpenAI GPT-6.1 Sol, GPT-6 Astra, GPT-6 Luna
+  - xAI Grok 4.7
+  - Moonshot AI Kimi K3
+  - Model IDs, documented profiles, and verification dates: [model audit](./docs/bedrock-models.md)
 
 ### 9. 🔗 Integration Features
 
@@ -275,8 +280,8 @@ Continuously learns by analyzing conversations and artifacts.
   - LangSmith: Tracing and observability
 
 ### Frontend (Web)
-- **Next.js 14**: React-based full-stack framework
-- **React 18**: UI library
+- **Next.js 16**: React-based full-stack framework
+- **React 19**: UI library
 - **TypeScript**: Type safety
 - **@assistant-ui/react**: Chat UI components
 - **Radix UI**: Accessible UI primitives

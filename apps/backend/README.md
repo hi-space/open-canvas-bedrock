@@ -21,12 +21,13 @@ This project is a server that provides multiple AI agents implemented using Lang
 
 Only AWS Bedrock models are supported. Main supported models:
 
-- Claude Haiku 4.5, Sonnet 4, Sonnet 4.5, Opus 4.1
-- Amazon Nova Premier, Pro, Micro, Lite
-- Llama 3.3 70B Instruct
-- DeepSeek R1, V3
+- Claude Opus 5.5 (default), Sonnet 5.5, Haiku 5.5, Fable 5.1
+- OpenAI GPT-6.1 Sol, GPT-6 Astra, GPT-6 Luna
+- xAI Grok 4.7
+- Moonshot AI Kimi K3
 
-See [core/models.py](./core/models.py) for the complete model list.
+See [core/models.py](./core/models.py) for the complete model list and the
+[model audit](../../docs/bedrock-models.md) for verified IDs and access requirements.
 
 ## Tech Stack
 

@@ -1,6 +1,5 @@
 import {
   ALL_MODEL_NAMES,
-  ALL_MODELS,
   DEFAULT_MODEL_CONFIG,
   DEFAULT_MODEL_NAME,
   setModels,
@@ -8,7 +7,6 @@ import {
 import { CustomModelConfig } from "@/shared/types";
 import { Thread } from "@langchain/langgraph-sdk";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useUserContext } from "./UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryState } from "nuqs";
 import { API_URL } from "@/constants";
@@ -37,7 +35,6 @@ type ThreadContentType = {
 const ThreadContext = createContext<ThreadContentType | undefined>(undefined);
 
 export function ThreadProvider({ children }: { children: ReactNode }) {
-  const { user } = useUserContext();
   const { toast } = useToast();
   const [threadId, setThreadId] = useQueryState("threadId");
   const [userThreads, setUserThreads] = useState<Thread[]>([]);
@@ -45,7 +42,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   const [modelName, setModelName] =
     useState<ALL_MODEL_NAMES>(DEFAULT_MODEL_NAME);
   const [createThreadLoading, setCreateThreadLoading] = useState(false);
-  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [, setModelsLoaded] = useState(false);
   const getUserThreadsRequestRef = useRef<Promise<void> | null>(null);
 
   const [modelConfigs, setModelConfigs] = useState<

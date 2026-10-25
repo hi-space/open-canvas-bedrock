@@ -38,6 +38,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         status_code=exc.status_code,
         content={
             "error": exc.detail,
+            "detail": exc.detail,
             "status_code": exc.status_code,
         }
     )
@@ -46,6 +47,13 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle request validation errors."""
     errors = exc.errors()
+    if request.url.path.startswith("/api/writing/"):
+        # Return useful errors without echoing the user's document or sources.
+        detail = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'] if part != 'body')}: {error['msg']}".lstrip(": ")
+            for error in errors[:5]
+        )
+        return JSONResponse(status_code=422, content={"detail": detail})
     logger.warning(
         f"Validation error: {errors}",
         extra={
