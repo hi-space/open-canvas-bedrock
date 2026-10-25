@@ -12,6 +12,7 @@ export interface ApiRequest {
   customQuickActionId?: string;
   webSearchEnabled?: boolean;
   webSearchResults?: any[];
+  researchGenre?: string;
   next?: string;
   config?: {
     configurable?: Record<string, any>;
@@ -233,6 +234,7 @@ export async function* streamAgent(
     customQuickActionId: input.customQuickActionId,
     webSearchEnabled: input.webSearchEnabled,
     webSearchResults: input.webSearchResults,
+    researchGenre: input.researchGenre,
     next: input.next,
     config: {
       configurable: configurable,

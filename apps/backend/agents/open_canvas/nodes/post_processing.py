@@ -155,6 +155,7 @@ async def clean_state_node(state: OpenCanvasState) -> Dict[str, Any]:
         "readingLevel": None,
         "customQuickActionId": None,
         "webSearchEnabled": None,
+        "researchGenre": None,
     }
     
     # Determine routing decision inline to avoid separate conditional function call

@@ -70,6 +70,9 @@ from api.assistants.routes import router as assistants_router
 from api.store.routes import router as store_router
 from api.runs.routes import router as runs_router
 from api.models.routes import router as models_router
+from api.writing.routes import router as writing_router
+from api.research.routes import router as research_router
+from api.workspaces.routes import router as workspaces_router
 
 app.include_router(open_canvas_router, prefix="/api/agent", tags=["agent"])
 app.include_router(reflection_router, prefix="/api/reflection", tags=["reflection"])
@@ -82,6 +85,9 @@ app.include_router(assistants_router, prefix="/api/assistants", tags=["assistant
 app.include_router(store_router, prefix="/api/store", tags=["store"])
 app.include_router(runs_router, prefix="/api/runs", tags=["runs"])
 app.include_router(models_router, prefix="/api/models", tags=["models"])
+app.include_router(writing_router, prefix="/api/writing", tags=["writing"])
+app.include_router(research_router, prefix="/api/research", tags=["research"])
+app.include_router(workspaces_router, prefix="/api/workspaces", tags=["workspaces"])
 
 if __name__ == "__main__":
     import uvicorn

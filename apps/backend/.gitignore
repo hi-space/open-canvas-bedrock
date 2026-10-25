@@ -216,3 +216,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 *.db
+
+# Rendered research figures
+data/

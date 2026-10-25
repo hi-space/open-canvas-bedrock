@@ -11,6 +11,7 @@ export interface ModelConfigurationParams {
   config: CustomModelConfig;
   isNew: boolean;
   category?: string;
+  supportsReasoning?: boolean;
 }
 
 export interface CustomModelConfig {
@@ -39,6 +40,9 @@ export interface CustomModelConfig {
 export type ArtifactLengthOptions = "shortest" | "short" | "long" | "longest";
 
 export type ArtifactType = "code" | "text";
+
+/** Deep research writer: research the request, then write it in this genre. */
+export type ResearchGenre = "paper" | "blog" | "linkedin";
 
 
 export interface ArtifactToolResponse {
@@ -208,5 +212,7 @@ export interface GraphInput {
 
   webSearchEnabled?: boolean;
   webSearchResults?: SearchResult[];
+
+  researchGenre?: ResearchGenre;
 }
 

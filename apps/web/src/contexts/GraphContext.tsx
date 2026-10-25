@@ -7,18 +7,16 @@ import { reverseCleanContent } from "@/lib/normalize_string";
 import {
   Artifact,
   ArtifactType,
-  ArtifactMarkdown,
-  ArtifactCode,
   CustomModelConfig,
   GraphInput,
   ProgrammingLanguageOptions,
+  ResearchGenre,
   RewriteArtifactMetaToolResponse,
   SearchResult,
   TextHighlight,
 } from "@/shared/types";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { serializeLangChainMessage } from "@/lib/convert_messages";
-import { useRuns } from "@/hooks/useRuns";
 import { streamAgent } from "@/lib/api-client";
 import { WEB_SEARCH_RESULTS_QUERY_PARAM } from "@/constants";
 import { API_URL } from "@/constants";
@@ -28,7 +26,6 @@ import {
 } from "@/shared/types";
 import {
   ALL_MODEL_NAMES,
-  NON_STREAMING_TEXT_MODELS,
   NON_STREAMING_TOOL_CALLING_MODELS,
   DEFAULT_MODEL_CONFIG,
   DEFAULT_MODEL_NAME,
@@ -46,9 +43,7 @@ import {
   useState,
 } from "react";
 import {
-  extractChunkFields,
   handleGenerateArtifactToolCallChunk,
-  removeCodeBlockFormatting,
   replaceOrInsertMessageChunk,
   updateHighlightedMarkdown,
   updateRewrittenArtifact,
@@ -77,10 +72,12 @@ interface GraphData {
   artifactUpdateFailed: boolean;
   chatStarted: boolean;
   searchEnabled: boolean;
+  researchGenre: ResearchGenre | undefined;
   // Diff comparison mode
   isDiffMode: boolean;
   diffBaseVersionIndex: number | undefined; // Version to compare against (usually previous version)
   setSearchEnabled: Dispatch<SetStateAction<boolean>>;
+  setResearchGenre: Dispatch<SetStateAction<ResearchGenre | undefined>>;
   setChatStarted: Dispatch<SetStateAction<boolean>>;
   setIsStreaming: Dispatch<SetStateAction<boolean>>;
   setFeedbackSubmitted: Dispatch<SetStateAction<boolean>>;
@@ -149,19 +146,11 @@ function extractStreamDataChunk(chunk: any) {
   return result;
 }
 
-function extractStreamDataOutput(output: any) {
-  if (Array.isArray(output)) {
-    return output[1];
-  }
-  return output;
-}
-
 export function GraphProvider({ children }: { children: ReactNode }) {
   const userData = useUserContext();
   const assistantsData = useAssistantContext();
   const threadData = useThreadContext();
   const { toast } = useToast();
-  const { shareRun } = useRuns();
   const [chatStarted, setChatStarted] = useState(false);
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [artifact, setArtifact] = useState<Artifact>();
@@ -185,6 +174,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState(false);
   const [artifactUpdateFailed, setArtifactUpdateFailed] = useState(false);
   const [searchEnabled, setSearchEnabled] = useState(false);
+  const [researchGenre, setResearchGenre] = useState<ResearchGenre>();
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [isDiffMode, setIsDiffMode] = useState(false);
   const [diffBaseVersionIndex, setDiffBaseVersionIndex] = useState<number | undefined>(undefined);
@@ -512,6 +502,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         highlightedText: selectedBlocks,
       }),
       webSearchEnabled: searchEnabled,
+      // Research writes a new document; quick actions and highlight edits keep their own paths.
+      ...(researchGenre && !selectedBlocks && !params.highlightedText && { researchGenre }),
     };
 
     // Add check for multiple defined fields
@@ -585,6 +577,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
       // For generating an artifact
       let generateArtifactToolCallStr = "";
+      // The research writer streams one model run per section; separate them as paragraphs.
+      let generateArtifactStreamRunId = "";
 
       // For updating code artifacts
       let updatedArtifactStartContent: string | undefined = undefined;
@@ -639,13 +633,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       
       for await (const event of stream) {
         eventCount++;
-        const eventType = event?.event || "unknown";
-        const nodeName = event?.name || "unknown";
-        const langgraphNode = event?.metadata?.langgraph_node || nodeName;
-        
-        // Log ALL events for debugging
-        // console.log(`[EVENT] type: ${eventType}, node: ${langgraphNode}, name: ${nodeName}`);
-        
         // API streams LangGraph events in the same format as LangGraph SDK
         // Process events similar to the original streaming logic
         if (event.event === "error") {
@@ -668,7 +655,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             event: eventType,
             name: modelName,
             data,
-            tags,
             metadata,
           } = event;
           
@@ -847,6 +833,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
 
             if (langgraphNode === "generateArtifact") {
+              if (runId_ && runId_ !== generateArtifactStreamRunId) {
+                if (generateArtifactStreamRunId && generateArtifactToolCallStr) {
+                  generateArtifactToolCallStr += "\n\n";
+                }
+                generateArtifactStreamRunId = runId_;
+              }
               // Accumulate content (content is already extracted above)
               generateArtifactToolCallStr += content;
 
@@ -862,7 +854,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 
                 // Update artifact state immediately for streaming rendering
                 // Use functional update to ensure we're working with latest state
-                setArtifact((prevArtifact) => {
+                setArtifact(() => {
                   // Create a completely new object to ensure React detects the change
                   const newArtifact = {
                     currentIndex: 1,
@@ -1043,11 +1035,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           }
 
           if (eventType === "on_chain_end") {
-            // Log messages from on_chain_end event
-            if (data?.output) {
-              const output = data.output;
-            }
-
             // Handle intermediate node results for UI display
             // Show all nodes (except the final open_canvas graph node)
             // Display node name even if there's no output
@@ -1219,9 +1206,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 }
                 if (artifactToSet.contents && Array.isArray(artifactToSet.contents)) {
                   artifactToSet.contents = artifactToSet.contents.map((content, idx) => {
-                    // Always use text type
-                    const contentType: "text" = "text";
-                    
                     // Normalize index to number
                     const normalizedIndex = typeof content.index === 'string' 
                       ? parseInt(content.index, 10) 
@@ -1662,6 +1646,24 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   console.error("Failed to update thread title:", error);
                 }
               }
+            }
+
+            // The node's own output is the finished document (the research writer adds figures and
+            // references after streaming); prefer it over the streamed text.
+            const finalMarkdown =
+              langgraphNode === "generateArtifact" &&
+              data?.output?.artifact?.contents?.[0]?.fullMarkdown;
+            if (typeof finalMarkdown === "string" && finalMarkdown.length > 0) {
+              const title = data.output.artifact.contents[0].title || "Generated Artifact";
+              const newArtifact: Artifact = {
+                currentIndex: 1,
+                contents: [{ index: 1, type: "text", title, fullMarkdown: finalMarkdown }],
+              };
+              generateArtifactToolCallStr = finalMarkdown;
+              setFirstTokenReceived(true);
+              setArtifact(newArtifact);
+              finalArtifact = newArtifact;
+              setUpdateRenderedArtifactRequired(true);
             }
 
             if (
@@ -2320,9 +2322,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       chatStarted,
       artifactUpdateFailed,
       searchEnabled,
+      researchGenre,
       isDiffMode,
       diffBaseVersionIndex,
       setSearchEnabled,
+      setResearchGenre,
       setChatStarted,
       setIsStreaming,
       setFeedbackSubmitted,

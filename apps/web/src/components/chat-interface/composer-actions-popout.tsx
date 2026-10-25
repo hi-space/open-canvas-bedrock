@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { CirclePlus, Globe } from "lucide-react";
 import { useState } from "react";
 import { ComposerAddAttachment } from "../assistant-ui/attachment";
@@ -9,6 +9,7 @@ import { TooltipIconButton } from "../assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { useGraphContext } from "@/contexts/GraphContext";
 import { useAssistantContext } from "@/contexts/AssistantContext";
+import { ResearchGenreSelect } from "./research-genre-select";
 
 interface ComposerActionsPopOutProps {
   userId: string | undefined;
@@ -20,21 +21,16 @@ export function ComposerActionsPopOut(props: ComposerActionsPopOutProps) {
   const [isAssistantSelectOpen, setIsAssistantSelectOpen] = useState(false);
   const [isMouseOver, setIsMouseOver] = useState(false);
   const {
-    graphData: { searchEnabled, setSearchEnabled },
+    graphData: { searchEnabled, setSearchEnabled, researchGenre },
   } = useGraphContext();
   const { selectedAssistant } = useAssistantContext();
   const isDefaultSelected = !!selectedAssistant?.metadata?.is_default;
 
-  const containerVariants = {
+  // Collapsed, the pill shows the plus icon and each active option.
+  const activeOptions = [searchEnabled, !!researchGenre, !isDefaultSelected].filter(Boolean).length;
+  const containerVariants: Variants = {
     collapsed: {
-      width:
-        searchEnabled && !isDefaultSelected
-          ? "120px"
-          : searchEnabled
-            ? "80px"
-            : !isDefaultSelected
-              ? "80px"
-              : "40px",
+      width: `${40 + activeOptions * 40}px`,
       transition: {
         type: "spring",
         stiffness: 500,
@@ -42,7 +38,7 @@ export function ComposerActionsPopOut(props: ComposerActionsPopOutProps) {
       },
     },
     expanded: {
-      width: "160px",
+      width: "200px",
       transition: {
         type: "spring",
         stiffness: 500,
@@ -105,6 +101,17 @@ export function ComposerActionsPopOut(props: ComposerActionsPopOutProps) {
               <Globe />
             </TooltipIconButton>
           )}
+          {researchGenre && (
+            <ResearchGenreSelect
+              className="bg-blue-100 hover:bg-blue-100"
+              onOpenChange={(isOpen) => {
+                setIsAssistantSelectOpen(isOpen);
+                if (!isOpen && !isMouseOver) {
+                  setIsExpanded(false);
+                }
+              }}
+            />
+          )}
           {!isDefaultSelected && (
             <AssistantSelect
               userId={props.userId}
@@ -138,6 +145,17 @@ export function ComposerActionsPopOut(props: ComposerActionsPopOutProps) {
                 >
                   <Globe />
                 </TooltipIconButton>
+              )}
+              {!researchGenre && (
+                <ResearchGenreSelect
+                  className="hover:bg-blue-100 transition-colors ease-in-out"
+                  onOpenChange={(isOpen) => {
+                    setIsAssistantSelectOpen(isOpen);
+                    if (!isOpen && !isMouseOver) {
+                      setIsExpanded(false);
+                    }
+                  }}
+                />
               )}
               {isDefaultSelected && (
                 <AssistantSelect

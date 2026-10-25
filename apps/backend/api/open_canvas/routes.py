@@ -4,7 +4,7 @@ FastAPI routes for Open Canvas agent.
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional, AsyncIterator
+from typing import List, Dict, Any, Literal, Optional, AsyncIterator
 import json
 from agents.open_canvas.graph import graph
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -25,6 +25,7 @@ class OpenCanvasRequest(BaseModel):
     customQuickActionId: Optional[str] = None
     webSearchEnabled: Optional[bool] = None
     webSearchResults: Optional[List[Dict[str, Any]]] = None
+    researchGenre: Optional[Literal["paper", "blog", "linkedin"]] = None
     next: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
 
@@ -180,6 +181,7 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
     print(f"  highlightedText: {'present' if request.highlightedText else None}", file=sys.stderr, flush=True)
     print(f"  customQuickActionId: {request.customQuickActionId}", file=sys.stderr, flush=True)
     print(f"  webSearchEnabled: {request.webSearchEnabled}", file=sys.stderr, flush=True)
+    print(f"  researchGenre: {request.researchGenre}", file=sys.stderr, flush=True)
     print("=============================================", file=sys.stderr, flush=True)
     
     # Convert message dicts to LangChain message objects
@@ -201,6 +203,7 @@ def prepare_state(request: OpenCanvasRequest) -> Dict[str, Any]:
         "customQuickActionId": request.customQuickActionId,
         "webSearchEnabled": request.webSearchEnabled,
         "webSearchResults": request.webSearchResults,
+        "researchGenre": request.researchGenre,
     }
     
     # Log the state values that will be used for routing

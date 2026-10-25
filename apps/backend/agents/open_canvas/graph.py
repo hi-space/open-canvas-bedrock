@@ -19,6 +19,7 @@ from agents.open_canvas.nodes import (
     generate_title_node,
     summarizer_node,
     web_search_node,
+    deep_research_node,
     reply_to_general_input_node,
 )
 
@@ -39,6 +40,7 @@ builder.add_node("generateTitle", generate_title_node)
 builder.add_node("summarizer", summarizer_node)
 builder.add_node("webSearch", web_search_node)
 builder.add_node("routePostWebSearch", route_post_web_search)
+builder.add_node("deepResearch", deep_research_node)
 
 # Add conditional edges
 builder.add_conditional_edges(
@@ -52,6 +54,7 @@ builder.add_conditional_edges(
         "customAction": "customAction",
         "updateHighlightedText": "updateHighlightedText",
         "webSearch": "webSearch",
+        "deepResearch": "deepResearch",
     }
 )
 
@@ -61,6 +64,7 @@ builder.add_edge("updateHighlightedText", "generateFollowup")
 builder.add_edge("rewriteArtifact", "generateFollowup")
 builder.add_edge("rewriteArtifactTheme", "generateFollowup")
 builder.add_edge("customAction", "generateFollowup")
+builder.add_edge("deepResearch", "generateFollowup")
 builder.add_edge("webSearch", "routePostWebSearch")
 builder.add_conditional_edges(
     "routePostWebSearch",

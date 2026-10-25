@@ -22,6 +22,7 @@ from .post_processing import (
     summarizer_node,
 )
 from .web_search import web_search_node
+from .deep_research import deep_research_node
 from .general import reply_to_general_input_node
 
 __all__ = [
@@ -40,5 +41,6 @@ __all__ = [
     "generate_title_node",
     "summarizer_node",
     "web_search_node",
+    "deep_research_node",
     "reply_to_general_input_node",
 ]

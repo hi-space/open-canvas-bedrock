@@ -4,7 +4,7 @@ Generate path node implementation with URL handling, document processing, and dy
 from typing import Dict, Any, List, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_community.document_loaders import FireCrawlLoader
+from api.firecrawl.service import scrape_urls
 from pydantic import BaseModel, Field
 from agents.open_canvas.state import OpenCanvasState
 from core.bedrock_client import get_bedrock_model
@@ -20,6 +20,7 @@ from agents.open_canvas.prompts import (
 import uuid
 import base64
 import os
+import asyncio
 
 
 class RouteQuerySchema(BaseModel):
@@ -76,17 +77,12 @@ Respond with only 'true' or 'false'."""
             url_contents = []
             for url in urls:
                 try:
-                    loader = FireCrawlLoader(
-                        url=url,
-                        mode="scrape",
-                        api_key=firecrawl_api_key,
-                        params={"formats": ["markdown"]}
-                    )
-                    docs = loader.load()
+                    scraped = await asyncio.to_thread(scrape_urls, [url])
+                    docs = scraped["documents"]
                     if docs:
                         url_contents.append({
                             "url": url,
-                            "pageContent": docs[0].page_content if docs else ""
+                            "pageContent": docs[0]["data"]
                         })
                 except Exception as e:
                     print(f"Failed to scrape URL {url}: {e}", flush=True)
@@ -376,6 +372,13 @@ async def generate_path(
             result["_messages"] = new_messages
         return result
     
+    if state.get("researchGenre"):
+        result = {"next": "deepResearch"}
+        if new_messages:
+            result["messages"] = new_messages
+            result["_messages"] = new_messages
+        return result
+
     if state.get("webSearchEnabled"):
         result = {"next": "webSearch"}
         if new_messages:

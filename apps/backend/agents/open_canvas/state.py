@@ -20,5 +20,6 @@ class OpenCanvasState(TypedDict):
     customQuickActionId: Optional[str]
     webSearchEnabled: Optional[bool]
     webSearchResults: Optional[List[dict]]
+    researchGenre: Optional[str]
     title: Optional[str]
 
