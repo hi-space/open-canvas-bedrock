@@ -55,6 +55,15 @@ export interface DocumentRevision {
   createdAt: number;
 }
 
+export interface CorrectionRecord {
+  proposalId: string;
+  sourcePath: string;
+  path: string;
+  createdAt: number;
+  baseContent: string;
+  proposedContent: string;
+}
+
 export interface DiskSnapshot {
   content: string;
   modifiedAt: number;
@@ -107,6 +116,7 @@ export interface WorkspaceDocument {
   fileHandle?: LocalFileHandle;
   sources: SourceReference[];
   revisions: DocumentRevision[];
+  correction?: CorrectionRecord;
   proposal?: ReviewProposal;
   updatedAt: number;
 }

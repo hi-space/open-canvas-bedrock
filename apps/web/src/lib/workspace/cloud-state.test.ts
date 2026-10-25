@@ -65,6 +65,9 @@ function service(overrides: Partial<WorkspaceService> = {}): WorkspaceService {
     decide: async () => {
       throw new Error("Unexpected approval");
     },
+    copy: async () => {
+      throw new Error("Unexpected copy");
+    },
     ...overrides,
   };
 }
@@ -578,4 +581,283 @@ describe("cloud workspace state and captured request context", () => {
       "original"
     );
   });
+});
+
+describe("full correction copies", () => {
+  const proposal: CloudProposal = {
+    id: "copy-proposal",
+    jobId: job.id,
+    path: "a.md",
+    kind: "ai",
+    instruction: "proofread",
+    explanation: "full correction",
+    baseContent: "original",
+    proposedContent: "full correction",
+    baseVersion: "v1",
+    appliedVersion: "v1",
+    createdAt: 1,
+    status: "pending",
+    changes: [
+      {
+        id: "c1",
+        from: 0,
+        to: 8,
+        before: "original",
+        after: "full correction",
+        decision: "pending",
+      },
+    ],
+  };
+  const savedCopy = { path: "a.교정본-20261025.md", createdAt: 2 };
+  const saved = {
+    proposal: { ...proposal, savedCopy },
+    file: file(savedCopy.path, "full correction", "v2"),
+  };
+  const correction = {
+    ...savedCopy,
+    proposalId: proposal.id,
+    sourcePath: "a.md",
+    baseContent: "original",
+    proposedContent: "full correction",
+  };
+
+  it("adds the server copy and preserves unsaved source edits and decisions", async () => {
+    const controller = new CloudWorkspaceController(
+      service({
+        proposal: async () => proposal,
+        copy: async (id, proposalId) => {
+          expect({ id, proposalId }).toEqual({
+            id: "a",
+            proposalId: proposal.id,
+          });
+          return saved;
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.openProposal("a", proposal.id);
+    controller.edit("a", "a.md", "my newer draft");
+    await controller.saveProposalCopy("a", proposal.id);
+    const project = controller.getSnapshot().projects.a;
+    expect(project.documents["a.md"].content).toBe("my newer draft");
+    expect(project.documents["a.md"].file.content).toBe("original");
+    expect(project.documents[savedCopy.path].content).toBe("full correction");
+    expect(project.proposalDetails[proposal.id].changes).toEqual(
+      proposal.changes
+    );
+    expect(project.proposals[0].savedCopy).toEqual(savedCopy);
+    expect(project.activePath).toBe("a.md");
+    expect(project.copying).toEqual([]);
+  });
+
+  it("does not navigate back or replace drafts when a copy finishes in another project", async () => {
+    const pending = deferred<typeof saved>();
+    const controller = new CloudWorkspaceController(
+      service({
+        proposal: async () => proposal,
+        copy: async () => pending.promise,
+      })
+    );
+    await controller.initialize();
+    await controller.openProposal("a", proposal.id);
+    const copying = controller.saveProposalCopy("a", proposal.id);
+    controller.dismissProposal("a");
+    await controller.openFile("a", "notes.md");
+    await controller.selectWorkspace("b");
+    controller.edit("b", "a.md", "keep writing in project b");
+    pending.resolve(saved);
+    await copying;
+    const state = controller.getSnapshot();
+    expect(state.activeId).toBe("b");
+    expect(state.projects.a.activePath).toBe("notes.md");
+    expect(state.projects.a.reviewId).toBeUndefined();
+    expect(state.projects.a.documents[savedCopy.path].content).toBe(
+      "full correction"
+    );
+    expect(state.projects.b.documents[savedCopy.path]).toBeUndefined();
+    expect(state.projects.b.documents["a.md"].content).toBe(
+      "keep writing in project b"
+    );
+  });
+
+  it("serializes copying and approval for the same proposal", async () => {
+    const pending = deferred<typeof saved>();
+    let copies = 0;
+    const controller = new CloudWorkspaceController(
+      service({
+        proposal: async () => proposal,
+        copy: async () => {
+          copies++;
+          return pending.promise;
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.openProposal("a", proposal.id);
+    const copying = controller.saveProposalCopy("a", proposal.id);
+    expect(controller.getSnapshot().projects.a.copying).toEqual([proposal.id]);
+    await controller.saveProposalCopy("a", proposal.id);
+    await controller.decide("a", proposal.id, "all", "accepted");
+    pending.resolve(saved);
+    await copying;
+    expect(copies).toBe(1);
+    expect(
+      controller.getSnapshot().projects.a.proposalDetails[proposal.id].status
+    ).toBe("pending");
+  });
+
+  it("does not start a copy while approval is still in flight", async () => {
+    const pending = deferred<{ proposal: CloudProposal; file: CloudFile }>();
+    const controller = new CloudWorkspaceController(
+      service({
+        proposal: async () => proposal,
+        decide: async () => pending.promise,
+      })
+    );
+    await controller.initialize();
+    await controller.openProposal("a", proposal.id);
+    const deciding = controller.decide("a", proposal.id, "all", "accepted");
+    await controller.saveProposalCopy("a", proposal.id);
+    pending.resolve({
+      proposal: {
+        ...proposal,
+        status: "accepted",
+        changes: [{ ...proposal.changes[0], decision: "accepted" }],
+      },
+      file: file("a.md", "full correction", "v2"),
+    });
+    await deciding;
+    expect(controller.getSnapshot().projects.a.files).toHaveLength(1);
+  });
+
+  it("releases a failed copy for retry without dropping the source draft", async () => {
+    let attempt = 0;
+    const controller = new CloudWorkspaceController(
+      service({
+        proposal: async () => proposal,
+        copy: async () => {
+          if (attempt++ === 0) throw new WorkspaceApiError(0, "응답 확인 실패");
+          return saved;
+        },
+      })
+    );
+    await controller.initialize();
+    await controller.openProposal("a", proposal.id);
+    controller.edit("a", "a.md", "unsaved work");
+    await expect(controller.saveProposalCopy("a", proposal.id)).rejects.toThrow(
+      "응답 확인 실패"
+    );
+    expect(controller.getSnapshot().projects.a.copying).toEqual([]);
+    expect(controller.getSnapshot().projects.a.files).toHaveLength(1);
+    await controller.saveProposalCopy("a", proposal.id);
+    expect(controller.getSnapshot().projects.a.documents["a.md"].content).toBe(
+      "unsaved work"
+    );
+    expect(
+      controller.getSnapshot().projects.a.documents[savedCopy.path].content
+    ).toBe("full correction");
+  });
+
+  it("ignores a proposal read and project refresh started before a copy was saved", async () => {
+    const lateProposal = deferred<CloudProposal>();
+    const lateProject = deferred<CloudWorkspaceDetail>();
+    let proposalReads = 0;
+    let projectReads = 0;
+    const controller = new CloudWorkspaceController(
+      service({
+        detail: async (id) =>
+          projectReads++ ? lateProject.promise : snapshot(id),
+        proposal: async () =>
+          proposalReads++ ? lateProposal.promise : proposal,
+        copy: async () => saved,
+      })
+    );
+    await controller.initialize();
+    await controller.openProposal("a", proposal.id);
+    const reopening = controller.openProposal("a", proposal.id);
+    const refreshing = controller.refresh("a");
+    await controller.saveProposalCopy("a", proposal.id);
+    lateProposal.resolve(proposal);
+    lateProject.resolve(snapshot("a"));
+    await Promise.all([reopening, refreshing]);
+    const project = controller.getSnapshot().projects.a;
+    expect(project.proposalDetails[proposal.id].savedCopy).toEqual(savedCopy);
+    expect(project.proposals[0].savedCopy).toEqual(savedCopy);
+    expect(project.files.map((item) => item.path)).toContain(savedCopy.path);
+  });
+
+  it("hydrates the immutable comparison record when loading copy history", async () => {
+    const controller = new CloudWorkspaceController(
+      service({
+        history: async (_id, path) => ({
+          revisions: [],
+          correction: path === savedCopy.path ? correction : null,
+        }),
+      })
+    );
+    await controller.initialize();
+    await controller.loadHistory("a", savedCopy.path);
+    await controller.loadHistory("a", "a.md");
+    expect(
+      controller.getSnapshot().projects.a.corrections[savedCopy.path]
+    ).toEqual(correction);
+    expect(
+      controller.getSnapshot().projects.a.corrections["a.md"]
+    ).toBeUndefined();
+  });
+
+  it.each([false, true])(
+    "preserves a newer saved copy when its initial save response arrives late (continued typing: %s)",
+    async (continuedTyping) => {
+      const pending = deferred<typeof saved>();
+      let remoteCopy: CloudFile | undefined;
+      const controller = new CloudWorkspaceController(
+        service({
+          proposal: async () => proposal,
+          detail: async (id) => ({
+            ...snapshot(id),
+            files: [file(), ...(remoteCopy ? [remoteCopy] : [])],
+          }),
+          file: async (_id, path) =>
+            path === savedCopy.path ? remoteCopy! : file(path),
+          copy: async () => {
+            remoteCopy = saved.file;
+            return pending.promise;
+          },
+          save: async (_id, input) => {
+            remoteCopy = file(input.path, input.content, "v3");
+            return remoteCopy;
+          },
+        })
+      );
+      await controller.initialize();
+      await controller.openProposal("a", proposal.id);
+      const copying = controller.saveProposalCopy("a", proposal.id);
+      await controller.refresh("a");
+      await controller.openFile("a", savedCopy.path);
+      controller.edit("a", savedCopy.path, "manual saved edit");
+      await controller.save("a", savedCopy.path);
+      if (continuedTyping)
+        controller.edit("a", savedCopy.path, "continued typing");
+      const seen: string[] = [];
+      const unsubscribe = controller.subscribe(() =>
+        seen.push(
+          controller.getSnapshot().projects.a.documents[savedCopy.path].content
+        )
+      );
+      pending.resolve(saved);
+      await copying;
+      unsubscribe();
+      const project = controller.getSnapshot().projects.a;
+      expect(project.documents[savedCopy.path].content).toBe(
+        continuedTyping ? "continued typing" : "manual saved edit"
+      );
+      expect(project.documents[savedCopy.path].file.version).toBe("v3");
+      expect(project.documents[savedCopy.path].remote).toBeUndefined();
+      expect(
+        project.files.find((item) => item.path === savedCopy.path)?.version
+      ).toBe("v3");
+      expect(seen).not.toContain("full correction");
+    }
+  );
 });

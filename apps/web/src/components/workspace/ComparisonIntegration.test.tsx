@@ -167,4 +167,138 @@ describe("comparison entry points", () => {
     await act(async () => render(fixture()));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
+
+  it("offers full-copy saving in the panel and comparison without making approval decisions", async () => {
+    const onSaveCopy = vi.fn();
+    const onDecide = vi.fn();
+    await act(async () =>
+      root.render(
+        <ReviewPanel
+          document={fixture()}
+          pending={false}
+          onDecide={onDecide}
+          onDismiss={() => undefined}
+          onCancel={() => undefined}
+          onSaveCopy={onSaveCopy}
+        />
+      )
+    );
+    expect(container.textContent).toContain("승인 여부와 관계없이 전체 수정안");
+    await act(async () => button(container, "전체 교정본 저장").click());
+    await act(async () => button(container, "나란히 비교").click());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    await act(async () => button(dialog, "전체 교정본 저장").click());
+    expect(onSaveCopy).toHaveBeenCalledTimes(2);
+    expect(onDecide).not.toHaveBeenCalled();
+    expect(
+      dialog.querySelector('[aria-label="수정 후 문서"]')?.textContent
+    ).toContain("Last new paragraph.");
+  });
+
+  it("can archive a full proposal even when the current draft has changed", async () => {
+    const initial = fixture();
+    initial.content = "이후에 직접 쓴 내용";
+    const onSaveCopy = vi.fn();
+    await act(async () =>
+      root.render(
+        <ReviewPanel
+          document={initial}
+          pending={false}
+          onDecide={() => undefined}
+          onDismiss={() => undefined}
+          onCancel={() => undefined}
+          onSaveCopy={onSaveCopy}
+        />
+      )
+    );
+    expect(button(container, "모두 승인").disabled).toBe(true);
+    expect(button(container, "전체 교정본 저장").disabled).toBe(false);
+    await act(async () => button(container, "전체 교정본 저장").click());
+    expect(onSaveCopy).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { savingCopy: true, deciding: false },
+    { savingCopy: false, deciding: true },
+  ])(
+    "disables full-copy saving while another proposal operation is in flight: %j",
+    async (busy) => {
+      const onSaveCopy = vi.fn();
+      await act(async () =>
+        root.render(
+          <ReviewPanel
+            document={fixture()}
+            pending={false}
+            {...busy}
+            onDecide={() => undefined}
+            onDismiss={() => undefined}
+            onCancel={() => undefined}
+            onSaveCopy={onSaveCopy}
+          />
+        )
+      );
+      const save = button(container, "전체 교정본 저장");
+      expect(save.disabled).toBe(true);
+      await act(async () => save.click());
+      expect(onSaveCopy).not.toHaveBeenCalled();
+    }
+  );
+
+  it("shows the saved filename and provides an explicit way to open it", async () => {
+    const onOpenCopy = vi.fn();
+    await act(async () =>
+      root.render(
+        <ReviewPanel
+          document={fixture()}
+          pending={false}
+          onDecide={() => undefined}
+          onDismiss={() => undefined}
+          onCancel={() => undefined}
+          onSaveCopy={() => undefined}
+          savedCopyPath="notes/문서.교정본-20261025.md"
+          onOpenCopy={onOpenCopy}
+        />
+      )
+    );
+    expect(container.textContent).toContain("notes/문서.교정본-20261025.md");
+    await act(async () => button(container, "교정본 열기").click());
+    expect(onOpenCopy).toHaveBeenCalledOnce();
+    expect(
+      Array.from(container.querySelectorAll("button")).some((item) =>
+        item.textContent?.includes("전체 교정본 저장")
+      )
+    ).toBe(false);
+  });
+
+  it("compares the archived correction snapshots instead of a later copy edit", async () => {
+    const initial: WorkspaceDocument = {
+      ...createDocument("draft.교정본-20261025.md", "# 나중에 편집한 내용"),
+      revisions: [],
+      correction: {
+        proposalId: "proposal",
+        sourcePath: "draft.md",
+        path: "draft.교정본-20261025.md",
+        createdAt: 1,
+        baseContent: original,
+        proposedContent: proposed,
+      },
+    };
+    const onRestore = vi.fn();
+    await act(async () =>
+      root.render(
+        <HistoryPanel document={initial} onRestore={onRestore} cloud />
+      )
+    );
+    expect(container.textContent).toContain("draft.md");
+    await act(async () => button(container, "교정 전후 비교").click());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(
+      dialog.querySelector('[aria-label="교정 당시 원문 문서"]')?.textContent
+    ).toContain("First old paragraph.");
+    expect(
+      dialog.querySelector('[aria-label="저장한 교정본 문서"]')?.textContent
+    ).toContain("Last new paragraph.");
+    expect(dialog.textContent).not.toContain("나중에 편집한 내용");
+    expect(onRestore).not.toHaveBeenCalled();
+  });
 });

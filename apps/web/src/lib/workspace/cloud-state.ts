@@ -15,7 +15,12 @@ import type {
   ResearchGenre,
   WorkspaceService,
 } from "./cloud-types";
-import type { DocumentRevision, SourceReference, TextSelection } from "./types";
+import type {
+  CorrectionRecord,
+  DocumentRevision,
+  SourceReference,
+  TextSelection,
+} from "./types";
 
 export interface CloudDraft {
   file: CloudFile;
@@ -29,11 +34,13 @@ export interface CloudProjectState extends CloudWorkspaceDetail {
   documents: Record<string, CloudDraft>;
   proposalDetails: Record<string, CloudProposal>;
   revisions: Record<string, DocumentRevision[]>;
+  corrections: Record<string, CorrectionRecord | undefined>;
   activePath?: string;
   reviewId?: string;
   submitting: boolean;
   saving: string[];
   deciding: string[];
+  copying: string[];
   uncertainRequest?: CloudChatRequest;
 }
 
@@ -83,6 +90,7 @@ function summarize(proposal: CloudProposal): CloudProposalSummary {
     explanation: proposal.explanation,
     createdAt: proposal.createdAt,
     status: proposal.status,
+    savedCopy: proposal.savedCopy,
     pendingCount: proposal.changes.filter(
       (change) => change.decision === "pending"
     ).length,
@@ -221,6 +229,7 @@ export class CloudWorkspaceController {
       documents: current?.documents ?? {},
       proposalDetails: current?.proposalDetails ?? {},
       revisions: current?.revisions ?? {},
+      corrections: current?.corrections ?? {},
       activePath:
         current?.activePath ??
         detail.files.find((file) => file.path === this.preferredPaths.get(id))
@@ -229,6 +238,7 @@ export class CloudWorkspaceController {
       reviewId: current?.reviewId,
       saving: current?.saving ?? [],
       deciding: current?.deciding ?? [],
+      copying: current?.copying ?? [],
       submitting: current?.submitting ?? false,
       uncertainRequest: current?.uncertainRequest,
     };
@@ -610,7 +620,11 @@ export class CloudWorkspaceController {
     const project = this.state.projects[id];
     const proposal = project?.proposalDetails[proposalId];
     if (!proposal) throw new Error("수정안을 먼저 열어 주세요.");
-    if (project.deciding.includes(proposalId)) return;
+    if (
+      project.deciding.includes(proposalId) ||
+      project.copying.includes(proposalId)
+    )
+      return;
     if (isDirty(project.documents[proposal.path]))
       throw new Error(
         "편집 중인 내용을 먼저 저장한 뒤 수정안을 다시 확인해 주세요."
@@ -667,11 +681,60 @@ export class CloudWorkspaceController {
     }
   }
 
+  async saveProposalCopy(id: string, proposalId: string) {
+    const project = this.state.projects[id];
+    if (!project?.proposalDetails[proposalId])
+      throw new Error("수정안을 먼저 열어 주세요.");
+    if (
+      project.copying.includes(proposalId) ||
+      project.deciding.includes(proposalId)
+    )
+      return;
+    const key = `${id}/${proposalId}`;
+    this.proposalGeneration.set(
+      key,
+      (this.proposalGeneration.get(key) ?? 0) + 1
+    );
+    this.project(id, (current) => ({
+      ...current,
+      copying: [...current.copying, proposalId],
+    }));
+    try {
+      const result = await this.api.copy(id, proposalId);
+      this.proposalGeneration.set(
+        key,
+        (this.proposalGeneration.get(key) ?? 0) + 1
+      );
+      this.invalidateRefresh(id);
+      this.project(id, (current) => ({
+        ...current,
+        proposals: upsert(current.proposals, summarize(result.proposal), byId),
+        proposalDetails: {
+          ...current.proposalDetails,
+          [proposalId]: result.proposal,
+        },
+      }));
+      // A refresh can expose the copy before this response arrives. Preserve any
+      // destination state opened, edited or saved since this request started.
+      const current = this.state.projects[id]?.documents[result.file.path];
+      if (!current || current === project.documents[result.file.path])
+        this.receiveFile(id, result.file);
+      this.notify(`${result.file.path} 교정본 저장 완료`);
+      return result.file;
+    } finally {
+      this.project(id, (current) => ({
+        ...current,
+        copying: current.copying.filter((item) => item !== proposalId),
+      }));
+    }
+  }
+
   async loadHistory(id: string, path: string) {
-    const { revisions } = await this.api.history(id, path);
+    const { revisions, correction } = await this.api.history(id, path);
     this.project(id, (project) => ({
       ...project,
       revisions: { ...project.revisions, [path]: revisions },
+      corrections: { ...project.corrections, [path]: correction ?? undefined },
     }));
   }
 

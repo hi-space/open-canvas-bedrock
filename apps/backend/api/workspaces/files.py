@@ -202,7 +202,10 @@ class ProjectFiles:
 
     def put_proposal(self, proposal):
         write_json(self.proposal_path(proposal["id"]), proposal)
-        self.metadata.put(self.namespace, "proposal:" + proposal["id"], {
+        summary = {
             key: proposal[key] for key in
             ["id", "jobId", "path", "explanation", "createdAt", "status"]
-        } | {"pendingCount": sum(change["decision"] == "pending" for change in proposal["changes"])})
+        } | {"pendingCount": sum(change["decision"] == "pending" for change in proposal["changes"])}
+        if proposal.get("savedCopy"):
+            summary["savedCopy"] = proposal["savedCopy"]
+        self.metadata.put(self.namespace, "proposal:" + proposal["id"], summary)

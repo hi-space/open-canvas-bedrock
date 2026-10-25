@@ -8,7 +8,7 @@ import type {
   CloudWorkspaceDetail,
   WorkspaceService,
 } from "./cloud-types";
-import type { DocumentRevision } from "./types";
+import type { CorrectionRecord, DocumentRevision } from "./types";
 
 export class WorkspaceApiError extends Error {
   constructor(
@@ -75,9 +75,10 @@ export const workspaceApi: WorkspaceService = {
   save: (id, input) =>
     request<CloudFile>(`/${segment(id)}/files`, "PUT", input),
   history: (id, path) =>
-    request<{ revisions: DocumentRevision[] }>(
-      `/${segment(id)}/history?path=${segment(path)}`
-    ),
+    request<{
+      revisions: DocumentRevision[];
+      correction?: CorrectionRecord | null;
+    }>(`/${segment(id)}/history?path=${segment(path)}`),
   source: (id, source) =>
     request<SourceReference>(`/${segment(id)}/sources`, "POST", source),
   removeSource: (id, sourceId) =>
@@ -96,5 +97,10 @@ export const workspaceApi: WorkspaceService = {
       `/${segment(id)}/proposals/${segment(proposalId)}/decisions`,
       "POST",
       { decisions }
+    ),
+  copy: (id, proposalId) =>
+    request<{ proposal: CloudProposal; file: CloudFile }>(
+      `/${segment(id)}/proposals/${segment(proposalId)}/copy`,
+      "POST"
     ),
 };

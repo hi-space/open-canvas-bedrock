@@ -20,6 +20,7 @@ export function HistoryPanel({
   cloud?: boolean;
 }) {
   const [expanded, setExpanded] = useState<string>();
+  const correction = document.correction;
   return (
     <div className={styles.historyPanel}>
       <div className={styles.panelIntro}>
@@ -31,6 +32,49 @@ export function HistoryPanel({
             : "승인과 저장 시점의 최근 30개 버전을 보관합니다. 복원한 버전도 초안으로 열립니다."}
         </p>
       </div>
+      {correction && (
+        <section
+          className={styles.correctionCopy}
+          aria-label="보관한 교정 기록"
+        >
+          <strong>교정 당시의 두 문서를 보관했어요.</strong>
+          <span className={styles.correctionPath}>{correction.sourcePath}</span>
+          <time dateTime={new Date(correction.createdAt).toISOString()}>
+            {new Intl.DateTimeFormat("ko-KR", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }).format(correction.createdAt)}
+          </time>
+          <p>
+            이후에 편집한 내용과 별도로, 저장 당시의 원문과 전체 교정본을
+            비교합니다.
+          </p>
+          <DocumentComparison
+            key={`${document.id}/${correction.proposalId}`}
+            name={document.name}
+            path={document.path}
+            before={{
+              content: correction.baseContent,
+              label: "교정 당시 원문",
+              detail: correction.sourcePath,
+            }}
+            after={{
+              content: correction.proposedContent,
+              label: "저장한 교정본",
+              detail: correction.path,
+            }}
+            description="교정 당시 원문과 저장한 전체 교정본입니다. 이후 편집이나 승인·거절은 이 비교 기록을 바꾸지 않습니다."
+            trigger={
+              <button type="button" className={styles.secondaryButton}>
+                <Columns2 size={15} aria-hidden="true" /> 교정 전후 비교
+              </button>
+            }
+          />
+        </section>
+      )}
       <ol className={styles.historyList}>
         {[...document.revisions].reverse().map((revision) => {
           const current = revision.content === document.content;

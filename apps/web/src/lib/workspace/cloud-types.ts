@@ -1,4 +1,5 @@
 import type {
+  CorrectionRecord,
   DocumentRevision,
   ReviewChange,
   SourceReference,
@@ -54,6 +55,7 @@ export interface CloudProposalSummary {
   createdAt: number;
   status: "pending" | "accepted" | "rejected" | "partial";
   pendingCount: number;
+  savedCopy?: Pick<CorrectionRecord, "path" | "createdAt">;
 }
 
 export interface CloudProposal extends Omit<
@@ -101,7 +103,13 @@ export interface WorkspaceService {
     id: string,
     input: { path: string; content: string; baseVersion: string | null }
   ): Promise<CloudFile>;
-  history(id: string, path: string): Promise<{ revisions: DocumentRevision[] }>;
+  history(
+    id: string,
+    path: string
+  ): Promise<{
+    revisions: DocumentRevision[];
+    correction?: CorrectionRecord | null;
+  }>;
   source(id: string, source: SourceReference): Promise<SourceReference>;
   removeSource(id: string, sourceId: string): Promise<{ ok: boolean }>;
   chat(id: string, request: CloudChatRequest): Promise<{ job: CloudJob }>;
@@ -112,4 +120,8 @@ export interface WorkspaceService {
     proposalId: string,
     decisions: Record<string, "accepted" | "rejected">
   ): Promise<{ proposal: CloudProposal; file: CloudFile | null }>;
+  copy(
+    id: string,
+    proposalId: string
+  ): Promise<{ proposal: CloudProposal; file: CloudFile }>;
 }

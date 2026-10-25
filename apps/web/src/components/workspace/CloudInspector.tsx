@@ -55,6 +55,7 @@ export function workspaceDocument(
     content: draft?.content ?? proposal?.baseContent ?? "",
     sources: project.sources,
     revisions: path ? (project.revisions[path] ?? []) : [],
+    correction: path ? project.corrections[path] : undefined,
     proposal,
     updatedAt: draft?.file.updatedAt ?? project.workspace.updatedAt,
   };
@@ -653,6 +654,31 @@ export function CloudInspector({
                 )}
                 pending={false}
                 deciding={!!proposal && project.deciding.includes(proposal.id)}
+                savingCopy={!!proposal && project.copying.includes(proposal.id)}
+                savedCopyPath={proposal?.savedCopy?.path}
+                onSaveCopy={
+                  proposal && proposal.baseVersion !== null
+                    ? () => {
+                        void controller
+                          .saveProposalCopy(project.workspace.id, proposal.id)
+                          .catch(controller.report);
+                      }
+                    : undefined
+                }
+                onOpenCopy={
+                  proposal?.savedCopy
+                    ? () => {
+                        setTab("history");
+                        onClearSelection();
+                        void controller
+                          .openFile(
+                            project.workspace.id,
+                            proposal.savedCopy!.path
+                          )
+                          .catch(controller.report);
+                      }
+                    : undefined
+                }
                 acceptedLabel="✓ 파일에 저장됨"
                 activeChangeId={activeChangeId}
                 onLocateChange={

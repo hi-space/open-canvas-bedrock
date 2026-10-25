@@ -6,6 +6,8 @@ import {
   CircleCheck,
   Columns2,
   FileDiff,
+  Files,
+  FolderOpen,
   LoaderCircle,
   LocateFixed,
   ShieldCheck,
@@ -125,6 +127,10 @@ interface ReviewPanelProps {
   acceptedLabel?: string;
   activeChangeId?: string;
   onLocateChange?: (changeId: string) => void;
+  onSaveCopy?: () => void;
+  savingCopy?: boolean;
+  savedCopyPath?: string;
+  onOpenCopy?: () => void;
 }
 
 export function ReviewPanel(props: ReviewPanelProps) {
@@ -208,8 +214,18 @@ export function ReviewPanel(props: ReviewPanelProps) {
             <Columns2 size={15} aria-hidden="true" /> 나란히 비교
           </button>
         }
-        controls={<ReviewDecisions {...props} onLocateChange={undefined} />}
+        controls={
+          <>
+            <ReviewCopyControls {...props} />
+            <ReviewDecisions
+              {...props}
+              deciding={props.deciding || props.savingCopy}
+              onLocateChange={undefined}
+            />
+          </>
+        }
       />
+      <ReviewCopyControls {...props} />
       {html && (
         <div className={cloud.htmlReview}>
           <fieldset className={styles.viewToggle} aria-label="HTML 수정안 비교">
@@ -246,8 +262,65 @@ export function ReviewPanel(props: ReviewPanelProps) {
           </p>
         </div>
       )}
-      <ReviewDecisions {...props} />
+      <ReviewDecisions
+        {...props}
+        deciding={props.deciding || props.savingCopy}
+      />
     </div>
+  );
+}
+
+function ReviewCopyControls({
+  onSaveCopy,
+  savingCopy = false,
+  savedCopyPath,
+  onOpenCopy,
+  deciding = false,
+}: ReviewPanelProps) {
+  if (!onSaveCopy && !savedCopyPath) return null;
+  return (
+    <section className={styles.correctionCopy} aria-label="교정본 파일">
+      {savedCopyPath ? (
+        <>
+          <strong>전체 교정본을 보관했습니다.</strong>
+          <span className={styles.correctionPath}>{savedCopyPath}</span>
+          {onOpenCopy && (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={onOpenCopy}
+            >
+              <FolderOpen size={15} aria-hidden="true" /> 교정본 열기
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            aria-label="전체 교정본 저장"
+            disabled={savingCopy || deciding}
+            onClick={onSaveCopy}
+          >
+            {savingCopy ? (
+              <LoaderCircle
+                size={15}
+                className={styles.spin}
+                aria-hidden="true"
+              />
+            ) : (
+              <Files size={15} aria-hidden="true" />
+            )}
+            {savingCopy ? "저장 중…" : "전체 교정본 저장"}
+          </button>
+          <p>
+            승인 여부와 관계없이 전체 수정안을 새 파일로 저장합니다. 교정 당시
+            원문과 함께 이력에서 비교할 수 있어요.
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 

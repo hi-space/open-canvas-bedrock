@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from api.workspaces.files import ProjectFiles, now
+from api.workspaces.corrections import correction_for, save_proposal_copy
 from api.workspaces.identity import owner_key
 from api.workspaces.jobs import job_is_stale
 from api.workspaces.models import CreateWorkspace, SaveFile, ChatRequest, Decisions, SourceInput
@@ -83,7 +84,7 @@ def save_file(workspace: str, body: SaveFile, owner=Depends(owner_key)):
 def history(workspace: str, path: str = Query(max_length=500), owner=Depends(owner_key)):
     files = authorized(owner, workspace)
     with files.lock():
-        return {"revisions": files.history(path)}
+        return {"revisions": files.history(path), "correction": correction_for(files, path)}
 
 
 @router.post("/{workspace}/sources")
@@ -138,3 +139,10 @@ def decide(workspace: str, proposal_id: str, body: Decisions, owner=Depends(owne
     files = authorized(owner, workspace)
     with files.lock():
         return apply_decisions(files, proposal_id, body.decisions)
+
+
+@router.post("/{workspace}/proposals/{proposal_id}/copy")
+def copy_proposal(workspace: str, proposal_id: str, owner=Depends(owner_key)):
+    files = authorized(owner, workspace)
+    with files.lock():
+        return save_proposal_copy(files, proposal_id)

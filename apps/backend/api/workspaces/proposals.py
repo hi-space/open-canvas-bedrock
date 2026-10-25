@@ -158,9 +158,13 @@ def recover_approval(files):
         files.put_proposal(intent["proposal"])
         journal.unlink()
         return
-    current = files.read(intent["proposal"]["path"], missing=True)
+    copy = intent.get("copy")
+    current = files.read(copy["path"] if copy else intent["proposal"]["path"], missing=True)
     current_version = current["version"] if current else None
     if current_version == intent["targetVersion"]:
+        if copy:
+            from api.workspaces.corrections import record_copy
+            record_copy(files, copy)
         files.put_proposal(intent["proposal"])
     elif current_version != intent["previousVersion"]:
         raise HTTPException(409, "중단된 승인 이후 파일이 변경되었습니다. 관리자에게 복구를 요청해 주세요.")
