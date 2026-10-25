@@ -111,3 +111,29 @@ class JobConsistencyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FailureReasonTests(unittest.TestCase):
+    def test_failed_jobs_explain_what_the_person_can_do_without_internal_details(self):
+        from botocore.exceptions import ClientError, ReadTimeoutError
+        from fastapi import HTTPException
+        from api.workspaces.research import ResearchError
+        from api.workspaces.service import GENERIC_FAILURE, TIME_LIMIT_FAILURE, failure_reason
+
+        def runtime(message):
+            return ClientError({"Error": {"Code": "RuntimeClientError", "Message": message}}, "InvokeAgentRuntime")
+
+        cases = [
+            (ResearchError("프로젝트 출처 한도가 가득 찼습니다."), "프로젝트 출처 한도가 가득 찼습니다."),
+            (HTTPException(502, "AI가 확인되지 않은 출처를 추가했습니다."), "AI가 확인되지 않은 출처를 추가했습니다."),
+            (runtime("Runtime initialization time exceeded. Please make sure that initialization completes in 120s."),
+             TIME_LIMIT_FAILURE),
+            (ReadTimeoutError(endpoint_url="https://bedrock-agentcore.example"), TIME_LIMIT_FAILURE),
+            (runtime("Received error (502) from runtime. Please check your CloudWatch logs."), GENERIC_FAILURE),
+            (HTTPException(500, {"private": "structure"}), GENERIC_FAILURE),
+            (ValueError("Invalid runtime result with SECRET"), GENERIC_FAILURE),
+        ]
+        for error, expected in cases:
+            with self.subTest(error=type(error).__name__):
+                self.assertEqual(failure_reason(error), expected)
+        self.assertIn("원본은 변경되지 않았습니다", TIME_LIMIT_FAILURE)

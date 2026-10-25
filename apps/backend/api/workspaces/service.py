@@ -9,7 +9,7 @@ import logging
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ReadTimeoutError
 from fastapi import HTTPException
 
 from api.writing.models import WritingSource
@@ -185,6 +185,10 @@ def report_progress(files, job_id, status):
 
 
 GENERIC_FAILURE = "에이전트 작업을 완료하지 못했습니다. 원본은 변경되지 않았습니다. 다시 요청해 주세요."
+TIME_LIMIT_FAILURE = (
+    "요청이 길어 제한 시간 안에 끝나지 않았습니다. 원본은 변경되지 않았습니다. "
+    "문서나 범위를 나누어 다시 요청해 주세요."
+)
 
 
 def _failure_detail(error):
@@ -202,7 +206,14 @@ def failure_reason(error):
 
     if isinstance(error, ResearchError):
         return str(error)
-    # TODO(user): choose which other failures deserve a specific message.
+    # Our HTTP details are written for people and carry no request data.
+    if isinstance(error, HTTPException) and isinstance(error.detail, str):
+        return error.detail
+    if isinstance(error, ReadTimeoutError) or (
+        isinstance(error, ClientError)
+        and "initialization time exceeded" in str(error.response.get("Error", {}).get("Message", ""))
+    ):
+        return TIME_LIMIT_FAILURE
     return GENERIC_FAILURE
 
 
