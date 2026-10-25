@@ -46,11 +46,14 @@ class ChatRequest(Input):
     # Deep research: research the request and propose the result as a new file in this genre.
     researchGenre: Literal["paper", "blog", "linkedin"] | None = None
     outputFormat: Literal["html"] | None = None
+    contextPaths: list[str] | None = Field(default=None, max_length=5)
 
     @model_validator(mode="after")
     def exclusive_output_mode(self):
-        if self.outputFormat is not None and (self.selection is not None or self.researchGenre is not None):
-            raise ValueError("HTML 생성은 새 문서를 만듭니다. 선택 영역과 딥 리서치를 해제해 주세요.")
+        if self.outputFormat is not None and self.selection is not None:
+            raise ValueError("HTML 생성은 새 문서를 만듭니다. 선택 영역을 해제해 주세요.")
+        if self.contextPaths is not None and self.researchGenre is None:
+            raise ValueError("프로젝트 자료 선택은 딥 리서치에서 사용할 수 있습니다.")
         return self
 
     @field_validator("message")

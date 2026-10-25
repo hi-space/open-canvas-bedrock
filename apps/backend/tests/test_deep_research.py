@@ -102,6 +102,56 @@ class DeepResearchGraphTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.environment.stop()
 
+    def test_supplied_evidence_is_seeded_and_survives_duplicate_search_hits(self):
+        from agents.deep_research import nodes
+        supplied = {
+            "id": "owned-source", "url": "https://example.com/research",
+            "title": "Provided report", "excerpt": "Supplied measured evidence. " * 30,
+        }
+        model = FakeChat(recorder=Recorder())
+
+        async def check():
+            state = {
+                "messages": [HumanMessage(content="기존 출처에 이어서 조사")], "genre": "blog",
+                "suppliedSources": [supplied],
+            }
+            with patch("core.bedrock_client.get_bedrock_model", return_value=model):
+                state.update(await nodes.plan_research_node(state, {}))
+            self.assertEqual(len(state["sources"]), 1)
+            self.assertEqual(state["sources"]["S1"]["content"], supplied["excerpt"])
+            self.assertEqual(state["sources"]["S1"]["question_ids"], ["Q1", "Q2"])
+            hit = {
+                "url": supplied["url"] + "#overview", "title": "Search snippet",
+                "content": "Shorter search text", "score": 1,
+            }
+
+            async def duplicates(queries, max_results):
+                return [[hit] for _ in queries]
+
+            with patch("agents.deep_research.nodes.search_many", side_effect=duplicates):
+                state.update(await nodes.search_sources_node(state, {}))
+            self.assertEqual(len(state["sources"]), 1)
+            self.assertEqual(state["sources"]["S1"]["content"], supplied["excerpt"])
+
+        asyncio.run(check())
+
+    def test_project_context_reaches_each_genres_writer_as_labeled_material(self):
+        from agents.deep_research.nodes import _section_context
+        for genre in ("paper", "blog", "linkedin"):
+            with self.subTest(genre=genre):
+                state = {
+                    "genre": genre, "brief": BRIEF, "outline": OUTLINE,
+                    "sources": {}, "findings": [], "figures": [],
+                    "projectContext": [{
+                        "path": "private/plan.md", "version": "a" * 64,
+                        "content": "내부 기준: 대상 고객은 세 팀이다.", "truncated": False,
+                    }],
+                }
+                context = _section_context(state, OUTLINE["sections"][0])
+                self.assertIn("대상 고객은 세 팀", context)
+                self.assertIn("private/plan.md", context)
+                self.assertIn("project-material", context)
+
     def run_graph(self, genre="blog"):
         from agents.open_canvas.graph import graph
         recorder = Recorder()

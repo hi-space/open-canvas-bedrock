@@ -3,6 +3,7 @@
 Every node returns `researchStatus` first: the canvas shows it as the node's progress line.
 """
 import logging
+import json
 import uuid
 from datetime import datetime
 from typing import Any, Dict
@@ -44,7 +45,33 @@ def _profile(state: DeepResearchState) -> GenreProfile:
 
 
 def _user_context(state: DeepResearchState) -> str:
-    return format_messages(state.get("messages", []), max_length=USER_CONTEXT_CHARS)
+    conversation = format_messages(state.get("messages", []), max_length=USER_CONTEXT_CHARS)
+    return conversation + _project_material(state)
+
+
+def _project_material(state: DeepResearchState) -> str:
+    documents = state.get("projectContext") or []
+    if not documents:
+        return ""
+    data = json.dumps(documents, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
+    return f"\n\n<project-material>\n{data}\n</project-material>"
+
+
+def _supplied_sources(state: DeepResearchState, questions: list) -> dict:
+    sources, seen = {}, set()
+    for source in state.get("suppliedSources") or []:
+        content = source.get("excerpt") or ""
+        url = source.get("url")
+        if not content.strip() or not url or normalize_url(url) in seen:
+            continue
+        seen.add(normalize_url(url))
+        sid = f"S{len(sources) + 1}"
+        sources[sid] = {
+            "id": sid, "url": url, "title": source.get("title") or url,
+            "content": content, "question_ids": [question.id for question in questions],
+            "origin": "supplied", "score": 1.0,
+        }
+    return sources
 
 
 def _brief_text(brief: dict) -> str:
@@ -114,7 +141,7 @@ async def plan_research_node(state: DeepResearchState, config: RunnableConfig) -
         "brief": brief_dict,
         "pendingQueries": pending,
         "round": 0,
-        "sources": {},
+        "sources": _supplied_sources(state, brief.questions),
         "findings": [],
         "extracted": [],
         "runId": uuid.uuid4().hex[:12],
@@ -130,9 +157,10 @@ async def search_sources_node(state: DeepResearchState, config: RunnableConfig) 
     for item in pending:
         asked_by.setdefault(item["query"].strip(), []).append(item["question_id"])
     results = await search_many(list(asked_by), profile.results_per_query)
-    cap = profile.max_sources
+    supplied_count = sum(source.get("origin") == "supplied" for source in sources.values())
+    cap = supplied_count + profile.max_sources
     if state.get("round", 0) == 0 and profile.max_rounds > 1:
-        cap = int(cap * FIRST_ROUND_SOURCE_SHARE)
+        cap = supplied_count + int(profile.max_sources * FIRST_ROUND_SOURCE_SHARE)
     added = 0
     for question_ids, hits in zip(asked_by.values(), results):
         for hit in hits:
@@ -181,9 +209,9 @@ async def extract_findings_node(state: DeepResearchState, config: RunnableConfig
         fresh = [
             s for s in sources.values()
             if question["id"] in s["question_ids"] and f"{question['id']}:{s['id']}" not in extracted
-            and len(s.get("content", "")) >= 200
+            and (len(s.get("content", "")) >= 200 or s.get("origin") == "supplied")
         ]
-        fresh.sort(key=lambda s: s.get("score", 0), reverse=True)
+        fresh.sort(key=lambda s: (s.get("origin") == "supplied", s.get("score", 0)), reverse=True)
         batch = fresh[:per_question]
         if batch:
             jobs.append((question, batch))
@@ -283,7 +311,8 @@ async def build_outline_node(state: DeepResearchState, config: RunnableConfig) -
         f"<brief>\n{_brief_text(brief)}\n</brief>\n\n<questions>\n{questions}\n</questions>\n\n"
         f"<findings>\n{chr(10).join(_finding_line(f) for f in findings)}\n</findings>\n\n"
         f"<open-gaps>\n{chr(10).join(state.get('gaps') or []) or 'none'}\n</open-gaps>\n\n"
-        f"<conversation>\n{_user_context(state)[:8000]}\n</conversation>"
+        f"<conversation>\n{format_messages(state.get('messages', []), max_length=8000)}\n</conversation>"
+        + _project_material(state)
     )
     outline = await ainvoke_json(get_model(config, BUDGET_LONG), system, user, Outline)
     if not profile.sectioned:
@@ -324,6 +353,7 @@ async def create_diagrams_node(state: DeepResearchState, config: RunnableConfig)
     async def make(index: int, section: dict):
         figure = section["figure"]
         evidence = "\n".join(_finding_line(findings[fid], full=True) for fid in section["finding_ids"] if fid in findings)
+        evidence += _project_material(state)
         url = await render_figure(model, figure["kind"], figure["request"], evidence, language,
                                   state["assetOwner"], state["runId"], f"fig{index}")
         return section["id"], figure, url
@@ -367,7 +397,9 @@ def _section_context(state: DeepResearchState, section: dict) -> str:
         f"Goal: {section['goal']}\nKey points:\n" + "\n".join(f"- {p}" for p in section["key_points"]) +
         f"\n</section>\n\n<findings>\n{chr(10).join(_finding_line(f, full=True) for f in used) or 'none'}\n</findings>\n\n"
         f"<sources>\n{_sources_for(used, sources) or 'none'}\n</sources>\n\n<figure>{figure_note}</figure>"
-        + (f"\n\n<user-material>\n{_user_context(state)[:12000]}\n</user-material>" if profile.name == "linkedin" else "")
+        + _project_material(state)
+        + (f"\n\n<user-material>\n{format_messages(state.get('messages', []), max_length=12000)}\n</user-material>"
+           if profile.name == "linkedin" else "")
     )
 
 
@@ -419,6 +451,7 @@ async def review_draft_node(state: DeepResearchState, config: RunnableConfig) ->
     user = (
         f"<brief>\n{_brief_text(state['brief'])}\n</brief>\n\n<draft>\n{document}\n</draft>\n\n"
         f"<evidence>\n{chr(10).join(_finding_line(f) for f in findings)}\n</evidence>"
+        + _project_material(state)
     )
     try:
         review = await ainvoke_json(get_model(config, BUDGET_LONG), system, user, Review)

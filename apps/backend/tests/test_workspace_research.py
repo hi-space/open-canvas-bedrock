@@ -101,6 +101,33 @@ class WorkspaceResearchTests(unittest.TestCase):
         job, _ = self.ask(state)
         self.assertEqual(job["status"], "failed")
 
+    def test_html_research_has_citations_and_a_figure_and_requires_approval(self):
+        job, _ = self.ask(outputFormat="html")
+        self.assertEqual(job["status"], "completed", job)
+        proposal = self.client.get(f"/api/workspaces/{self.workspace}/proposals/{job['proposalIds'][0]}").json()
+        self.assertEqual(proposal["path"], "research/RAG 설계-청킹과 리랭킹.html")
+        self.assertIn("<!doctype html>", proposal["proposedContent"].lower())
+        self.assertIn(f'href="{URL_A}"', proposal["proposedContent"])
+        self.assertIn(f'src="{FIGURE}"', proposal["proposedContent"])
+        self.assertEqual(self.client.get(f"/api/workspaces/{self.workspace}").json()["files"], [])
+        approved = self.client.post(
+            f"/api/workspaces/{self.workspace}/proposals/{proposal['id']}/decisions",
+            json={"decisions": {"c0": "accepted"}},
+        )
+        self.assertEqual(approved.status_code, 200, approved.text)
+        self.assertEqual(approved.json()["file"]["content"], proposal["proposedContent"])
+
+    def test_html_research_lists_private_material_without_inventing_a_public_url(self):
+        saved = self.client.put(f"/api/workspaces/{self.workspace}/files", json={
+            "path": "notes/customer.md", "content": "고객이 요청한 조건은 세 가지입니다.",
+        }).json()
+        job, _ = self.ask(outputFormat="html", activePath=saved["path"], activeVersion=saved["version"])
+        self.assertEqual(job["status"], "completed", job)
+        proposal = self.client.get(f"/api/workspaces/{self.workspace}/proposals/{job['proposalIds'][0]}").json()
+        self.assertIn("notes/customer.md", proposal["proposedContent"])
+        self.assertIn(saved["version"][:12], proposal["proposedContent"])
+        self.assertNotIn('href="notes/customer.md"', proposal["proposedContent"])
+
     def test_other_relative_images_are_not_exempt(self):
         job, _ = self.ask(research_state(MARKDOWN.replace(FIGURE, "/api/workspaces/x/files.png")))
         self.assertEqual(job["status"], "failed")
@@ -122,6 +149,101 @@ class WorkspaceResearchTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 422, response.text)
 
+    def test_selected_project_material_is_snapshotted_before_research(self):
+        saved = self.client.put(f"/api/workspaces/{self.workspace}/files", json={
+            "path": "notes/brief.md", "content": "# 내부 자료\n\n고객은 세 가지 구성을 비교합니다.",
+        }).json()
+        self.client.put(f"/api/workspaces/{self.workspace}/files", json={
+            "path": "unselected.md", "content": "이 문서는 선택하지 않았습니다.",
+        })
+        received = []
+
+        async def graph(payload, slots, progress):
+            received.extend(payload.get("projectContext", []))
+            self.client.put(f"/api/workspaces/{self.workspace}/files", json={
+                "path": saved["path"], "content": "# 새 버전", "baseVersion": saved["version"],
+            })
+            return research_state()
+
+        with patch("api.workspaces.research._run_graph", side_effect=graph):
+            response = self.client.post(f"/api/workspaces/{self.workspace}/chat", json={
+                "message": "우리 자료를 바탕으로 조사", "requestId": "context", "researchGenre": "blog",
+                "activePath": saved["path"], "activeVersion": saved["version"],
+                "contextPaths": [saved["path"]],
+            })
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(received, [{
+            "path": "notes/brief.md", "version": saved["version"],
+            "content": "# 내부 자료\n\n고객은 세 가지 구성을 비교합니다.", "truncated": False,
+        }])
+        current = self.client.get(f"/api/workspaces/{self.workspace}/files", params={"path": saved["path"]}).json()
+        self.assertEqual(current["content"], "# 새 버전")
+
+    def test_research_context_rejects_outside_or_missing_project_files(self):
+        for path, status in [("../other.md", 422), ("missing.md", 404)]:
+            with self.subTest(path=path), patch(
+                "api.workspaces.research._run_graph", return_value=research_state()
+            ):
+                response = self.client.post(f"/api/workspaces/{self.workspace}/chat", json={
+                    "message": "조사", "requestId": "bad-context", "researchGenre": "blog",
+                    "contextPaths": [path],
+                })
+                self.assertEqual(response.status_code, status, response.text)
+        self.assertEqual(self.client.get(f"/api/workspaces/{self.workspace}").json()["jobs"], [])
+
+    def test_context_paths_have_a_five_file_limit_and_require_research(self):
+        for extra in [
+            {"researchGenre": "blog", "contextPaths": [f"{n}.md" for n in range(6)]},
+            {"contextPaths": ["a.md"]},
+        ]:
+            with self.subTest(extra=extra), patch(
+                "api.workspaces.research._run_graph", return_value=research_state()
+            ), patch("api.workspaces.service.invoke_agent", return_value={"message": "완료", "proposals": []}):
+                response = self.client.post(f"/api/workspaces/{self.workspace}/chat", json={
+                    "message": "자료 읽기", "requestId": "context-limit", **extra,
+                })
+                self.assertEqual(response.status_code, 422, response.text)
+
+    def test_an_explicit_empty_context_excludes_the_active_document(self):
+        saved = self.client.put(f"/api/workspaces/{self.workspace}/files", json={
+            "path": "private.md", "content": "선택 해제한 파일",
+        }).json()
+        received = []
+
+        async def graph(payload, slots, progress):
+            received.extend(payload.get("projectContext", []))
+            return research_state()
+
+        with patch("api.workspaces.research._run_graph", side_effect=graph):
+            response = self.client.post(f"/api/workspaces/{self.workspace}/chat", json={
+                "message": "웹만 조사", "requestId": "web-only", "researchGenre": "blog",
+                "activePath": "private.md", "activeVersion": saved["version"], "contextPaths": [],
+            })
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(received, [])
+
+
+class ResearchContextTests(unittest.TestCase):
+    def test_short_documents_are_preserved_and_long_excerpts_are_bounded(self):
+        from api.workspaces.research_context import context_excerpt
+        self.assertEqual(context_excerpt("짧은 원문", 20), "짧은 원문")
+        excerpt = context_excerpt("도입 " * 100 + "결론 " * 100, 100)
+        self.assertLessEqual(len(excerpt), 100)
+        self.assertTrue(excerpt.strip())
+
+    def test_source_documents_share_a_total_context_budget(self):
+        from api.workspaces.research_context import snapshot_context
+
+        class Files:
+            def read(self, path):
+                return {"path": path, "version": "a" * 64, "content": "한" * 16000}
+
+        context = snapshot_context(Files(), [f"{n}.md" for n in range(5)])
+        self.assertEqual(len(context), 5)
+        self.assertLessEqual(sum(len(item["content"]) for item in context), 30000)
+        self.assertTrue(all(item["truncated"] for item in context))
+        self.assertTrue(all(0 < len(item["content"]) <= 12000 for item in context))
+
 
 class DocumentPathTests(unittest.TestCase):
     def test_titles_become_safe_unique_paths(self):
@@ -133,6 +255,13 @@ class DocumentPathTests(unittest.TestCase):
         self.assertEqual(document_path("🧠 AgentCore Memory: 단기 vs 장기", set()),
                          "research/AgentCore Memory-단기 vs 장기.md")
         self.assertEqual(document_path("...", set()), "research/research.md")
+
+    def test_html_names_have_their_own_collision_check(self):
+        from api.workspaces.research import document_path
+        self.assertEqual(
+            document_path("연구", {"research/연구.html", "research/연구-2.html"}, "html"),
+            "research/연구-3.html",
+        )
 
 
 if __name__ == "__main__":

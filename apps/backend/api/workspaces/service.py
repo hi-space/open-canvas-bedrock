@@ -17,6 +17,7 @@ from api.workspaces.files import ProjectFiles, now, validate_path
 from api.workspaces.html_documents import html_selection, is_html_path
 from api.workspaces.jobs import JobHeartbeat, job_is_stale
 from api.workspaces.proposals import create_proposal, utf16_offset
+from api.workspaces.research_context import snapshot_context
 from core.models import get_default_model_name
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,14 @@ def prepare_job(files, request):
         payload["selection"] = selection
     if request.researchGenre:
         payload["researchGenre"] = request.researchGenre
+        context_paths = request.contextPaths
+        if context_paths is None:
+            context_paths = [request.activePath] if request.activePath else []
+        payload["projectContext"] = snapshot_context(files, context_paths)
+        job["contextPaths"] = [item["path"] for item in payload["projectContext"]]
+        job["truncatedContextPaths"] = [
+            item["path"] for item in payload["projectContext"] if item["truncated"]
+        ]
     if request.outputFormat:
         payload["outputFormat"] = request.outputFormat
     user_message = {

@@ -11,6 +11,8 @@ class DeepResearchState(TypedDict, total=False):
     # Status first: the canvas UI shows the first short string of a node's output as its progress line.
     researchStatus: str
     messages: Annotated[List[BaseMessage], add_messages]
+    projectContext: List[dict]  # server snapshots: path, version, content, truncated
+    suppliedSources: List[dict]  # registered reference excerpts, not instructions
     genre: str
     maxCitedSources: Optional[int]  # set by destinations with a source limit (project workspaces)
     brief: dict             # title, audience, thesis, language, questions[{id, question, queries}]

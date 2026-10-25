@@ -511,7 +511,7 @@ def test_atomic_html_approval_revalidates_assembled_html_and_base_version(worksp
     assert "수동 수정" in files.read("page.html")["content"]
 
 
-def test_html_generation_routes_output_format_through_api_and_rejects_other_modes(workspace, monkeypatch):
+def test_html_generation_routes_output_format_through_api_and_rejects_selections(workspace, monkeypatch):
     from api.workspaces.models import ChatRequest
     from api.workspaces.service import prepare_job
 
@@ -519,8 +519,8 @@ def test_html_generation_routes_output_format_through_api_and_rejects_other_mode
     monkeypatch.setattr("api.workspaces.research.run_research", lambda *args: {"message": "완료", "proposals": []})
     monkeypatch.setattr("api.workspaces.service.invoke_agent", lambda *args: {"message": "완료", "proposals": []})
     for extra in [
-        {"researchGenre": "blog"},
         {"selection": {"from": 0, "to": 1, "text": "x"}},
+        {"researchGenre": "blog", "selection": {"from": 0, "to": 1, "text": "x"}},
     ]:
         response = client.post(f"/api/workspaces/{files.workspace}/chat", json={
             "message": "HTML 생성", "requestId": "invalid-mode", "outputFormat": "html", **extra,
