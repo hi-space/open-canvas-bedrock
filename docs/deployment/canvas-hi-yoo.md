@@ -1,6 +1,57 @@
 # canvas.hi-yoo.com deployment
 
-## Current release: revision source navigation, 2026-10-25
+## Current release: HTML canvas and bounded revisions, 2026-10-25
+
+The workspace generates static HTML/CSS from project sources, previews new
+documents before approval, and supports element selection, rendered before/after
+review, source editing, citations and HTML download. HTML changes are atomic.
+Long-document revisions preserve Markdown links and code blocks, share one
+output-token budget, and maintain a heartbeat while external work is running.
+
+- Source commit: `9ebb72e0d075ec7fd44b73f1a11a26487101c237`, branch
+  `feat/html-workspace`.
+- Release: `html-workspace-20261025T082913Z`; verified at
+  `2026-10-25T09:20:32Z`.
+- `HtmlCanvasStack` and `CanvasWorkspaceStack`: `UPDATE_COMPLETE`.
+- ECS task definition: `HtmlCanvasStackTaskDef2E995DD4:16`; rollout `COMPLETED`,
+  one running task, zero pending, both containers and the ALB target healthy.
+  Previous revision `:15` remains `ACTIVE` for rollback.
+- AgentCore runtime: `canvas_writing_workspace-GKTOJW3k5H`, version `3`, `READY`;
+  the `DEFAULT` endpoint serves version `3`. Maximum lifetime is 900 seconds;
+  idle timeout remains 60 seconds.
+- Frontend image:
+  `sha256:4a63d8d62821ebaaad5869d02d2de57e08e3eb828a06bb6ddacdc6d1763cb9b2`.
+- Backend image:
+  `sha256:320ebd45e0ef8fd3853310cb04d2932e789673557633baf112f6f42da68e79e3`.
+- ARM64 agent image:
+  `sha256:01ef081894806383455235504ca7671fd7bab3f17ab8aab1dbccb49b2bacdca4`.
+
+The application template changes the two container images. The support template
+changes the runtime image and maximum lifetime. CloudFormation also reevaluates
+`ApiWorkspacePolicy` through `Runtime.AgentRuntimeArn`; both its template and
+effective policy document match the baseline. Existing capacity, networking,
+authentication, roles and filesystem configuration are retained.
+
+Validation: 158 web tests, type checking, lint and the production build pass.
+The exact backend image passes 318 tests and 84 subtests as application UID
+10001; the ARM64 agent image passes startup, HTML-selection and request-validation
+checks. All 17 deployment tests and CloudFormation validation pass. Existing
+lint, datetime and redundant-dependency warnings remain.
+
+A real Cognito browser session verified source-file-based HTML generation through
+AgentCore, preview without a canonical write, atomic approval, selected-region
+revision, persistence after reload, stale-write rejection, and exact HTML export.
+There were no page errors. The temporary login and project were removed; cleanup
+used the application's native filesystem mount and task role, and its temporary
+task definition was deregistered. Test passwords and browser cookies were not
+saved. Automated authenticated write probes send a matching `Origin` header,
+as required by the production proxy.
+
+Baseline templates, immutable source/image manifests, reviewed change sets,
+container checks and live verification records are stored privately under
+`~/.local/state/open-canvas-deployments/html-workspace-20261025T082913Z/`.
+
+## Previous release: revision source navigation, 2026-10-25
 
 Revision cards now include **본문에서 보기**. The action scrolls to the affected
 paragraph or Markdown range, highlights it with the same change number, and

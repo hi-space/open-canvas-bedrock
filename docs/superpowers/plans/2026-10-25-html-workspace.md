@@ -115,3 +115,23 @@ generation choice that sends `outputFormat: "html"`, independent of research.
 - Independent review findings were fixed: inline/linked-card citation insertion,
   source-ID retention, normalized folder-sync baselines, parser repair
   ambiguities, and runtime image packaging.
+
+## Deployment follow-up — 2026-10-25
+
+Source commit `9ebb72e0d075ec7fd44b73f1a11a26487101c237` was pushed to
+`feat/html-workspace` and deployed to the existing production service. The
+release also includes reviewed fixes for long-document Markdown handling,
+shared token accounting and job liveness.
+
+All three production images were built and pushed. The backend image passes
+318 tests and 84 subtests as its application user; the ARM64 runtime image passes
+its import/health/HTML-selection checks. The 158 web tests and 17 deployment
+tests also pass. Both CloudFormation stacks are `UPDATE_COMPLETE`, ECS revision
+16 is healthy, and runtime version 3 serves the default endpoint.
+
+Live browser verification now also passes with real Cognito authentication and
+AgentCore inference: source-backed HTML generation, preview before approval,
+selected-region editing, atomic approval, persisted reload, stale-save rejection,
+and exact download. The temporary account and project were cleaned up.
+See [deployment record](../../deployment/canvas-hi-yoo.md) for image digests and
+the retained rollback baseline.
