@@ -5,6 +5,7 @@ and returns the same shape as the workspace agent runtime, so run_job validates 
 """
 import asyncio
 import hashlib
+import os
 import re
 import unicodedata
 
@@ -12,12 +13,13 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from api.writing.models import WritingSource
 from api.writing.service import _links_in, _normalize_link
-from core.research_sources import evidence_groups
+from core.research_sources import source_key
+from core.source_catalog import SourceCatalog, evidence_from_reads
+from api.workspaces.research_sources import ResearchSources
 
 MAX_SOURCES = 50
 MAX_EXCERPT_CHARACTERS = 100000
 MAX_EXCERPT_PER_SOURCE = 4000
-MIN_EXCERPT_PER_SOURCE = 300
 HEARTBEAT_SECONDS = 60
 
 
@@ -89,13 +91,17 @@ async def _run_graph(payload: dict, slots: int, progress) -> dict:
             await asyncio.sleep(HEARTBEAT_SECONDS)
             progress(last[0])
 
-    config = {"configurable": {"customModelName": payload["model"]}}
-    supplied = [source for source in payload.get("sources", []) if (source.get("excerpt") or "").strip()]
+    catalog = _catalog(payload)
+    priority_urls = _links_in(payload["message"])
+    for document in payload.get("projectContext") or []:
+        priority_urls.extend(_links_in(document["content"]))
+    retriever = ResearchSources(catalog, priority_urls)
+    config = {"configurable": {"customModelName": payload["model"], "workspaceSources": retriever}}
     inputs = {
         "messages": _messages(payload), "genre": payload["researchGenre"],
-        "maxCitedSources": slots + len(evidence_groups(supplied)),
+        "maxCitedSources": slots,
         "maxNewCitedSources": slots, "assetOwner": payload["ownerKey"],
-        "projectContext": payload.get("projectContext", []), "suppliedSources": supplied,
+        "projectContext": payload.get("projectContext", []), "suppliedSources": [],
         "outputFormat": payload.get("outputFormat"),
     }
     beat = asyncio.create_task(heartbeat())
@@ -112,36 +118,59 @@ async def _run_graph(payload: dict, slots: int, progress) -> dict:
         raise ResearchError("웹 검색이 설정되지 않았습니다. 서버의 TAVILY_API_KEY를 확인해 주세요.") from error
     finally:
         beat.cancel()
+    state["_sourceReads"] = retriever.evidence.reads
+    state["_webEvidence"] = list(retriever.web_evidence.values())
     return state
 
 
+def _catalog(payload):
+    return SourceCatalog(
+        os.environ.get("WORKSPACE_ROOT", "/mnt/workspace"),
+        payload["ownerKey"], payload.get("workspaceId", "legacy-research"),
+        payload.get("sourceSnapshot"), payload.get("sources", []),
+    )
+
+
 def run_research(payload: dict, existing_paths: set[str], progress) -> dict:
-    existing = payload.get("sources", [])
-    slots = MAX_SOURCES - len(existing)
-    budget = MAX_EXCERPT_CHARACTERS - sum(len(item.get("excerpt") or "") for item in existing)
-    if slots <= 0 or budget < MIN_EXCERPT_PER_SOURCE:
-        raise ResearchError("프로젝트 출처 한도가 가득 찼습니다. 출처를 정리한 뒤 다시 요청해 주세요.")
-    state = asyncio.run(_run_graph(payload, min(slots, budget // MIN_EXCERPT_PER_SOURCE), progress))
+    catalog = _catalog(payload)
+    state = asyncio.run(_run_graph(payload, MAX_SOURCES, progress))
+    evidence = evidence_from_reads(catalog, state.get("_sourceReads", []))
+    existing = evidence.sources
+    budget = MAX_EXCERPT_CHARACTERS - evidence.characters
 
     markdown = state["artifact"]["contents"][0]["fullMarkdown"]
     title = state["artifact"]["contents"][0].get("title") or "research"
     language = (state.get("brief") or {}).get("language") or "ko"
-    known_urls = {_normalize_link(item["url"]) for item in existing if (item.get("excerpt") or "").strip()}
+    known_urls = {source_key(item["url"]) for item in existing if (item.get("excerpt") or "").strip()}
     if payload.get("outputFormat") == "html":
         from api.workspaces.research_html import research_links
         links = research_links(markdown, state.get("figures", []))
     else:
         links = set(_links_in(markdown))
     used = [s for s in state.get("sources", {}).values() if _normalize_link(s["url"]) in links]
-    cited = [s for s in used if _normalize_link(s["url"]) not in known_urls]
+    cited_by_url = {source_key(s["url"]): s for s in used if source_key(s["url"]) not in known_urls}
+    # Web evidence consumed before a registered alias was discovered must not
+    # disappear just because both use the same URL.
+    for source in state.get("_webEvidence", []):
+        if _normalize_link(source["url"]) in links:
+            cited_by_url[source_key(source["url"])] = source
+    cited = list(cited_by_url.values())
     per_source = min(MAX_EXCERPT_PER_SOURCE, budget // max(len(cited), 1))
-    sources = [
-        WritingSource(
-            id=source_id(s["url"]), title=(s.get("title") or s["url"])[:500], url=s["url"],
-            excerpt=_excerpt(s, state.get("findings", []), per_source),
-        ).model_dump(exclude_none=True)
-        for s in cited
-    ]
+    sources = []
+    occupied = {source["id"] for source in existing}
+    for source in cited:
+        identifier = source_id(source["url"])
+        excerpt = _excerpt(source, state.get("findings", []), per_source)
+        if identifier in occupied:
+            identifier += "-" + hashlib.sha256(excerpt.encode()).hexdigest()[:12]
+        occupied.add(identifier)
+        sources.append(WritingSource(
+            id=identifier, title=(source.get("title") or source["url"])[:500], url=source["url"],
+            excerpt=excerpt,
+        ).model_dump(exclude_none=True))
+    for source in sources:
+        catalog.add_inline(source)
+        evidence.read(source["id"], 0, 20000)
     markdown += project_provenance(payload.get("projectContext", []), language)
     content = markdown
     if payload.get("outputFormat") == "html":
@@ -163,6 +192,7 @@ def run_research(payload: dict, existing_paths: set[str], progress) -> dict:
     return {
         "message": f"{explanation}\n\n새 문서 `{path}` 수정안을 검토해 주세요.",
         "sources": sources,
+        "sourceReads": evidence.reads,
         "proposals": [{
             "path": path, "baseVersion": None, "baseContent": "", "proposedContent": content,
             "explanation": explanation,

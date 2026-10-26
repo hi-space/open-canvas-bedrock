@@ -98,7 +98,7 @@ def test_model_authored_json_cannot_manufacture_a_proposal(runtime, monkeypatch)
     assert result["proposals"] == []
 
 
-def test_model_gets_explicit_history_and_sources_without_owner_or_mount_context(runtime, monkeypatch):
+def test_model_gets_history_and_source_tools_without_eager_excerpts_or_private_paths(runtime, monkeypatch):
     _, payload = runtime
     payload["history"] = [
         {"role": "user", "content": "Earlier instruction."},
@@ -112,7 +112,9 @@ def test_model_gets_explicit_history_and_sources_without_owner_or_mount_context(
     request = bedrock.calls[0]
     context = json.loads(request["messages"][0]["content"][0]["text"])
     assert context["history"] == payload["history"]
-    assert context["sources"] == payload["sources"]
+    assert context["sourceCount"] == 1
+    assert "sources" not in context
+    assert payload["sources"][0]["excerpt"] not in json.dumps(request)
     assert context["message"] == payload["message"]
     assert "ownerKey" not in context
     assert "workspaceId" not in context
@@ -122,8 +124,51 @@ def test_model_gets_explicit_history_and_sources_without_owner_or_mount_context(
     assert {item["toolSpec"]["name"] for item in specs} == {
         "list_files", "read_file", "search_files", "fetch_reference", "propose_edit", "apply_edits",
         "revise_document",
+        "list_sources", "search_sources", "read_source",
     }
     assert all(item["toolSpec"]["inputSchema"]["json"]["additionalProperties"] is False for item in specs)
+
+
+def test_source_excerpt_enters_the_model_only_after_its_read_tool(runtime, monkeypatch):
+    _, payload = runtime
+    payload["sources"] = [
+        {"id": "a", "title": "Autoscaling", "url": "https://example.com/a",
+         "excerpt": "EXACT_RELEVANT_EVIDENCE"},
+        {"id": "b", "title": "Unrelated", "url": "https://example.com/b",
+         "excerpt": "NEVER_READ_THIS_EVIDENCE"},
+    ]
+    result, bedrock = run_with(monkeypatch, payload, [
+        response(None, tools=[("search", "search_sources", {"query": "Autoscaling"})]),
+        response(None, tools=[("read", "read_source", {"id": "a"})]),
+        response(None, tools=[("propose", "propose_edit", {
+            "path": "report.md", "replacement": "Verified [1](https://example.com/a).",
+            "explanation": "Read the relevant reference.",
+        })]),
+        response("Prepared."),
+    ])
+    assert "EXACT_RELEVANT_EVIDENCE" not in json.dumps(bedrock.calls[0])
+    assert "EXACT_RELEVANT_EVIDENCE" not in json.dumps(bedrock.calls[1])
+    assert "EXACT_RELEVANT_EVIDENCE" in json.dumps(bedrock.calls[2])
+    assert "NEVER_READ_THIS_EVIDENCE" not in json.dumps(bedrock.calls)
+    assert len(result["proposals"]) == 1
+    assert [read["id"] for read in result["sourceReads"]] == ["a"]
+
+
+def test_source_catalog_membership_alone_cannot_authorize_a_new_citation(runtime, monkeypatch):
+    _, payload = runtime
+    payload["sources"] = [
+        {"id": "a", "title": "Autoscaling", "url": "https://example.com/a",
+         "excerpt": "Evidence the model has not read."},
+    ]
+    result, bedrock = run_with(monkeypatch, payload, [
+        response(None, tools=[("propose", "propose_edit", {
+            "path": "report.md", "replacement": "Claim [1](https://example.com/a).",
+            "explanation": "Unsupported.",
+        })]),
+        response("Need to read the evidence."),
+    ])
+    assert result["proposals"] == []
+    assert bedrock.calls[1]["messages"][-1]["content"][0]["toolResult"]["status"] == "error"
 
 
 def test_extra_owner_tool_argument_is_returned_as_error_without_cross_owner_read(runtime, monkeypatch):

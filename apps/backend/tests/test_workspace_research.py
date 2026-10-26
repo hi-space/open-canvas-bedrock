@@ -87,7 +87,10 @@ class WorkspaceResearchTests(unittest.TestCase):
 
         sources = {s["url"]: s for s in self.client.get(f"/api/workspaces/{self.workspace}").json()["sources"]}
         self.assertEqual(set(sources), {URL_A, URL_B})  # only cited sources join the project library
-        self.assertIn("about 300 tokens", sources[URL_A]["excerpt"])
+        detail = self.client.get(
+            f"/api/workspaces/{self.workspace}/sources/{sources[URL_A]['id']}"
+        ).json()
+        self.assertIn("about 300 tokens", detail["excerpt"])
 
         decisions = {change["id"]: "accepted" for change in proposal["changes"]}
         approved = self.client.post(f"/api/workspaces/{self.workspace}/proposals/{proposal['id']}/decisions",
@@ -285,11 +288,10 @@ class DocumentPathTests(unittest.TestCase):
 
 
 class ResearchSourceBudgetTests(unittest.TestCase):
-    def test_nearly_full_library_keeps_new_registrations_within_the_remaining_slot(self):
+    def test_existing_library_does_not_reduce_this_research_jobs_citation_budget(self):
         from agents.deep_research.assemble import assemble
         from agents.deep_research.genres import get_profile
         from api.workspaces.research import run_research
-        from api.workspaces.service import within_source_limits
 
         existing = [{"id": f"old-{index}", "title": "Registered", "url": f"https://provided.example/{index}"}
                     for index in range(49)]
@@ -319,9 +321,9 @@ class ResearchSourceBudgetTests(unittest.TestCase):
                 "ownerKey": "a" * 64, "message": "Research", "history": [], "sources": existing,
                 "model": "global.anthropic.claude-sonnet-5-5", "researchGenre": "blog",
             }, set(), lambda _status: None)
-        combined = {item["id"]: item for item in [*existing, *result["sources"]]}
-        self.assertTrue(within_source_limits(combined))
-        self.assertEqual(len(result["sources"]), 1)
+        self.assertEqual(len(result["sources"]), 2)
+        self.assertEqual({item["url"] for item in result["sources"]}, {URL_A, URL_B})
+        self.assertEqual(len(result["sourceReads"]), 2)
 
 
 if __name__ == "__main__":

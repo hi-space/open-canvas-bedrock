@@ -81,6 +81,8 @@ export const workspaceApi: WorkspaceService = {
     }>(`/${segment(id)}/history?path=${segment(path)}`),
   source: (id, source) =>
     request<SourceReference>(`/${segment(id)}/sources`, "POST", source),
+  readSource: (id, sourceId) =>
+    request<SourceReference>(`/${segment(id)}/sources/${segment(sourceId)}`),
   removeSource: (id, sourceId) =>
     request<{ ok: boolean }>(
       `/${segment(id)}/sources/${segment(sourceId)}`,

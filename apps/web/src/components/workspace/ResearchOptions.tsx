@@ -45,7 +45,7 @@ export function ResearchOptions({
       <p>
         {files.length ? "파일은 다섯 개까지 선택할 수 있어요. " : ""}
         {sourceCount
-          ? `발췌문이 있는 출처 ${sourceCount}개도 함께 참고합니다.`
+          ? `보관된 출처 ${sourceCount}개에서 필요한 근거를 검색해 읽습니다.`
           : "웹 자료를 함께 조사합니다."}{" "}
         긴 파일은 도입부와 끝부분을 참고합니다.
       </p>

@@ -46,23 +46,37 @@ class Metadata:
     def _client(self):
         return dynamodb(os.environ.get("AWS_REGION", "ap-northeast-2"))
 
-    def items(self, namespace):
+    def items(self, namespace, *, prefix=None, exclude_prefix=None):
         if self.local:
             path = self._path(namespace)
-            return json.loads(path.read_bytes()) if path.exists() else {}
+            values = json.loads(path.read_bytes()) if path.exists() else {}
+            return {
+                key: value for key, value in values.items()
+                if (prefix is None or key.startswith(prefix))
+                and (exclude_prefix is None or not key.startswith(exclude_prefix))
+            }
         result = {}
         options = dict(
             TableName=self.table, KeyConditionExpression="#ns = :ns",
             ExpressionAttributeNames={"#ns": "namespace"},
             ExpressionAttributeValues={":ns": {"S": namespace}}, ConsistentRead=True,
         )
+        if prefix is not None:
+            options["ExpressionAttributeNames"]["#key"] = "key"
+            options["KeyConditionExpression"] += " AND begins_with(#key, :prefix)"
+            options["ExpressionAttributeValues"][":prefix"] = {"S": prefix}
         while True:
             page = self._client().query(**options)
             for item in page.get("Items", []):
-                result[item["key"]["S"]] = json.loads(item["workspaceData"]["S"])
+                key = item["key"]["S"]
+                # DynamoDB does not allow partition/sort keys in a query's
+                # FilterExpression. Filter after querying and keep paginating
+                # even when a whole page contains excluded source records.
+                if exclude_prefix is None or not key.startswith(exclude_prefix):
+                    result[key] = json.loads(item["workspaceData"]["S"])
             if not page.get("LastEvaluatedKey"):
                 return result
-            if len(result) > 5000:
+            if prefix != "source:" and len(result) > 5000:
                 raise HTTPException(503, "프로젝트 기록이 너무 많습니다. 관리자에게 문의해 주세요.")
             options["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 

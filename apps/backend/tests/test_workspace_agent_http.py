@@ -67,7 +67,7 @@ def test_invocations_return_the_runtime_json_contract(client, monkeypatch):
     monkeypatch.setattr("workspace_agent.agent.boto3.client", lambda *args, **kwargs: ExternalModel())
     result = client.post("/invocations", json=payload())
     assert result.status_code == 200, result.text
-    assert result.json() == {"message": "Ready for review.", "proposals": [], "events": []}
+    assert result.json() == {"message": "Ready for review.", "proposals": [], "events": [], "sourceReads": []}
 
 
 @pytest.mark.parametrize("changes", [

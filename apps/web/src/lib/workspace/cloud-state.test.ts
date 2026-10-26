@@ -58,6 +58,9 @@ function service(overrides: Partial<WorkspaceService> = {}): WorkspaceService {
     job: async () => job,
     history: async () => ({ revisions: [] }),
     source: async (_id, source) => source,
+    readSource: async () => {
+      throw new Error("Unexpected source body read");
+    },
     removeSource: async () => ({ ok: true }),
     proposal: async () => {
       throw new Error("Unexpected proposal");

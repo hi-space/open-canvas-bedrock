@@ -18,7 +18,9 @@ from api.workspaces.html_documents import html_selection, is_html_path
 from api.workspaces.jobs import JobHeartbeat, job_is_stale
 from api.workspaces.proposals import create_proposal, utf16_offset
 from api.workspaces.research_context import snapshot_context
+from api.workspaces.sources import SourceLibrary
 from core.models import get_default_model_name
+from core.source_catalog import SourceCatalog, SourceEvidence, entry_for, evidence_from_reads
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,7 @@ def prepare_job(files, request):
     previous = files.metadata.get(files.namespace, mapping_key)
     if previous:
         return files.metadata.get(files.namespace, "job:" + previous["jobId"]), None
-    records = files.metadata.items(files.namespace)
+    records = files.metadata.items(files.namespace, exclude_prefix="source:")
     active_jobs = [value for key, value in records.items() if key.startswith("job:")
                    and value["status"] in {"running", "queued"} and not job_is_stale(value, now())]
     if active_jobs:
@@ -118,7 +120,8 @@ def prepare_job(files, request):
     payload = {
         "ownerKey": files.owner, "workspaceId": files.workspace,
         "message": request.message, "model": request.model or get_default_model_name(),
-        "history": history, "sources": sources_from(records),
+        "history": history, "sources": [],
+        "sourceSnapshot": SourceLibrary(files).snapshot(),
     }
     if request.activePath:
         payload["activePath"] = request.activePath
@@ -151,7 +154,10 @@ def fetch_requested_sources(message, sources):
     key = os.environ.get("FIRECRAWL_API_KEY")
     if not key:
         return []
-    existing = {source["url"] for source in sources if source.get("excerpt")}
+    existing = {
+        source["url"] for source in sources
+        if source.get("excerpt") or source.get("excerptCharacters", 0) > 0
+    }
     urls = list(dict.fromkeys(re.findall(r"https?://[^\s<>\"']+", message)))[:5]
     collected = []
     for candidate in urls:
@@ -241,13 +247,20 @@ def run_job(owner, workspace, job_id, payload):
             claimed = True
         heartbeat = JobHeartbeat(files, job_id)
         heartbeat.start()
-        fetched = fetch_requested_sources(payload["message"], payload["sources"])
-        combined = {source["id"]: source for source in payload["sources"]}
-        for source in fetched:
-            candidate = {**combined, source["id"]: source}
-            if within_source_limits(candidate):
-                combined = candidate
-        payload["sources"] = list(combined.values())
+        library = SourceLibrary(files)
+        # Legacy in-flight inputs may still carry inline sources. Materialize
+        # their original snapshot, never replace it with current project state.
+        if not payload.get("sourceSnapshot"):
+            with files.lock():
+                payload["sourceSnapshot"] = library.snapshot(sources=payload.get("sources", []))
+        catalog = SourceCatalog(files.root, owner, workspace, payload["sourceSnapshot"])
+        initial_ids = set(catalog.entries)
+        fetched = fetch_requested_sources(payload["message"], list(catalog.entries.values()))
+        if fetched:
+            with files.lock():
+                payload["sourceSnapshot"] = library.snapshot(base=payload["sourceSnapshot"], extra=fetched)
+            catalog = SourceCatalog(files.root, owner, workspace, payload["sourceSnapshot"])
+        payload["sources"] = []
         if payload.get("researchGenre"):
             from api.workspaces.research import run_research
 
@@ -263,12 +276,43 @@ def run_job(owner, workspace, job_id, payload):
         returned_sources = result.get("sources", [])
         if not isinstance(returned_sources, list) or len(returned_sources) > 50:
             raise ValueError("Invalid returned sources")
+        validated_sources = []
+        overlays = []
+        read_manifest = result.get("sourceReads", [])
+        requested_versions = {
+            item.get("id"): item.get("version")
+            for item in read_manifest if isinstance(item, dict) and isinstance(item.get("id"), str)
+        } if isinstance(read_manifest, list) else {}
         for value in returned_sources:
             source = WritingSource.model_validate(value).model_dump(exclude_none=True)
-            previous = combined.get(source["id"])
+            previous = catalog.entries.get(source["id"])
             if previous and previous["url"] != source["url"]:
                 raise ValueError("Source identity changed")
-            combined[source["id"]] = source
+            # A fresh external fetch may have the same URL/ID as a stored
+            # reference. It is a job-local version, never an overwrite of the
+            # person's current source. Only an explicitly matching read version
+            # can select that overlay.
+            if previous is None or (
+                requested_versions.get(source["id"]) == entry_for(source)[0]["version"]
+                and requested_versions[source["id"]] != previous["version"]
+            ):
+                catalog.add_inline(source)
+                overlays.append(source)
+            validated_sources.append(source)
+        if overlays:
+            with files.lock():
+                payload["sourceSnapshot"] = library.snapshot(base=payload["sourceSnapshot"], extra=overlays)
+            catalog = SourceCatalog(files.root, owner, workspace, payload["sourceSnapshot"])
+        if "sourceReads" in result:
+            evidence = evidence_from_reads(catalog, result["sourceReads"])
+        else:
+            # Compatibility with the former runtime's fetched-source contract.
+            # Library membership alone never supplies evidence.
+            evidence = SourceEvidence(catalog)
+            for source in [*fetched, *validated_sources]:
+                if source["id"] not in initial_ids:
+                    evidence.read(source["id"], 0, 20000)
+        combined = {source["id"]: source for source in evidence.sources}
         if not within_source_limits(combined):
             raise ValueError("Returned evidence exceeds source limits")
         edits = result.get("proposals", [])
@@ -286,6 +330,9 @@ def run_job(owner, workspace, job_id, payload):
         proposals = [create_proposal(
             edit, job_id, payload["message"], list(combined.values()), payload.get("selection"),
         ) for edit in edits]
+        for proposal in proposals:
+            proposal["sourceReads"] = evidence.reads
+            proposal["sourceSnapshot"] = payload["sourceSnapshot"]
         with files.lock():
             job = files.metadata.get(files.namespace, "job:" + job_id)
             if not job or job["status"] != "running" or job_is_stale(job, now()):
@@ -296,15 +343,16 @@ def run_job(owner, workspace, job_id, payload):
                 raise ValueError("HTML generation cannot target an existing file")
             # A person can edit the source library while the model is running.
             # Keep their latest records and retain the job's evidence in proposals.
-            current_sources = {source["id"]: source for source in sources_from(files.metadata.items(files.namespace))}
-            for value in [*fetched, *returned_sources]:
+            for value in [*fetched, *validated_sources]:
                 source = WritingSource.model_validate(value).model_dump(exclude_none=True)
-                if source["id"] in current_sources:
+                if (
+                    source["id"] in initial_ids
+                    or files.metadata.get(files.namespace, "source:" + source["id"]) is not None
+                    or library.removed_since(source["id"], job["createdAt"])
+                ):
                     continue
-                candidate = {**current_sources, source["id"]: source}
-                if source["id"] in combined and within_source_limits(candidate):
-                    files.metadata.put(files.namespace, "source:" + source["id"], source)
-                    current_sources = candidate
+                if source["id"] in combined:
+                    library.put(source)
             for proposal in proposals:
                 files.put_proposal(proposal)
             message = {

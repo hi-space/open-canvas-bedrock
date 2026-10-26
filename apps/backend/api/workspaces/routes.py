@@ -10,7 +10,8 @@ from api.workspaces.identity import owner_key
 from api.workspaces.jobs import job_is_stale
 from api.workspaces.models import CreateWorkspace, SaveFile, ChatRequest, Decisions, SourceInput
 from api.workspaces.proposals import apply_decisions
-from api.workspaces.service import prepare_job, run_job, sources_from
+from api.workspaces.service import prepare_job, run_job
+from api.workspaces.sources import SourceLibrary
 
 router = APIRouter()
 
@@ -53,7 +54,7 @@ def expire_job(job):
 def snapshot(workspace: str, owner=Depends(owner_key)):
     files = authorized(owner, workspace)
     with files.lock():
-        records = files.metadata.items(files.namespace)
+        records = files.metadata.items(files.namespace, exclude_prefix="source:")
         return {
             "workspace": files.require(), "files": files.list(),
             "messages": sorted([v for k, v in records.items() if k.startswith("message:")],
@@ -62,7 +63,7 @@ def snapshot(workspace: str, owner=Depends(owner_key)):
                                 key=lambda item: item["createdAt"], reverse=True)[:100],
             "jobs": sorted([expire_job(v) for k, v in records.items() if k.startswith("job:")],
                            key=lambda item: item["createdAt"], reverse=True)[:100],
-            "sources": sources_from(records),
+            "sources": SourceLibrary(files).summaries(),
         }
 
 
@@ -91,19 +92,21 @@ def history(workspace: str, path: str = Query(max_length=500), owner=Depends(own
 def add_source(workspace: str, body: SourceInput, owner=Depends(owner_key)):
     files = authorized(owner, workspace)
     with files.lock():
-        sources = {item["id"]: item for item in sources_from(files.metadata.items(files.namespace))}
-        sources[body.id] = body.model_dump(exclude_none=True)
-        if len(sources) > 50 or sum(len(item.get("excerpt") or "") for item in sources.values()) > 100000:
-            raise HTTPException(422, "출처는 50개, 발췌문 합계는 100,000자 이내로 줄여 주세요.")
-        files.metadata.put(files.namespace, "source:" + body.id, sources[body.id])
-    return sources[body.id]
+        return SourceLibrary(files).put(body.model_dump(exclude_none=True))
+
+
+@router.get("/{workspace}/sources/{source_id}")
+def read_source(workspace: str, source_id: str, owner=Depends(owner_key)):
+    files = authorized(owner, workspace)
+    with files.lock():
+        return SourceLibrary(files).read(source_id)
 
 
 @router.delete("/{workspace}/sources/{source_id}")
 def remove_source(workspace: str, source_id: str, owner=Depends(owner_key)):
     files = authorized(owner, workspace)
     with files.lock():
-        files.metadata.delete(files.namespace, "source:" + source_id)
+        SourceLibrary(files).remove(source_id)
     return {"ok": True}
 
 

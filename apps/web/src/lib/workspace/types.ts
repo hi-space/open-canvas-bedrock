@@ -46,6 +46,9 @@ export interface SourceReference {
   title: string;
   url: string;
   excerpt?: string;
+  /** Cloud summaries omit the body until it is opened. */
+  excerptCharacters?: number;
+  version?: string;
 }
 
 export interface DocumentRevision {

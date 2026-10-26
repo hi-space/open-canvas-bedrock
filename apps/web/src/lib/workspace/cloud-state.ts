@@ -791,6 +791,10 @@ export class CloudWorkspaceController {
     }));
   }
 
+  async readSource(id: string, sourceId: string) {
+    return this.api.readSource(id, sourceId);
+  }
+
   cite(
     id: string,
     path: string,

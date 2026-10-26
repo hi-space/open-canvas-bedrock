@@ -1,0 +1,12 @@
+yarn run v1.22.22
+$ vitest run
+
+ RUN  v5.0.5 /home/ubuntu/workspace/open-canvas-bedrock/apps/web
+
+
+ Test Files  27 passed (27)
+      Tests  225 passed (225)
+   Start at  07:02:07
+   Duration  2.26s (tests 44%, environment 29%, import 21%, transform 4%, worker 1%)
+
+Done in 2.53s.

@@ -22,6 +22,7 @@ from agents.deep_research.search import normalize_url, search_many
 from agents.deep_research.state import DeepResearchState
 from core.utils import format_messages, get_string_from_content
 from core.research_sources import evidence_groups
+from core.research_sources import source_key
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,9 @@ async def search_sources_node(state: DeepResearchState, config: RunnableConfig) 
     profile = _profile(state)
     pending = state.get("pendingQueries") or []
     sources = dict(state.get("sources") or {})
+    retriever = (config.get("configurable") or {}).get("workspaceSources")
+    if retriever is not None:
+        sources = retriever.select(state, profile.max_rounds)
     by_url = {normalize_url(s["url"]): sid for sid, s in sources.items()}
     asked_by: dict[str, list[str]] = {}  # one search per distinct query, credited to every question asking it
     for item in pending:
@@ -199,7 +203,8 @@ async def _extract(model, question: dict, batch: list[dict]) -> Extraction:
 
 async def extract_findings_node(state: DeepResearchState, config: RunnableConfig) -> Dict[str, Any]:
     profile = _profile(state)
-    sources = state.get("sources") or {}
+    sources = dict(state.get("sources") or {})
+    retriever = (config.get("configurable") or {}).get("workspaceSources")
     extracted = set(state.get("extracted") or [])
     per_question = SOURCES_PER_EXTRACTION[profile.name]
     model = get_model(config, BUDGET_JSON)
@@ -208,11 +213,26 @@ async def extract_findings_node(state: DeepResearchState, config: RunnableConfig
     for question in state["brief"]["questions"]:
         fresh = [
             s for s in sources.values()
-            if question["id"] in s["question_ids"] and f"{question['id']}:{s['id']}" not in extracted
+            if question["id"] in s["question_ids"] and (
+                f"{question['id']}:{s['id']}" not in extracted
+                or (retriever is not None and s.get("_registeredIds") and retriever.needs_read(s, question))
+            )
             and (len(s.get("content", "")) >= 200 or s.get("origin") == "supplied")
         ]
         fresh.sort(key=lambda s: (s.get("origin") == "supplied", s.get("score", 0)), reverse=True)
-        batch = fresh[:per_question]
+        batch = []
+        for candidate in fresh:
+            if len(batch) >= per_question:
+                break
+            value = candidate
+            if retriever is not None and candidate.get("_registeredIds"):
+                value = retriever.hydrate(candidate, question, SOURCE_CHARS_IN_EXTRACTION)
+                if value is None:
+                    continue
+            elif retriever is not None:
+                retriever.record_web(candidate, SOURCE_CHARS_IN_EXTRACTION)
+            batch.append(value)
+            sources[value["id"]] = {**value, "_consumed": True}
         if batch:
             jobs.append((question, batch))
             extracted.update(f"{question['id']}:{s['id']}" for s in batch)
@@ -236,7 +256,7 @@ async def extract_findings_node(state: DeepResearchState, config: RunnableConfig
         gaps.extend(f"{question['id']}: {g}" for g in result.gaps)
         follow_ups.extend({"question_id": question["id"], "query": q} for q in result.follow_up_queries)
 
-    return {
+    result = {
         "researchStatus": _say(
             state,
             f"근거 {len(findings)}개 정리, 남은 공백 {len(gaps)}개",
@@ -247,7 +267,15 @@ async def extract_findings_node(state: DeepResearchState, config: RunnableConfig
         "gaps": gaps,
         "pendingQueries": follow_ups,
         "round": state.get("round", 0) + 1,
+        "sources": sources,
     }
+    if retriever is not None:
+        evidence = retriever.evidence.sources
+        overlap = len(set(retriever.web_evidence) & {source_key(item["url"]) for item in evidence})
+        remaining = max(0, 50 - len(evidence) - overlap)
+        result["maxNewCitedSources"] = remaining
+        result["maxCitedSources"] = remaining + len(evidence_groups(evidence))
+    return result
 
 
 def should_continue_research(state: DeepResearchState) -> bool:
@@ -540,7 +568,10 @@ async def generate_artifact_node(state: DeepResearchState, config: RunnableConfi
 
     completed = {section_id for section_id, _text in finals}
     figures = [figure for figure in state.get("figures") or [] if figure["section_id"] in completed]
-    markdown = assemble(outline["title"], finals, figures, state.get("sources") or {},
+    sources = state.get("sources") or {}
+    if (config.get("configurable") or {}).get("workspaceSources") is not None:
+        sources = {sid: value for sid, value in sources.items() if value.get("_consumed")}
+    markdown = assemble(outline["title"], finals, figures, sources,
                         profile, brief["language"], state.get("maxCitedSources"),
                         max_new_cited=state.get("maxNewCitedSources"))
     artifact = {
@@ -555,6 +586,7 @@ async def generate_artifact_node(state: DeepResearchState, config: RunnableConfi
             f"{len(figures)} figures",
         ),
         "figures": figures,
+        "sources": sources,
         "artifact": artifact,
         "messages": [AIMessage(content=markdown)],
     }

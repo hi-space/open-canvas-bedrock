@@ -1,0 +1,7 @@
+{
+  "checkedAt": "2026-10-26T07:02:07.927170+00:00",
+  "check": "Production DynamoDB query on a new nonexistent verification namespace",
+  "writes": 0,
+  "rows": 0,
+  "result": "passed"
+}

@@ -592,6 +592,7 @@ def test_agent_lists_reads_and_replaces_only_selected_html_element(agent_project
 def test_agent_can_generate_html_with_fragment_navigation_and_evidence_links(agent_project):
     _, tools_for = agent_project
     with tools_for(outputFormat="html", sources=[SOURCE]) as tools:
+        tools.execute("read_source", {"id": SOURCE["id"]})
         tools.execute("propose_edit", {
             "path": "navigation.html", "replacement": NAVIGATION_DOCUMENT,
             "explanation": "페이지 탐색 및 출처",

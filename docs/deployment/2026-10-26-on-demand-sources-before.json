@@ -1,0 +1,57 @@
+{
+  "capturedAt": "2026-10-26T07:03:08.697536+00:00",
+  "region": "ap-northeast-2",
+  "stacks": {
+    "HtmlCanvasStack": "UPDATE_COMPLETE",
+    "CanvasWorkspaceStack": "UPDATE_COMPLETE"
+  },
+  "ecs": {
+    "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:21",
+    "desired": 1,
+    "running": 1,
+    "pending": 0,
+    "deployments": [
+      {
+        "status": "PRIMARY",
+        "rolloutState": "COMPLETED",
+        "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:21"
+      }
+    ],
+    "tasks": [
+      {
+        "health": "HEALTHY",
+        "status": "RUNNING",
+        "containers": [
+          {
+            "name": "app",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:00af843c537d8b130455b99c2eb55b27c05121aec42428d0aa067c6162649a53",
+            "imageDigest": "sha256:00af843c537d8b130455b99c2eb55b27c05121aec42428d0aa067c6162649a53",
+            "healthStatus": "HEALTHY",
+            "lastStatus": "RUNNING"
+          },
+          {
+            "name": "backend",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:a233e54b70bc25e6b59bd050e4ad6832fbfbcb68737323f8ef2581c578627156",
+            "imageDigest": "sha256:a233e54b70bc25e6b59bd050e4ad6832fbfbcb68737323f8ef2581c578627156",
+            "healthStatus": "HEALTHY",
+            "lastStatus": "RUNNING"
+          }
+        ]
+      }
+    ]
+  },
+  "runtime": {
+    "version": "8",
+    "status": "READY",
+    "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:c3efda6e2ba48c592cb9fb0281a175cc724ef122847a9ed822233c2394abd309",
+    "lifecycle": {
+      "idleRuntimeSessionTimeout": 60,
+      "maxLifetime": 900
+    }
+  },
+  "endpoint": {
+    "status": "READY",
+    "liveVersion": "8",
+    "targetVersion": null
+  }
+}

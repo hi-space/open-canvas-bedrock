@@ -73,6 +73,7 @@ class Invocation(StrictModel):
     model: str | None = Field(default=None, min_length=1, max_length=200)
     history: list[HistoryMessage] = Field(default_factory=list, max_length=40)
     sources: list[WritingSource] = Field(default_factory=list, max_length=50)
+    sourceSnapshot: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     activePath: str | None = None
     selection: Selection | None = None
     outputFormat: Literal["html"] | None = None
@@ -149,6 +150,21 @@ class ReferenceArguments(StrictModel):
     url: str = Field(min_length=1, max_length=2048)
 
 
+class SourceListArguments(StrictModel):
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=20)
+
+
+class SourceSearchArguments(SourceListArguments):
+    query: str = Field(min_length=1, max_length=500)
+
+
+class SourceReadArguments(StrictModel):
+    id: str = Field(min_length=1, max_length=100)
+    offset: int = Field(default=0, ge=0, le=20000)
+    limit: int = Field(default=8000, ge=1, le=8000)
+
+
 class EditArguments(FileArguments):
     replacement: str = Field(max_length=MAX_FILE_CHARS)
     explanation: str = Field(min_length=1, max_length=4000)
@@ -194,6 +210,9 @@ TOOL_ARGUMENTS = {
     "read_file": FileArguments,
     "search_files": SearchArguments,
     "fetch_reference": ReferenceArguments,
+    "list_sources": SourceListArguments,
+    "search_sources": SourceSearchArguments,
+    "read_source": SourceReadArguments,
     "propose_edit": EditArguments,
     "apply_edits": TargetedEditArguments,
     "revise_document": ReviseArguments,

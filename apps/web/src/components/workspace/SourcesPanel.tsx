@@ -13,12 +13,12 @@ import {
   extractReferences,
   mergeReferences,
   referenceUrl,
-} from "@/lib/workspace/sources";
+} from "../../lib/workspace/sources";
 import type {
   SourceReference,
   TextSelection,
   WorkspaceDocument,
-} from "@/lib/workspace/types";
+} from "../../lib/workspace/types";
 import styles from "./workspace.module.css";
 
 export function SourcesPanel({
@@ -29,6 +29,8 @@ export function SourcesPanel({
   onRemove,
   selection,
   html = false,
+  projectSources = false,
+  onRead,
 }: {
   document: WorkspaceDocument;
   hasSelection: boolean;
@@ -37,6 +39,8 @@ export function SourcesPanel({
   onRemove: (id: string) => void;
   selection?: TextSelection;
   html?: boolean;
+  projectSources?: boolean;
+  onRead?: (id: string) => Promise<SourceReference>;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [url, setUrl] = useState("");
@@ -46,6 +50,13 @@ export function SourcesPanel({
   const [error, setError] = useState("");
   const controller = useRef<AbortController | undefined>(undefined);
   const urlRef = useRef(url);
+  const alive = useRef(true);
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [bodies, setBodies] = useState<Record<string, SourceReference>>({});
+  const [opened, setOpened] = useState<Record<string, boolean>>({});
+  const [reading, setReading] = useState<Record<string, boolean>>({});
+  const [readErrors, setReadErrors] = useState<Record<string, string>>({});
   const references = useMemo(
     () => mergeReferences(document.content, document.sources),
     [document.content, document.sources]
@@ -66,7 +77,62 @@ export function SourcesPanel({
     return urls;
   }, [document.sources, selection]);
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      controller.current?.abort();
+    };
+  }, []);
+
+  const filtered = projectSources
+    ? references.filter((source) =>
+        `${source.title} ${source.url}`
+          .toLocaleLowerCase()
+          .includes(sourceQuery.trim().toLocaleLowerCase())
+      )
+    : references;
+  const shown = projectSources ? filtered.slice(0, visibleCount) : filtered;
+
+  const openExcerpt = async (source: SourceReference) => {
+    const key = `${source.id}/${source.version ?? ""}`;
+    if (opened[key]) {
+      setOpened((current) => ({ ...current, [key]: false }));
+      return;
+    }
+    if (bodies[key] || source.excerpt) {
+      setOpened((current) => ({ ...current, [key]: true }));
+      return;
+    }
+    if (!onRead) return;
+    setReading((current) => ({ ...current, [key]: true }));
+    setReadErrors((current) => ({ ...current, [key]: "" }));
+    try {
+      const body = await onRead(source.id);
+      if (body.id !== source.id)
+        throw new Error("요청한 출처와 응답이 다릅니다. 다시 읽어 주세요.");
+      if (source.version && body.version && source.version !== body.version)
+        throw new Error(
+          "출처가 변경되었습니다. 최신 목록에서 다시 읽어 주세요."
+        );
+      if (alive.current) {
+        setBodies((current) => ({ ...current, [key]: body }));
+        setOpened((current) => ({ ...current, [key]: true }));
+      }
+    } catch (error) {
+      if (alive.current)
+        setReadErrors((current) => ({
+          ...current,
+          [key]:
+            error instanceof Error
+              ? error.message
+              : "발췌문을 읽지 못했습니다.",
+        }));
+    } finally {
+      if (alive.current)
+        setReading((current) => ({ ...current, [key]: false }));
+    }
+  };
 
   const fetchSource = async (): Promise<
     { title: string; excerpt: string } | undefined
@@ -144,6 +210,7 @@ export function SourcesPanel({
       return;
     }
     if (
+      !projectSources &&
       document.sources.length >= 50 &&
       !document.sources.some((source) => source.url === safeUrl)
     ) {
@@ -178,9 +245,30 @@ export function SourcesPanel({
     <div className={styles.sourcesPanel}>
       <div className={styles.panelIntro}>
         <BookOpen size={21} strokeWidth={1.5} />
-        <h3>글에 근거를 더하세요.</h3>
-        <p>문장 옆에 인용을 남기고, 한 번의 클릭으로 원문을 확인하세요.</p>
+        <h3>{projectSources ? "프로젝트 출처" : "글에 근거를 더하세요."}</h3>
+        <p>
+          {projectSources
+            ? `출처 ${document.sources.length}개를 보관 중입니다. AI는 요청에 필요한 발췌만 읽습니다.`
+            : "문장 옆에 인용을 남기고, 한 번의 클릭으로 원문을 확인하세요."}
+        </p>
       </div>
+      {projectSources && (
+        <div className={styles.sourceForm}>
+          <label>
+            출처 찾기
+            <input
+              type="search"
+              aria-label="출처 제목·주소 검색"
+              placeholder="제목 또는 주소 검색"
+              value={sourceQuery}
+              onChange={(event) => {
+                setSourceQuery(event.target.value);
+                setVisibleCount(20);
+              }}
+            />
+          </label>
+        </div>
+      )}
       {selection?.nodeId && (
         <p className={styles.fieldHint}>
           {selectedSources.size
@@ -278,9 +366,13 @@ export function SourcesPanel({
         </p>
       )}
       <div className={styles.sourceList}>
-        {references.map((source, index) => {
+        {shown.map((source, index) => {
           const citation = cited.find((item) => item.url === source.url);
           const stored = document.sources.some((item) => item.id === source.id);
+          const key = `${source.id}/${source.version ?? ""}`;
+          const hasExcerpt =
+            (source.excerptCharacters ?? source.excerpt?.length ?? 0) > 0;
+          const excerpt = bodies[key]?.excerpt ?? source.excerpt;
           return (
             <article className={styles.sourceCard} key={source.url}>
               <div className={styles.sourceCardHeading}>
@@ -312,8 +404,42 @@ export function SourcesPanel({
                 {source.title}
                 <ArrowUpRight size={14} />
               </a>
-              {source.excerpt && (
-                <p className={styles.sourceExcerpt}>{source.excerpt}</p>
+              {projectSources && stored && hasExcerpt && (
+                <button
+                  className={styles.textButton}
+                  disabled={reading[key]}
+                  aria-expanded={!!opened[key]}
+                  onClick={() => void openExcerpt(source)}
+                >
+                  {reading[key]
+                    ? "발췌 불러오는 중…"
+                    : opened[key]
+                      ? "발췌 닫기"
+                      : readErrors[key]
+                        ? "다시 읽기"
+                        : "발췌 보기"}
+                </button>
+              )}
+              {readErrors[key] && (
+                <output className={styles.fieldError}>
+                  {readErrors[key]}
+                </output>
+              )}
+              {excerpt && (!projectSources || opened[key]) && (
+                <p
+                  className={styles.sourceExcerpt}
+                  style={
+                    projectSources
+                      ? {
+                          WebkitLineClamp: "unset",
+                          maxHeight: "18rem",
+                          overflowY: "auto",
+                        }
+                      : undefined
+                  }
+                >
+                  {excerpt}
+                </p>
               )}
               <div className={styles.sourceCardFooter}>
                 <span>
@@ -321,7 +447,7 @@ export function SourcesPanel({
                     ? "선택 영역의 근거"
                     : citation
                       ? `본문 ${citation.count}회 인용`
-                      : source.excerpt
+                      : hasExcerpt
                         ? "발췌 준비됨"
                         : "발췌 없음"}
                 </span>
@@ -336,6 +462,17 @@ export function SourcesPanel({
           );
         })}
       </div>
+      {projectSources && filtered.length > shown.length && (
+        <button
+          className={styles.addSourceButton}
+          onClick={() => setVisibleCount((count) => count + 20)}
+        >
+          더 보기 · {shown.length}/{filtered.length}
+        </button>
+      )}
+      {projectSources && sourceQuery && !filtered.length && (
+        <p className={styles.emptyHint}>일치하는 제목이나 주소가 없습니다.</p>
+      )}
       {!references.length && (
         <p className={styles.emptyHint}>
           아직 연결된 출처가 없습니다.

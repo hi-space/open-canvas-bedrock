@@ -114,6 +114,7 @@ export interface WorkspaceService {
     correction?: CorrectionRecord | null;
   }>;
   source(id: string, source: SourceReference): Promise<SourceReference>;
+  readSource(id: string, sourceId: string): Promise<SourceReference>;
   removeSource(id: string, sourceId: string): Promise<{ ok: boolean }>;
   chat(id: string, request: CloudChatRequest): Promise<{ job: CloudJob }>;
   job(id: string, jobId: string): Promise<CloudJob>;

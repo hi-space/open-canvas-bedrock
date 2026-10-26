@@ -34,7 +34,7 @@ class JobConsistencyTests(unittest.TestCase):
         with self.files.lock():
             return prepare_job(self.files, ChatRequest(message="다듬기", requestId="request-1"))
 
-    def test_concurrent_source_addition_does_not_exceed_project_capacity(self):
+    def test_concurrent_source_addition_keeps_both_user_and_job_sources_past_fifty(self):
         with self.files.lock():
             for index in range(49):
                 self.files.metadata.put(self.files.namespace, f"source:source-{index}", self.source(index))
@@ -50,7 +50,8 @@ class JobConsistencyTests(unittest.TestCase):
                 run_job(self.files.owner, self.files.workspace, job["id"], payload)
         records = self.files.metadata.items(self.files.namespace)
         sources = sources_from(records)
-        self.assertEqual(len(sources), 50)
+        self.assertEqual(len(sources), 51)
+        self.assertIn("source-49", {source["id"] for source in sources})
         self.assertIn("source-50", {source["id"] for source in sources})
 
     def test_runtime_fetched_evidence_is_validated_and_persisted_with_cited_proposal(self):

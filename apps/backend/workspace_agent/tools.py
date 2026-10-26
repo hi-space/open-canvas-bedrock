@@ -14,13 +14,14 @@ from pydantic import ValidationError
 
 from api.writing.models import WritingRequest, WritingResponse, WritingSource, validate_source_url
 from api.writing.service import _validate_citations
+from core.source_catalog import SourceCatalog, SourceEvidence
 from api.workspaces.html_documents import (
     html_citation_text, html_selection, html_source_ids, is_html_path, prepare_html,
     replace_html_selection, validate_html,
 )
 from workspace_agent.models import (
     Invocation, MAX_FILES, MAX_FILE_BYTES, MAX_PATH_DEPTH, MAX_PROPOSALS,
-    MAX_PROPOSAL_CONTEXT, MAX_READ_CONTEXT, MAX_SOURCE_CONTEXT, TOOL_ARGUMENTS,
+    MAX_PROPOSAL_CONTEXT, MAX_READ_CONTEXT, TOOL_ARGUMENTS,
     valid_content, valid_path,
 )
 from workspace_agent.revise import MAX_SECTIONS, split_sections
@@ -50,13 +51,32 @@ class WorkspaceTools:
         self.proposals: list[dict] = []
         self.events: list[dict] = []
         self.fetched_sources: list[dict] = []
-        self.sources = list(request.sources)
+        self.catalog = SourceCatalog(
+            root, request.ownerKey, request.workspaceId, request.sourceSnapshot,
+            [source.model_dump(exclude_none=True) for source in request.sources],
+        )
+        self.evidence = SourceEvidence(self.catalog)
         self._snapshots: dict[str, Snapshot] = {}
-        self._read_chars = sum(len(source.excerpt or "") for source in self.sources)
+        self._read_chars = 0
         self._fetch_count = 0
         self._files_fd: int | None = None
         # Set by the agent loop: rewrites sections with the model (see revise.py).
         self.revise = None
+
+    @property
+    def sources(self):
+        return [WritingSource.model_validate(source) for source in self.evidence.sources]
+
+    def _list_sources(self, offset=0, limit=20):
+        return self.catalog.list(offset, limit)
+
+    def _search_sources(self, query, offset=0, limit=20):
+        return self.catalog.search(query, offset, limit)
+
+    def _read_source(self, id, offset=0, limit=8000):
+        result = self.catalog.read(id, offset, limit)
+        self._charge_context(len(result["source"].get("excerpt") or ""))
+        return self.evidence.read(id, offset, limit)
 
     def __enter__(self):
         descriptor = None
@@ -254,18 +274,18 @@ class WorkspaceTools:
 
     def _fetch_reference(self, url: str) -> dict:
         validate_source_url(url)
-        for source in self.sources:
-            if source.url == url and (source.excerpt or "").strip():
-                return {"source": source.model_dump()}
+        for entry in self.catalog.entries.values():
+            if entry["url"] == url and entry["excerptCharacters"]:
+                return {"source": self._read_source(entry["id"], 0, 20000)["source"]}
         self._public_reference_url(url)
         key = os.getenv("FIRECRAWL_API_KEY")
         if not key:
             raise ToolError("Reference fetching is unavailable. Add this URL and its excerpt as a source.")
         if self._fetch_count >= _MAX_FETCHES:
             raise ToolError("The five-reference fetch limit was reached.")
-        existing = next((source for source in self.sources if source.url == url), None)
-        if existing is None and len(self.sources) >= 50:
-            raise ToolError("The workspace source limit was reached.")
+        existing = next((entry for entry in self.catalog.entries.values() if entry["url"] == url), None)
+        if existing is None and len(self.evidence.sources) >= 50:
+            raise ToolError("This request's source-read budget is full. Use a smaller set of evidence.")
         self._fetch_count += 1
         self._public_reference_url(url, resolve=True)
         try:
@@ -283,7 +303,7 @@ class WorkspaceTools:
             title = getattr(document.metadata, "title", None) if document.metadata else None
             title = title[:500] if isinstance(title, str) and title.strip() else urlsplit(url).hostname
             source = WritingSource(
-                id=existing.id if existing else "web-" + hashlib.sha256(url.encode("utf-8")).hexdigest()[:24],
+                id=existing["id"] if existing else "web-" + hashlib.sha256(url.encode("utf-8")).hexdigest()[:24],
                 title=title, url=url, excerpt=excerpt,
             )
             source.model_dump_json().encode("utf-8")
@@ -291,13 +311,10 @@ class WorkspaceTools:
             raise
         except Exception as error:
             raise ToolError("The reference could not be fetched. Add its excerpt as a source.") from error
-        source_total = sum(len(item.excerpt or "") for item in self.sources if item is not existing)
-        if source_total + len(excerpt) > MAX_SOURCE_CONTEXT:
-            raise ToolError("Source excerpts exceed the 100,000 character limit.")
-        self._charge_context(len(excerpt))
-        self.sources = [item for item in self.sources if item is not existing] + [source]
+        self.catalog.add_inline(source.model_dump())
+        result = self._read_source(source.id, 0, 20000)
         self.fetched_sources.append(source.model_dump())
-        return {"source": source.model_dump()}
+        return {"source": result["source"]}
 
     def _propose_edit(self, path: str, replacement: str, explanation: str) -> dict:
         if self.request.selection is not None and path != self.request.selection.path:

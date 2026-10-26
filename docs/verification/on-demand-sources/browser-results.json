@@ -1,0 +1,19 @@
+{
+  "checks": [
+    "66 sources / over 150,000 stored excerpt characters; metadata-only snapshot",
+    "source panel fetches only the opened excerpt",
+    "source addition through the UI works past the old 50-source limit",
+    "real agent search/read tools add cited text and approval updates the original",
+    "new HTML/SVG research succeeds with the large library and keeps only consumed evidence"
+  ],
+  "agentObservation": {
+    "sourceCount": 67,
+    "initialCharacters": 137,
+    "preloadedBody": false,
+    "loadedSources": [
+      "project-guide"
+    ],
+    "readCharacters": 93
+  },
+  "pageErrors": []
+}

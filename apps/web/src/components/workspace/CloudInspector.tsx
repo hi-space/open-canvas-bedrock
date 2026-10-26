@@ -625,8 +625,12 @@ export function CloudInspector({
                   )}
                   onChange={setContextPaths}
                   sourceCount={
-                    project.sources.filter((source) => source.excerpt?.trim())
-                      .length
+                    project.sources.filter(
+                      (source) =>
+                        (source.excerptCharacters ??
+                          source.excerpt?.length ??
+                          0) > 0
+                    ).length
                   }
                   disabled={project.submitting}
                 />
@@ -754,6 +758,10 @@ export function CloudInspector({
             hasSelection={!!selected}
             selection={selected}
             html={htmlDocument}
+            projectSources
+            onRead={(sourceId) =>
+              controller.readSource(project.workspace.id, sourceId)
+            }
             onAdd={(source) => {
               void controller
                 .addSource(project.workspace.id, source)
