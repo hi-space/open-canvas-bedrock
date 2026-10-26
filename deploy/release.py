@@ -1,8 +1,9 @@
 """Deploy immutable release images to the live Canvas stacks.
 
 Used by .github/workflows/deploy.yml after tests and image builds pass. Only the
-ECS task definition (and the service that references it) and the AgentCore
-runtime may change; any other change set entry aborts the release. The log is
+ECS task definition (and the service that references it), AgentCore runtime
+and the existing HTTPS listener's authentication duration may change. Other
+listener/authentication properties must remain identical. The log is
 public on GitHub, so this prints resource names and status only, never template
 contents or configuration values.
 
@@ -31,9 +32,15 @@ EXECUTION_ROLE = f"arn:aws:iam::{ACCOUNT}:role/cdk-hnb659fds-cfn-exec-role-{ACCO
 # Keep in sync with deploy/agentcore/prepare.py: the 60 s idle timeout requires
 # /ping to report HealthyBusy, and 900 s covers the agent's 720 s job limit.
 RUNTIME_LIFECYCLE = {"IdleRuntimeSessionTimeout": 60, "MaxLifetime": 900}
+# ALB refreshes the short-lived Cognito access token within this login session.
+# Keep cookie identity and the Cognito client unchanged across deployments.
+AUTH_SESSION_SECONDS = 7 * 24 * 60 * 60
 MAX_TEMPLATE_BYTES = 51200
 ALLOWED_CHANGES = {
-    APPLICATION_STACK: {"AWS::ECS::TaskDefinition": None, "AWS::ECS::Service": "False"},
+    APPLICATION_STACK: {
+        "AWS::ECS::TaskDefinition": None, "AWS::ECS::Service": "False",
+        "AWS::ElasticLoadBalancingV2::Listener": "False",
+    },
     WORKSPACE_STACK: {"AWS::BedrockAgentCore::Runtime": "False"},
 }
 
@@ -55,6 +62,46 @@ def only(template: dict, kind: str) -> str:
     return names[0]
 
 
+def authentication_configuration(template: dict) -> tuple[str, dict]:
+    found = []
+    for name, resource in template["Resources"].items():
+        properties = resource.get("Properties") or {}
+        if resource["Type"] != "AWS::ElasticLoadBalancingV2::Listener" or properties.get("Protocol") != "HTTPS":
+            continue
+        for action in properties.get("DefaultActions", []):
+            if action.get("Type") == "authenticate-cognito":
+                found.append((name, action.get("AuthenticateCognitoConfig") or {}))
+    if len(found) != 1:
+        raise ReleaseError("Expected one Cognito-authenticated HTTPS listener.")
+    configuration = found[0][1]
+    if (
+        configuration.get("OnUnauthenticatedRequest", "authenticate") != "authenticate"
+        or any(not configuration.get(key) for key in ("UserPoolArn", "UserPoolClientId", "UserPoolDomain"))
+    ):
+        raise ReleaseError("The existing HTTPS listener must require Cognito authentication.")
+    return found[0]
+
+
+def session_seconds(value) -> int:
+    # CloudFormation returns both numeric and decimal-string representations.
+    if isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+        value = int(value)
+    if type(value) is not int or not 1 <= value <= AUTH_SESSION_SECONDS:
+        raise ReleaseError("The authentication session duration is invalid.")
+    return value
+
+
+def check_listener_change(before: dict, after: dict):
+    """Only the duration can change, including when restoring a previous release."""
+    original = {"Resources": {"Listener": copy.deepcopy(before)}}
+    updated = {"Resources": {"Listener": copy.deepcopy(after)}}
+    for template in (original, updated):
+        _, configuration = authentication_configuration(template)
+        session_seconds(configuration.pop("SessionTimeout", AUTH_SESSION_SECONDS))
+    if original != updated:
+        raise ReleaseError("A release cannot change login identity, cookies or listener routing.")
+
+
 def patch_application(template: dict, frontend: str, backend: str) -> dict:
     updated = copy.deepcopy(template)
     task = updated["Resources"][only(updated, "AWS::ECS::TaskDefinition")]
@@ -63,6 +110,9 @@ def patch_application(template: dict, frontend: str, backend: str) -> dict:
         raise ReleaseError("The task definition must contain exactly the app and backend containers.")
     for item in containers:
         item["Image"] = frontend if item["Name"] == "app" else backend
+    _, authentication = authentication_configuration(updated)
+    if session_seconds(authentication.get("SessionTimeout", AUTH_SESSION_SECONDS)) != AUTH_SESSION_SECONDS:
+        authentication["SessionTimeout"] = AUTH_SESSION_SECONDS
     return updated
 
 
@@ -79,7 +129,11 @@ def changed_resources(before: dict, after: dict) -> list[str]:
         key: value for key, value in before.items() if key != "Resources"
     } != {key: value for key, value in after.items() if key != "Resources"}:
         raise ReleaseError("A release may change only resource properties.")
-    return sorted(name for name, resource in before["Resources"].items() if resource != after["Resources"][name])
+    names = sorted(name for name, resource in before["Resources"].items() if resource != after["Resources"][name])
+    for name in names:
+        if before["Resources"][name]["Type"] == "AWS::ElasticLoadBalancingV2::Listener":
+            check_listener_change(before["Resources"][name], after["Resources"][name])
+    return names
 
 
 def check_changes(stack: str, changes: list[dict]) -> list[str]:
@@ -186,6 +240,9 @@ class Release:
         return True
 
     def verify(self, frontend: str, backend: str, agent: str):
+        _, authentication = authentication_configuration(self.template(APPLICATION_STACK))
+        if session_seconds(authentication.get("SessionTimeout", AUTH_SESSION_SECONDS)) != AUTH_SESSION_SECONDS:
+            raise ReleaseError("The HTTPS listener does not have the intended login session duration.")
         service = self.ecs.list_services(cluster=CLUSTER)["serviceArns"]
         if len(service) != 1:
             raise ReleaseError("Expected one ECS service.")
@@ -217,7 +274,7 @@ class Release:
             location = redirect_location(f"https://{DOMAIN}{path}")
             if not re.match(r"https://[a-z0-9-]+\.auth\.[a-z0-9-]+\.amazoncognito\.com/oauth2/authorize\?", location):
                 raise ReleaseError(f"{path} is not protected by the Cognito login redirect.")
-        log("verified: ECS rollout, target health, runtime READY, Cognito redirects")
+        log("verified: ECS rollout, target health, runtime READY, Cognito redirects and session duration")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

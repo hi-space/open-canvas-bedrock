@@ -1,0 +1,37 @@
+{
+  "capturedAt": "2026-10-26T08:04:48.520398+00:00",
+  "listenerArn": "arn:aws:elasticloadbalancing:ap-northeast-2:913524902871:listener/app/HtmlCa-Alb16-J01oHszMRZAU/c771401ae0d1c48b/35e29d1b80b0f108",
+  "authentication": {
+    "UserPoolArn": "arn:aws:cognito-idp:ap-northeast-2:913524902871:userpool/ap-northeast-2_7zuaRQcz0",
+    "UserPoolClientId": "49l4pu8cqpqv6n6ijabhtit8oh",
+    "UserPoolDomain": "html-canvas-913524902871",
+    "SessionCookieName": "AWSELBAuthSessionCookie",
+    "Scope": "openid email profile",
+    "SessionTimeout": 3600,
+    "AuthenticationRequestExtraParams": {
+      "lang": "ko"
+    },
+    "OnUnauthenticatedRequest": "authenticate"
+  },
+  "client": {
+    "ClientId": "49l4pu8cqpqv6n6ijabhtit8oh",
+    "ClientName": "canvas-writing-alb",
+    "CreationDate": "2026-10-25 02:59:13.800000+00:00",
+    "LastModifiedDate": "2026-10-25 02:59:13.800000+00:00",
+    "RefreshTokenValidity": 30,
+    "AccessTokenValidity": null,
+    "IdTokenValidity": null,
+    "TokenValidityUnits": {},
+    "EnableTokenRevocation": true,
+    "RefreshTokenRotation": null
+  },
+  "preview": {
+    "changedResources": [
+      "AlbHttpsB7CA700A"
+    ],
+    "beforeSeconds": 3600,
+    "afterSeconds": 604800,
+    "identityAndCookiePreserved": true,
+    "applied": false
+  }
+}

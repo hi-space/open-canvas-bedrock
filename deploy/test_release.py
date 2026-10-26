@@ -1,4 +1,4 @@
-"""The release script changes only images and the runtime lifecycle, and refuses anything else."""
+"""Release changes are restricted to images, runtime lifecycle and login duration."""
 import ast
 import json
 from pathlib import Path
@@ -18,6 +18,20 @@ def application():
         ]}},
         "Service": {"Type": "AWS::ECS::Service", "Properties": {"TaskDefinition": {"Ref": "TaskDef"}}},
         "Table": {"Type": "AWS::DynamoDB::Table", "Properties": {"TableName": "keep"}},
+        "HttpsListener": {"Type": "AWS::ElasticLoadBalancingV2::Listener", "Properties": {
+            "Protocol": "HTTPS", "Port": 443, "DefaultActions": [
+                {"Type": "authenticate-cognito", "Order": 1, "AuthenticateCognitoConfig": {
+                    "UserPoolArn": {"Fn::GetAtt": ["Pool", "Arn"]},
+                    "UserPoolClientId": {"Ref": "Client"},
+                    "UserPoolDomain": {"Ref": "Domain"},
+                    "OnUnauthenticatedRequest": "authenticate",
+                    "SessionCookieName": "AWSELBAuthSessionCookie",
+                    "SessionTimeout": 3600, "Scope": "openid email profile",
+                    "AuthenticationRequestExtraParams": {"lang": "ko"},
+                }},
+                {"Type": "forward", "Order": 2, "TargetGroupArn": {"Ref": "Target"}},
+            ],
+        }},
     }}
 
 
@@ -38,13 +52,63 @@ def change(kind, logical, action="Modify", replacement="False"):
 
 
 class ReleaseTests(unittest.TestCase):
-    def test_only_the_task_definition_changes_in_the_application_stack(self):
+    def test_release_preserves_authentication_identity_while_extending_the_login_session(self):
         before = application()
         after = release.patch_application(before, DIGEST, OTHER)
-        self.assertEqual(release.changed_resources(before, after), ["TaskDef"])
+        self.assertEqual(release.changed_resources(before, after), ["HttpsListener", "TaskDef"])
         images = {item["Name"]: item["Image"] for item in after["Resources"]["TaskDef"]["Properties"]["ContainerDefinitions"]}
         self.assertEqual(images, {"app": DIGEST, "backend": OTHER})
+        configuration = after["Resources"]["HttpsListener"]["Properties"]["DefaultActions"][0]["AuthenticateCognitoConfig"]
+        self.assertEqual(configuration["SessionTimeout"], 604800)
+        old_configuration = before["Resources"]["HttpsListener"]["Properties"]["DefaultActions"][0]["AuthenticateCognitoConfig"]
+        self.assertEqual({k: v for k, v in configuration.items() if k != "SessionTimeout"},
+                         {k: v for k, v in old_configuration.items() if k != "SessionTimeout"})
         self.assertEqual(before, application())
+
+    def test_future_image_releases_do_not_reconfigure_an_existing_seven_day_session(self):
+        before = release.patch_application(application(), DIGEST, DIGEST)
+        after = release.patch_application(before, OTHER, OTHER)
+        self.assertEqual(release.changed_resources(before, after), ["TaskDef"])
+
+    def test_cloudformation_string_durations_and_rollback_preserve_the_session_identity(self):
+        before = application()
+        configuration = before["Resources"]["HttpsListener"]["Properties"]["DefaultActions"][0]["AuthenticateCognitoConfig"]
+        configuration["SessionTimeout"] = "3600"
+        after = release.patch_application(before, DIGEST, OTHER)
+        self.assertEqual(release.changed_resources(before, after), ["HttpsListener", "TaskDef"])
+        self.assertEqual(release.changed_resources(after, before), ["HttpsListener", "TaskDef"])
+        configuration["SessionTimeout"] = "604800"
+        after = release.patch_application(before, DIGEST, OTHER)
+        self.assertEqual(release.changed_resources(before, after), ["TaskDef"])
+
+    def test_release_refuses_changes_to_auth_identity_cookie_or_routing(self):
+        for field, value in (
+            ("UserPoolClientId", {"Ref": "DifferentClient"}),
+            ("SessionCookieName", "DifferentCookie"),
+            ("OnUnauthenticatedRequest", "allow"),
+            ("Scope", "openid"),
+        ):
+            before = application()
+            after = application()
+            after["Resources"]["HttpsListener"]["Properties"]["DefaultActions"][0]["AuthenticateCognitoConfig"][field] = value
+            with self.subTest(field=field), self.assertRaises(release.ReleaseError):
+                release.changed_resources(before, after)
+        before, after = application(), application()
+        after["Resources"]["HttpsListener"]["Properties"]["Port"] = 8443
+        with self.assertRaises(release.ReleaseError):
+            release.changed_resources(before, after)
+
+    def test_bootstrap_uses_the_same_login_duration(self):
+        import prepare_template
+
+        template = {"Resources": {
+            name: {"Type": kind, "Properties": {}} for name, kind in prepare_template.REQUIRED.items()
+        }}
+        template["Resources"]["AlbHttpsB7CA700A"]["Properties"] = {"Protocol": "HTTPS"}
+        configured = prepare_template.support_template(template)
+        auth = configured["Resources"]["AlbHttpsB7CA700A"]["Properties"]["DefaultActions"][0]["AuthenticateCognitoConfig"]
+        self.assertEqual(auth["SessionTimeout"], 604800)
+        self.assertEqual(auth["SessionCookieName"], "AWSELBAuthSessionCookie")
 
     def test_runtime_gets_the_agent_image_and_the_long_request_lifecycle(self):
         before = workspace()
@@ -82,10 +146,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(release.check_changes(release.WORKSPACE_STACK, [
             change("AWS::BedrockAgentCore::Runtime", "Runtime"),
         ]), ["Runtime"])
+        self.assertEqual(release.check_changes(release.APPLICATION_STACK, [
+            change("AWS::ElasticLoadBalancingV2::Listener", "HttpsListener"),
+        ]), ["HttpsListener"])
         for stack, bad in (
             (release.APPLICATION_STACK, change("AWS::DynamoDB::Table", "Table")),
             (release.APPLICATION_STACK, change("AWS::ECS::Service", "Service", replacement="True")),
             (release.APPLICATION_STACK, change("AWS::ECS::TaskDefinition", "TaskDef", action="Remove")),
+            (release.APPLICATION_STACK, change("AWS::ElasticLoadBalancingV2::Listener", "HttpsListener", replacement="True")),
             (release.WORKSPACE_STACK, change("AWS::BedrockAgentCore::Runtime", "Runtime", replacement="Conditional")),
             (release.WORKSPACE_STACK, change("AWS::S3::Bucket", "Bucket")),
         ):

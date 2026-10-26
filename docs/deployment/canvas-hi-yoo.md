@@ -15,9 +15,11 @@ identifies the source SHA that actually produced the deployed images.
 2. Frontend and backend images build on x86-64 runners, the agent image on an
    ARM64 runner. The agent container must answer `/ping` before it is pushed,
    which catches modules missing from `deploy/Dockerfile.agent`.
-3. `deploy/release.py` changes only the ECS task definition images and the
-   AgentCore runtime image and lifecycle, through change sets that it rejects
-   when any other resource would change or be replaced. It then checks the ECS
+3. `deploy/release.py` changes only the ECS task definition images, the
+   AgentCore runtime image and lifecycle, and the existing HTTPS authentication
+   session duration. Cookie identity, Cognito client, authentication requirement
+   and listener routing must stay unchanged. Change sets that replace the
+   listener or change another resource are rejected. It then checks the ECS
    rollout, target health, runtime `READY` and the Cognito redirects, and
    restores the previous images if a check fails.
 

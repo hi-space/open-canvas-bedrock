@@ -9,6 +9,7 @@ import json
 import os
 import re
 from pathlib import Path
+from release import AUTH_SESSION_SECONDS
 
 DOMAIN = "canvas.hi-yoo.com"
 REGION = "ap-northeast-2"
@@ -114,7 +115,7 @@ def support_template(original):
                 "OnUnauthenticatedRequest": "authenticate",
                 "Scope": "openid email profile",
                 "SessionCookieName": "AWSELBAuthSessionCookie",
-                "SessionTimeout": 3600,
+                "SessionTimeout": AUTH_SESSION_SECONDS,
             },
         },
         {"Type": "forward", "Order": 2, "TargetGroupArn": {"Ref": "AlbHttpsAppGroup506BD4E7"}},
