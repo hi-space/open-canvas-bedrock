@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "eef711db601b13b77c0470d3778d1ddcc88c031f",
+  "workflowRun": 40290201056,
+  "region": "ap-northeast-2",
+  "images": {
+    "frontend": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6ef019203b0cfbe29142efb721b694006bd8e7724bfb1096aa2dd65f4a4f5e5f",
+    "backend": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:37c198072f644f40b72db69572e96eb9a67909cd9a9d60a5819da762e8c58c37",
+    "agent": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:b70363e81c869dcc8feedd455495b0e7bbbaf63ddeadcf43a6cfe3f6a43d57f9"
+  }
+}

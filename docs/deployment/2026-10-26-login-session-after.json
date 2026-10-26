@@ -1,0 +1,80 @@
+{
+  "checkedAt": "2026-10-26T08:18:28.798818+00:00",
+  "sourceCommit": "eef711db601b13b77c0470d3778d1ddcc88c031f",
+  "authentication": {
+    "UserPoolArn": "arn:aws:cognito-idp:ap-northeast-2:913524902871:userpool/ap-northeast-2_7zuaRQcz0",
+    "UserPoolClientId": "49l4pu8cqpqv6n6ijabhtit8oh",
+    "UserPoolDomain": "html-canvas-913524902871",
+    "SessionCookieName": "AWSELBAuthSessionCookie",
+    "Scope": "openid email profile",
+    "SessionTimeout": 604800,
+    "AuthenticationRequestExtraParams": {
+      "lang": "ko"
+    },
+    "OnUnauthenticatedRequest": "authenticate"
+  },
+  "client": {
+    "ClientId": "49l4pu8cqpqv6n6ijabhtit8oh",
+    "ClientName": "canvas-writing-alb",
+    "CreationDate": "2026-10-25 02:59:13.800000+00:00",
+    "LastModifiedDate": "2026-10-25 02:59:13.800000+00:00",
+    "RefreshTokenValidity": 30,
+    "AccessTokenValidity": null,
+    "IdTokenValidity": null,
+    "TokenValidityUnits": {},
+    "EnableTokenRevocation": true,
+    "RefreshTokenRotation": null
+  },
+  "identityAndCookiePreserved": true,
+  "clientConfigurationPreserved": true,
+  "stacks": {
+    "HtmlCanvasStack": "UPDATE_COMPLETE",
+    "CanvasWorkspaceStack": "UPDATE_COMPLETE"
+  },
+  "ecs": {
+    "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:23",
+    "running": 1,
+    "pending": 0,
+    "deployments": [
+      {
+        "status": "PRIMARY",
+        "rolloutState": "COMPLETED"
+      }
+    ],
+    "tasks": [
+      {
+        "health": "HEALTHY",
+        "containers": [
+          {
+            "name": "app",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6ef019203b0cfbe29142efb721b694006bd8e7724bfb1096aa2dd65f4a4f5e5f",
+            "imageDigest": "sha256:6ef019203b0cfbe29142efb721b694006bd8e7724bfb1096aa2dd65f4a4f5e5f",
+            "healthStatus": "HEALTHY",
+            "lastStatus": "RUNNING"
+          },
+          {
+            "name": "backend",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:37c198072f644f40b72db69572e96eb9a67909cd9a9d60a5819da762e8c58c37",
+            "imageDigest": "sha256:37c198072f644f40b72db69572e96eb9a67909cd9a9d60a5819da762e8c58c37",
+            "healthStatus": "HEALTHY",
+            "lastStatus": "RUNNING"
+          }
+        ]
+      }
+    ]
+  },
+  "runtime": {
+    "version": "10",
+    "status": "READY",
+    "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:b70363e81c869dcc8feedd455495b0e7bbbaf63ddeadcf43a6cfe3f6a43d57f9"
+  },
+  "endpoint": {
+    "status": "READY",
+    "liveVersion": "10",
+    "targetVersion": null
+  },
+  "protectedPaths": [
+    "/",
+    "/api/workspaces"
+  ]
+}

@@ -34,8 +34,28 @@
 
 ## 배포 상태
 
-코드 검증 완료. 기존 GitHub Actions 경로로 배포한 뒤 실제 리스너와 Cognito
-클라이언트 설정을 비교해 결과를 기록한다.
+배포 성공. GitHub Actions의 여섯 작업과 독립 운영 검증이 모두 통과했다.
+
+- 배포 소스: `eef711db601b13b77c0470d3778d1ddcc88c031f`
+- 실행: [40290201056](https://github.com/hi-space/open-canvas-bedrock/actions/runs/40290201056)
+- 실행 시작: `2026-10-26T08:08:21Z`
+- 실행 완료: `2026-10-26T08:18:15Z`
+- 독립 운영 검증: `2026-10-26T08:18:28Z`
+
+운영에서 `SessionTimeout=604800`을 확인했다. 이 값 이외의 인증 설정은 배포
+전과 동일하며, Cognito 앱 클라이언트의 ID·수정 일시·토큰 설정도 동일하다.
+ECS revision `23`의 두 컨테이너와 ALB 대상은 정상 상태이고, AgentCore와
+DEFAULT 엔드포인트는 version `10`을 제공한다. 두 CloudFormation 스택은
+`UPDATE_COMPLETE`이며 비로그인 요청의 Cognito 로그인 이동도 유지된다.
+
+이 결과를 기록하는 후속 문서 커밋은 `[skip ci]`를 사용한다. 실제 배포 소스는
+위 `eef711d`이며 문서 때문에 같은 애플리케이션을 다시 배포하지 않는다.
+
+- [배포 후 실제 인증·서비스 상태](2026-10-26-login-session-after.json)
+- [소스와 이미지 manifest](releases/2026-10-26-login-session/manifest.json)
+- [워크플로 결과](releases/2026-10-26-login-session/workflow.json)
+- [배포 로그](releases/2026-10-26-login-session/release-log.txt)
+- [독립 검증 로그](releases/2026-10-26-login-session/live-verification.txt)
 
 ## 공식 근거
 

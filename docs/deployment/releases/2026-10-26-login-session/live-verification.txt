@@ -1,0 +1,2 @@
+Checked at 2026-10-26T08:18:28.798818+00:00
+[release] verified: ECS rollout, target health, runtime READY, Cognito redirects and session duration

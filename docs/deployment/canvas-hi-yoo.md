@@ -32,7 +32,22 @@ environment variables `AWS_DEPLOY_ROLE_ARN`, `SKILLS_BUNDLE_S3_URI` and
 `SKILLS_BUNDLE_SHA256` point to it. Workflow logs are public: they show image
 digests and resource status only.
 
-## Current release: on-demand sources, 2026-10-26
+## Current release: login session duration, 2026-10-26
+
+The ALB authentication session is now seven days instead of one hour. The
+existing cookie name, Cognito client, token validity, required authentication
+and listener routing are unchanged. Future image releases preserve an already
+correct session configuration. Expired sessions require a new login.
+
+- Source: `eef711db601b13b77c0470d3778d1ddcc88c031f`.
+- Workflow [40290201056](https://github.com/hi-space/open-canvas-bedrock/actions/runs/40290201056)
+  completed successfully at `2026-10-26T08:18:15Z`.
+- Live verification at `2026-10-26T08:18:28Z`: session `604800`, unchanged
+  authentication identity and Cognito client metadata, healthy ECS revision `23`,
+  AgentCore and DEFAULT version `10`, and both stacks `UPDATE_COMPLETE`.
+- [Release and authentication evidence](2026-10-26-login-session.md).
+
+## Previous release: on-demand sources, 2026-10-26
 
 Project source storage and model context are separate. Chat reads source
 passages through tools; research retrieves evidence per question. Used evidence

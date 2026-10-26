@@ -1,0 +1,6 @@
+2026-10-26T08:13:35.8556457Z [release] CanvasWorkspaceStack: executing ApiWorkspacePolicy, Runtime
+2026-10-26T08:14:08.2123031Z [release] CanvasWorkspaceStack: UPDATE_COMPLETE
+2026-10-26T08:14:25.2358684Z [release] HtmlCanvasStack: executing AlbHttpsB7CA700A, ServiceD69D759B, TaskDef54694570
+2026-10-26T08:18:07.0894156Z [release] HtmlCanvasStack: UPDATE_COMPLETE
+2026-10-26T08:18:12.2971920Z [release] verified: ECS rollout, target health, runtime READY, Cognito redirects and session duration
+2026-10-26T08:18:12.2972899Z [release] released eef711db601b
