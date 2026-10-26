@@ -1,0 +1,1 @@
+913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6de5250ac83e2af462f40961aecb4002ba72d25c8f50d97ea988af601d6cf1d7

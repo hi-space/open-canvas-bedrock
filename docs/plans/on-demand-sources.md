@@ -113,7 +113,7 @@ only matched, bounded registered evidence; `sourceReads` shares Task 2's contrac
 - [x] Exercise a deterministic browser flow with an over-old-limit library:
   view one excerpt, revise a document, produce research and approve the result.
 - [x] Obtain independent whole-change review; reproduce and fix material findings.
-- [ ] Update user guide and verification record; commit, push and deploy through
+- [x] Update user guide and verification record; commit, push and deploy through
   the existing workflow and verify the live release.
 
 ## Execution record
@@ -141,3 +141,6 @@ only matched, bounded registered evidence; `sourceReads` shares Task 2's contrac
 - Verification: backend 417 tests plus 101 subtests; web 225 tests; Chromium with
   67 stored sources, a 137-character initial model input and one 93-character
   source read. Details are in `../verification/on-demand-sources/README.md`.
+- Released source `d3cb8d99628c883b2549a8dfa6b0c2371664cc9d` through workflow
+  `40284643751`; all six jobs succeeded at `2026-10-26T07:24:23Z`. Independent
+  verification confirmed ECS revision 22 and AgentCore live version 9.

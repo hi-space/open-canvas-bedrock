@@ -2,8 +2,17 @@
 
 ## 상태
 
-코드·브라우저 검증 완료. 기존 GitHub Actions `Test and deploy` 워크플로로 배포한다.
-배포 완료 시 이 문서에 실제 실행과 운영 검증 결과를 추가한다.
+배포 성공. GitHub Actions의 여섯 작업이 모두 성공했으며, 배포 후 실제 이미지와
+서비스 상태를 별도로 확인했다.
+
+- 배포 소스: `d3cb8d99628c883b2549a8dfa6b0c2371664cc9d`
+- 실행: [40284643751](https://github.com/hi-space/open-canvas-bedrock/actions/runs/40284643751)
+- 실행 시작: `2026-10-26T07:15:05Z`
+- 실행 완료: `2026-10-26T07:24:23Z`
+- 독립 운영 검증: `2026-10-26T07:25:28Z`
+
+이 배포 결과를 기록하는 후속 문서 커밋은 `[skip ci]`를 사용한다. 애플리케이션
+이미지를 만든 소스는 위 `d3cb8d9`이며 문서 기록 때문에 재배포하지 않는다.
 
 ## 변경
 
@@ -38,3 +47,26 @@
 - AgentCore 런타임 및 DEFAULT 엔드포인트: version `8`, READY
 - `HtmlCanvasStack`, `CanvasWorkspaceStack`: UPDATE_COMPLETE
 - [배포 전 스냅샷](2026-10-26-on-demand-sources-before.json)
+
+## 배포 후 운영 검증
+
+- 두 CloudFormation 스택 모두 `UPDATE_COMPLETE`.
+- ECS 태스크 정의 revision `22`, 배포 상태 `COMPLETED`, 실행 1개·대기 0개.
+- 웹·API 컨테이너 모두 `RUNNING` / `HEALTHY`; ALB 대상 `healthy`.
+- 실행 컨테이너의 이미지 URI와 실제 digest가 빌드 산출물과 일치.
+- AgentCore 런타임 및 DEFAULT 엔드포인트 `READY`, 실제 제공 버전 `9`.
+- 런타임 idle timeout 60초 / 최대 수명 900초 유지.
+- `/`, `/api/workspaces`의 비로그인 접근이 Cognito 로그인으로 이동.
+- 이전 태스크 revision `21`은 `ACTIVE`로 남아 있으며 롤백은 발생하지 않았다.
+
+| 이미지 | SHA-256 digest |
+| --- | --- |
+| 웹 | `80faf7bf5722d2e81c3d435d40d907ec7a3000f969f55cbab81e9ab2d99b446b` |
+| API | `6de5250ac83e2af462f40961aecb4002ba72d25c8f50d97ea988af601d6cf1d7` |
+| AgentCore ARM64 | `2332ab9f00fb4b30d601754a244939c0dbd8164da26311417d6f3874c0b0050c` |
+
+- [배포 후 스냅샷](2026-10-26-on-demand-sources-after.json)
+- [소스·이미지 manifest](releases/2026-10-26-on-demand-sources/manifest.json)
+- [워크플로 결과](releases/2026-10-26-on-demand-sources/workflow.json)
+- [배포 로그](releases/2026-10-26-on-demand-sources/release-log.txt)
+- [독립 검증 로그](releases/2026-10-26-on-demand-sources/live-verification.txt)

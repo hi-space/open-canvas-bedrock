@@ -1,0 +1,59 @@
+{
+  "id": 40284643751,
+  "head_sha": "d3cb8d99628c883b2549a8dfa6b0c2371664cc9d",
+  "status": "completed",
+  "conclusion": "success",
+  "html_url": "https://github.com/hi-space/open-canvas-bedrock/actions/runs/40284643751",
+  "created_at": "2026-10-26T07:15:05Z",
+  "updated_at": "2026-10-26T07:24:23Z",
+  "jobs": [
+    {
+      "id": 121445341224,
+      "name": "backend-tests",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T07:15:08Z",
+      "completed_at": "2026-10-26T07:15:53Z"
+    },
+    {
+      "id": 121445341385,
+      "name": "web-tests",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T07:15:08Z",
+      "completed_at": "2026-10-26T07:16:22Z"
+    },
+    {
+      "id": 121445765067,
+      "name": "images (backend, deploy/Dockerfile.backend, ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T07:16:25Z",
+      "completed_at": "2026-10-26T07:19:18Z"
+    },
+    {
+      "id": 121445765068,
+      "name": "images (agent, deploy/Dockerfile.agent, ubuntu-24.04-arm)",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T07:16:28Z",
+      "completed_at": "2026-10-26T07:17:43Z"
+    },
+    {
+      "id": 121445765105,
+      "name": "images (frontend, deploy/Dockerfile.web, ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T07:16:26Z",
+      "completed_at": "2026-10-26T07:18:45Z"
+    },
+    {
+      "id": 121446704326,
+      "name": "deploy",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T07:19:21Z",
+      "completed_at": "2026-10-26T07:24:23Z"
+    }
+  ]
+}

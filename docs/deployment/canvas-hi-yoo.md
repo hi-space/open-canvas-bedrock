@@ -30,7 +30,28 @@ environment variables `AWS_DEPLOY_ROLE_ARN`, `SKILLS_BUNDLE_S3_URI` and
 `SKILLS_BUNDLE_SHA256` point to it. Workflow logs are public: they show image
 digests and resource status only.
 
-## Current release: research HTML and native diagrams, 2026-10-26
+## Current release: on-demand sources, 2026-10-26
+
+Project source storage and model context are separate. Chat reads source
+passages through tools; research retrieves evidence per question. Used evidence
+keeps immutable versions, while unused copies are reclaimed. The storage quota
+does not block document revision or research jobs.
+
+- Source commit: `d3cb8d99628c883b2549a8dfa6b0c2371664cc9d`, branch `main`.
+- GitHub Actions run: [40284643751](https://github.com/hi-space/open-canvas-bedrock/actions/runs/40284643751);
+  all six jobs successful at `2026-10-26T07:24:23Z`.
+- Both stacks `UPDATE_COMPLETE`; ECS revision `22`, one healthy running task,
+  zero pending tasks, healthy ALB target.
+- AgentCore runtime and DEFAULT endpoint `READY`, serving version `9`.
+- Independent verification at `2026-10-26T07:25:28Z` checked all image digests,
+  the runtime lifecycle and Cognito redirects. Previous task revision `21`
+  remains `ACTIVE`.
+
+The [release record](2026-10-26-on-demand-sources.md) contains the manifest,
+workflow result, before/after snapshots and validation scope. The
+[feature guide](../on-demand-sources.md) describes usage and storage compatibility.
+
+## Previous release: research HTML and native diagrams, 2026-10-26
 
 Deep research can produce HTML from selected project files with native HTML/CSS
 and SVG diagrams. Specialized diagram skills remain optional. SVG selection

@@ -1,0 +1,66 @@
+{
+  "checkedAt": "2026-10-26T07:25:28.251053+00:00",
+  "sourceCommit": "d3cb8d99628c883b2549a8dfa6b0c2371664cc9d",
+  "region": "ap-northeast-2",
+  "stacks": {
+    "HtmlCanvasStack": "UPDATE_COMPLETE",
+    "CanvasWorkspaceStack": "UPDATE_COMPLETE"
+  },
+  "ecs": {
+    "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:22",
+    "desired": 1,
+    "running": 1,
+    "pending": 0,
+    "deployments": [
+      {
+        "status": "PRIMARY",
+        "rolloutState": "COMPLETED",
+        "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:22"
+      }
+    ],
+    "tasks": [
+      {
+        "health": "HEALTHY",
+        "status": "RUNNING",
+        "containers": [
+          {
+            "name": "backend",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6de5250ac83e2af462f40961aecb4002ba72d25c8f50d97ea988af601d6cf1d7",
+            "imageDigest": "sha256:6de5250ac83e2af462f40961aecb4002ba72d25c8f50d97ea988af601d6cf1d7",
+            "healthStatus": "HEALTHY",
+            "lastStatus": "RUNNING"
+          },
+          {
+            "name": "app",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:80faf7bf5722d2e81c3d435d40d907ec7a3000f969f55cbab81e9ab2d99b446b",
+            "imageDigest": "sha256:80faf7bf5722d2e81c3d435d40d907ec7a3000f969f55cbab81e9ab2d99b446b",
+            "healthStatus": "HEALTHY",
+            "lastStatus": "RUNNING"
+          }
+        ]
+      }
+    ]
+  },
+  "runtime": {
+    "version": "9",
+    "status": "READY",
+    "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:2332ab9f00fb4b30d601754a244939c0dbd8164da26311417d6f3874c0b0050c",
+    "lifecycle": {
+      "idleRuntimeSessionTimeout": 60,
+      "maxLifetime": 900
+    }
+  },
+  "endpoint": {
+    "status": "READY",
+    "liveVersion": "9",
+    "targetVersion": null
+  },
+  "targets": [
+    "healthy"
+  ],
+  "previousTaskDefinitionStatus": "ACTIVE",
+  "protectedPaths": [
+    "/",
+    "/api/workspaces"
+  ]
+}

@@ -47,6 +47,7 @@
 - [타입 검사](typecheck.txt), [린트](lint.txt), [빌드](build.txt)
 - [브라우저 결과](browser-results.json)
 - [다운로드한 HTML/SVG 보고서](research.html)
+- [실제 배포와 운영 검증](../../deployment/2026-10-26-on-demand-sources.md)
 
 ![필요한 발췌 하나를 연 출처 패널](source-library.png)
 
