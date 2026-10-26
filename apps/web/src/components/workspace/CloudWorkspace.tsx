@@ -13,7 +13,9 @@ import {
   FileText,
   LoaderCircle,
   Maximize2,
+  Minus,
   PanelLeft,
+  PanelLeftClose,
   PanelRight,
   Plus,
   RefreshCw,
@@ -26,6 +28,7 @@ import { useCloudWorkspace } from "@/hooks/useCloudWorkspace";
 import { useCloudFolder } from "@/hooks/useCloudFolder";
 import { useWorkspaceModels } from "@/hooks/useWorkspaceModels";
 import { useReviewFocus } from "@/hooks/useReviewFocus";
+import useLocalStorage from "@/hooks/useLocalStorage";
 import { isDirty } from "@/lib/workspace/cloud-state";
 import { ownsSelection } from "@/lib/workspace/cloud-intent";
 import {
@@ -195,7 +198,16 @@ export function CloudWorkspace({
   const [mode, setMode] = useState<"read" | "edit">("read");
   const [tab, setTab] = useState<CloudInspectorTab>("chat");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [desktopLayout, setDesktopLayout] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [savedFontScale, setFontScale] = useLocalStorage(
+    "open-canvas-markdown-font-scale",
+    100
+  );
+  const fontScale = Number.isFinite(savedFontScale)
+    ? Math.min(200, Math.max(75, savedFontScale))
+    : 100;
   const [creating, setCreating] = useState<"project" | "file">();
   const [dragging, setDragging] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -236,6 +248,8 @@ export function CloudWorkspace({
       : undefined;
   const selected = selection?.text.trim() ? selection : undefined;
   const htmlDocument = !!path && isHtmlFile(path);
+  const sidebarIsDrawer = htmlDocument || !desktopLayout;
+  const sidebarVisible = sidebarIsDrawer ? sidebarOpen : !sidebarCollapsed;
   const htmlPreviewVisible =
     htmlDocument && (mode === "read" || !!virtualProposal);
   const htmlWide = !sidebarOpen && !inspectorOpen;
@@ -266,6 +280,14 @@ export function CloudWorkspace({
 
   useEffect(() => {
     setInspectorOpen(window.matchMedia("(min-width: 900px)").matches);
+    const desktop = window.matchMedia("(min-width: 1100px)");
+    const updateLayout = () => {
+      setDesktopLayout(desktop.matches);
+      setSidebarOpen(false);
+    };
+    updateLayout();
+    desktop.addEventListener("change", updateLayout);
+    return () => desktop.removeEventListener("change", updateLayout);
   }, []);
   useEffect(() => {
     scrollArea.current?.scrollTo({ top: 0 });
@@ -288,7 +310,7 @@ export function CloudWorkspace({
       }
       if (
         event.key === "Escape" &&
-        (window.matchMedia("(max-width: 899px)").matches ||
+        (window.matchMedia("(max-width: 1099px)").matches ||
           (htmlDocument && sidebarOpen))
       ) {
         setSidebarOpen(false);
@@ -348,7 +370,7 @@ export function CloudWorkspace({
 
   return (
     <div
-      className={`${styles.workspace} ${cloud.layout} ${htmlDocument ? cloud.htmlLayout : ""} ${sidebarOpen ? `${styles.sidebarOpen} ${cloud.filesOpen}` : ""} ${inspectorOpen ? styles.inspectorOpen : `${styles.inspectorClosed} ${cloud.closed}`}`}
+      className={`${styles.workspace} ${cloud.layout} ${htmlDocument ? cloud.htmlLayout : ""} ${sidebarOpen ? `${styles.sidebarOpen} ${cloud.filesOpen}` : ""} ${sidebarCollapsed && !htmlDocument ? cloud.filesCollapsed : ""} ${inspectorOpen ? styles.inspectorOpen : `${styles.inspectorClosed} ${cloud.closed}`}`}
       onDragOver={(event) => {
         if (event.dataTransfer.types.includes("Files")) {
           event.preventDefault();
@@ -427,20 +449,28 @@ export function CloudWorkspace({
           <div className={styles.breadcrumb}>
             <button
               ref={fileToggle}
-              className={`${styles.iconButton} ${styles.sidebarToggle} ${htmlDocument ? cloud.htmlFileToggle : ""}`}
+              className={`${styles.iconButton} ${cloud.fileToggle}`}
               onClick={() => {
-                setSidebarOpen(!sidebarOpen);
-                if (
-                  !htmlDocument ||
-                  window.matchMedia("(max-width: 899px)").matches
-                )
+                if (!sidebarIsDrawer) {
+                  setSidebarCollapsed((collapsed) => !collapsed);
+                  return;
+                }
+                setSidebarOpen((open) => !open);
+                if (window.matchMedia("(max-width: 899px)").matches)
                   setInspectorOpen(false);
               }}
-              aria-label="파일 목록 열기"
-              aria-expanded={sidebarOpen}
+              aria-label={
+                sidebarVisible ? "파일 목록 숨기기" : "파일 목록 열기"
+              }
+              title={sidebarVisible ? "파일 목록 숨기기" : "파일 목록 열기"}
+              aria-expanded={sidebarVisible}
               aria-controls="cloud-workspace-files"
             >
-              <PanelLeft size={18} />
+              {sidebarVisible ? (
+                <PanelLeftClose size={18} />
+              ) : (
+                <PanelLeft size={18} />
+              )}
             </button>
             <span>{project?.workspace.name ?? "글쓰기 작업실"}</span>
             <ChevronRight size={13} />
@@ -498,7 +528,7 @@ export function CloudWorkspace({
         {document ? (
           <>
             <div
-              className={`${styles.documentToolbar} ${htmlDocument ? cloud.htmlToolbar : ""}`}
+              className={`${styles.documentToolbar} ${htmlDocument ? cloud.htmlToolbar : cloud.markdownToolbar}`}
             >
               <div
                 className={`${styles.documentIdentity} ${htmlDocument ? cloud.htmlIdentity : ""}`}
@@ -533,7 +563,7 @@ export function CloudWorkspace({
                 </div>
               </div>
               <div
-                className={`${styles.documentActions} ${htmlDocument ? cloud.htmlActions : ""}`}
+                className={`${styles.documentActions} ${htmlDocument ? cloud.htmlActions : cloud.markdownActions}`}
               >
                 <fieldset
                   className={styles.viewToggle}
@@ -558,6 +588,41 @@ export function CloudWorkspace({
                     <span>{htmlDocument ? "HTML 코드" : "Markdown 편집"}</span>
                   </button>
                 </fieldset>
+                {!htmlDocument && mode === "read" && !virtualProposal && (
+                  <fieldset
+                    className={`${styles.viewToggle} ${cloud.fontSizeControl}`}
+                    aria-label="마크다운 글자 크기"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setFontScale(Math.max(75, fontScale - 25))}
+                      disabled={fontScale <= 75}
+                      aria-label="글자 크기 줄이기"
+                      title="글자 크기 줄이기"
+                    >
+                      <Minus size={14} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFontScale(100)}
+                      aria-label="글자 크기 기본값으로"
+                      title="기본 크기로 되돌리기 (100%)"
+                    >
+                      <output aria-live="polite">{fontScale}%</output>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFontScale(Math.min(200, fontScale + 25))
+                      }
+                      disabled={fontScale >= 200}
+                      aria-label="글자 크기 키우기"
+                      title="글자 크기 키우기"
+                    >
+                      <Plus size={14} aria-hidden="true" />
+                    </button>
+                  </fieldset>
+                )}
                 {htmlDocument && (
                   <button
                     className={`${styles.secondaryButton} ${cloud.previewWidthToggle}`}
@@ -781,6 +846,7 @@ export function CloudWorkspace({
                   ) : mode === "read" ? (
                     <DocumentPreview
                       content={document.content}
+                      fontScale={fontScale / 100}
                       onSelection={select}
                       reviewFocus={review.focus}
                       onSourceUnavailable={() => {

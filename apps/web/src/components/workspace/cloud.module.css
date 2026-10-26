@@ -1,6 +1,46 @@
 .layout {
   grid-template-columns: 244px minmax(0, 1fr) 394px;
 }
+.layout .fileToggle {
+  display: inline-flex;
+}
+.markdownToolbar,
+.markdownActions {
+  flex-wrap: wrap;
+}
+.markdownActions {
+  max-width: 100%;
+  margin-left: auto;
+}
+.fontSizeControl {
+  flex-shrink: 0;
+  margin: 0;
+}
+.fontSizeControl button {
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+}
+.fontSizeControl output {
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 1100px) {
+  .layout.filesCollapsed {
+    grid-template-columns: minmax(0, 1fr) 394px;
+  }
+  .layout.filesCollapsed.closed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .filesCollapsed .sidebar {
+    display: none;
+  }
+}
+@media (min-width: 1100px) and (max-width: 1250px) {
+  .layout.filesCollapsed:not(.closed) {
+    grid-template-columns: minmax(0, 1fr) 355px;
+  }
+}
 .htmlPaper {
   min-width: 0;
   overflow: hidden;
@@ -141,7 +181,6 @@
   transform: translateX(0);
   visibility: visible;
 }
-.htmlLayout .htmlFileToggle,
 .htmlLayout .fileClose {
   display: inline-flex;
 }

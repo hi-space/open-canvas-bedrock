@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowUpRight, TextSelect } from "lucide-react";
@@ -28,11 +34,13 @@ function attributes(node: PositionNode | undefined, sourceOffset: number) {
 
 export function DocumentPreview({
   content,
+  fontScale = 1,
   onSelection,
   reviewFocus,
   onSourceUnavailable,
 }: {
   content: string;
+  fontScale?: number;
   onSelection: (selection: TextSelection | undefined) => void;
   reviewFocus?: ReviewFocus;
   onSourceUnavailable: () => void;
@@ -178,6 +186,7 @@ export function DocumentPreview({
       role="document"
       aria-label="문서 읽기"
       className={styles.prose}
+      style={{ "--document-font-scale": fontScale } as CSSProperties}
     >
       {hint && (
         <div className={styles.selectionHint} aria-live="polite">

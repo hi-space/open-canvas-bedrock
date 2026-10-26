@@ -641,7 +641,7 @@
 }
 .prose {
   color: #454d41;
-  font-size: 14px;
+  font-size: calc(16px * var(--document-font-scale, 1));
   line-height: 1.95;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -721,7 +721,7 @@
 .emptyDocument h1 {
   color: #283729;
   font-family: Georgia, "Noto Serif KR", "AppleMyungjo", serif;
-  font-size: clamp(26px, 2.55vw, 37px);
+  font-size: calc(clamp(26px, 2.55vw, 37px) * var(--document-font-scale, 1));
   font-weight: 600;
   line-height: 1.5;
   letter-spacing: -1.3px;
@@ -729,14 +729,14 @@
 }
 .prose h2 {
   color: #34452f;
-  font-size: 18px;
+  font-size: calc(18px * var(--document-font-scale, 1));
   font-weight: 600;
   line-height: 1.5;
   margin: 34px 0 15px;
   letter-spacing: -0.45px;
 }
 .prose h3 {
-  font-size: 16px;
+  font-size: calc(16px * var(--document-font-scale, 1));
   font-weight: 600;
   color: #3e5037;
   margin: 26px 0 10px;
@@ -766,14 +766,14 @@
 }
 .prose a.citation {
   display: inline-flex;
-  min-width: 19px;
-  height: 19px;
+  min-width: calc(19px * var(--document-font-scale, 1));
+  height: calc(19px * var(--document-font-scale, 1));
   align-items: center;
   justify-content: center;
   background: #e9f0e2;
   border: 1px solid #dce7d3;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px * var(--document-font-scale, 1));
   font-weight: 600;
   text-decoration: none;
   margin: 0 2px;
@@ -788,7 +788,7 @@
   background: #f6f8f2;
   color: #607452;
   border-radius: 0 4px 4px 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--document-font-scale, 1));
 }
 .prose blockquote p {
   margin: 0;
@@ -819,7 +819,7 @@
   padding: 17px;
   overflow-x: auto;
   border-radius: 6px;
-  font: 12px/1.7 monospace;
+  font: calc(12px * var(--document-font-scale, 1)) / 1.7 monospace;
   white-space: pre;
   word-break: normal;
 }
@@ -837,7 +837,7 @@
 .prose table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12px;
+  font-size: calc(12px * var(--document-font-scale, 1));
   display: block;
   overflow-x: auto;
   margin: 20px 0;
@@ -1949,9 +1949,6 @@
   margin: 0;
   min-width: 0;
 }
-.prose {
-  font-size: 16px;
-}
 .fileName strong {
   font-size: 13px;
 }
@@ -2031,9 +2028,6 @@
   .paperEditor {
     padding-left: 0;
     padding-right: 0;
-  }
-  .prose {
-    font-size: 16px;
   }
 }
 @media (max-width: 1250px) {
@@ -2174,11 +2168,8 @@
     padding-left: 0;
     padding-right: 0;
   }
-  .prose {
-    font-size: 16px;
-  }
   .prose h1 {
-    font-size: 32px;
+    font-size: calc(32px * var(--document-font-scale, 1));
   }
   .paragraphAction {
     opacity: 1;
@@ -2266,15 +2257,15 @@
     margin-bottom: 23px;
   }
   .prose {
-    font-size: 15px;
+    font-size: calc(15px * var(--document-font-scale, 1));
     line-height: 1.95;
   }
   .prose h1 {
-    font-size: 27px;
+    font-size: calc(27px * var(--document-font-scale, 1));
     letter-spacing: -0.85px;
   }
   .prose h2 {
-    font-size: 17px;
+    font-size: calc(17px * var(--document-font-scale, 1));
   }
   .paragraphAction {
     left: -27px;
