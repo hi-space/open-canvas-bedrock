@@ -8,6 +8,8 @@ The home page combines **project files, document editing, and agent conversation
 
 See the [cloud workspace guide](./docs/cloud-workspace.md), [dependency upgrade audit](./docs/dependency-upgrade.md), and [current Bedrock model configuration](./docs/bedrock-models.md). The demo below shows the earlier conversation canvas.
 
+Project documentation lives in [docs](./docs/README.md), including the [research HTML and native diagram guide](./docs/research-html.md) and deployment records.
+
 [![Demo](./static/screenshot.png)](https://www.youtube.com/watch?v=vJb0TTRrEvU)
 
 (_Click on the image to watch the demo video on YouTube_)

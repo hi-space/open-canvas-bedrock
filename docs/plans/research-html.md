@@ -1,6 +1,5 @@
 # Research-backed HTML Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Create research-backed HTML with project context, citations, tables, diagrams, review, and standalone export.
 
@@ -8,7 +7,7 @@
 
 **Tech Stack:** Python/FastAPI/LangGraph/markdown-it-py; Next.js/React/TypeScript/parse5/DOMPurify; pytest/Vitest/Playwright.
 
-**Spec:** `docs/superpowers/specs/2026-10-25-research-html-design.md`
+**Spec:** `docs/design/research-html.md`
 
 ## Global Constraints
 
@@ -17,7 +16,7 @@
 - No additional model call for Markdown-to-HTML conversion; no new dependencies.
 - Canonical documents retain authenticated image paths; previews and exports embed PNG data.
 - Bound image loads to 12 distinct assets, 2 MiB each, 8 MiB total, 15 seconds.
-- No deployment; work in the native worktree on `codex/research-html`.
+- Keep documentation under `docs/`; release through the existing main-branch workflow.
 
 ## Review Focus
 

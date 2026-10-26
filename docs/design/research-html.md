@@ -74,8 +74,8 @@ These are builder choices, not additional user requirements.
   globally. Shared resolution within one document prevents duplicate downloads.
 - Supplied source aliases share combined evidence and all contributing source IDs.
   Newly registered citations have a separate budget from existing supplied sources.
-- Build and test in the native worktree on `codex/research-html`; no deployment
-  or external publishing is part of this change.
+- Keep project documentation and verification artifacts under `docs/`. Releases
+  follow the existing GitHub Actions workflow on `main`.
 
 ## Verification
 

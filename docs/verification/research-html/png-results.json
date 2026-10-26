@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "independent HTML/research choices and selected project snapshots",
+    "real PNG rendered in a sandboxed proposal before canonical writes",
+    "explicit approval persists canonical image references and source identities",
+    "corrupt PNG produces a readable preview notice, blocks export, and recovers on retry",
+    "standalone HTML works offline with figures, citations, tables and mobile layout"
+  ],
+  "artifacts": "docs/verification/research-html"
+}

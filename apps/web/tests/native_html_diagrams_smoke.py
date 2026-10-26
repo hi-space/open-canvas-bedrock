@@ -15,7 +15,8 @@ from cloud_workspace_smoke import create_project, read_file
 
 BASE = os.environ.get("OPEN_CANVAS_TEST_URL", "http://127.0.0.1:3107")
 BACKEND = os.environ.get("RESEARCH_HTML_TEST_BACKEND", "http://127.0.0.1:9017")
-ARTIFACTS = Path(os.environ.get("OPEN_CANVAS_TEST_ARTIFACTS", "/tmp/open-canvas-native-diagrams-browser"))
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+ARTIFACTS = Path(os.environ.get("OPEN_CANVAS_TEST_ARTIFACTS", str(PROJECT_ROOT / "docs/verification/research-html")))
 TITLE = "프로젝트 자료로 완성한 리서치 보고서"
 
 
@@ -74,7 +75,7 @@ async def main():
         async with page.expect_download() as pending:
             await page.get_by_role("button", name="HTML 다운로드", exact=True).click()
         download = await pending.value
-        destination = ARTIFACTS / download.suggested_filename
+        destination = ARTIFACTS / "native-report.html"
         await download.save_as(destination)
         assert destination.read_text() == saved["content"]
         offline_context = await browser.new_context(offline=True, viewport={"width": 1280, "height": 1000})
@@ -82,10 +83,10 @@ async def main():
         await offline.goto(destination.as_uri())
         await expect(offline.locator("svg [data-edge-source]")).to_have_count(4)
         await expect(offline.get_by_role("heading", name=TITLE, exact=True)).to_be_visible()
-        await offline.screenshot(path=str(ARTIFACTS / "native-offline-desktop.png"), full_page=True)
+        await offline.screenshot(path=str(ARTIFACTS / "native-desktop.png"), full_page=True)
         await offline.set_viewport_size({"width": 390, "height": 844})
         assert await offline.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        await offline.screenshot(path=str(ARTIFACTS / "native-offline-mobile.png"), full_page=True)
+        await offline.screenshot(path=str(ARTIFACTS / "native-mobile.png"), full_page=True)
         wide_response = await page.request.get(f"{BACKEND}/__test/wide-native")
         assert wide_response.ok
         wide_file = ARTIFACTS / "wide-sequence.html"
@@ -121,9 +122,9 @@ async def main():
                    "atomic SVG selection", "approval and byte-preserving offline download",
                    "mobile containment", "six-participant readable text and keyboard scrolling",
                    "zero image requests or rasterizer calls"],
-        "artifacts": str(ARTIFACTS),
+        "artifacts": str(ARTIFACTS.relative_to(PROJECT_ROOT)) if ARTIFACTS.is_relative_to(PROJECT_ROOT) else str(ARTIFACTS),
     }
-    (ARTIFACTS / "results.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    (ARTIFACTS / "native-results.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

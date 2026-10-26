@@ -1,0 +1,15 @@
+.................................. [  8%]
+........................................................................ [ 27%]
+........................................................................ [ 45%]
+........................................................................ [ 64%]
+............................................................. [ 79%]
+............................................................. [ 95%]
+..................              [100%]
+=============================== warnings summary ===============================
+tests/test_legacy_tools.py::LegacyToolTests::test_kimi_legacy_tools_can_use_implicit_automatic_choice
+tests/test_legacy_tools.py::LegacyToolTests::test_reflection_uses_supported_tool_choice
+  /home/ubuntu/workspace/open-canvas-bedrock/apps/backend/store/memory_storage.py:42: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "updatedAt": datetime.utcnow().isoformat(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+390 passed, 2 warnings, 101 subtests passed in 8.23s

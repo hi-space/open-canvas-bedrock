@@ -1,6 +1,5 @@
 # Native HTML Diagrams Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Explain technical structures in HTML using native HTML/CSS and SVG with optional specialized diagram skills.
 
@@ -8,7 +7,7 @@
 
 **Tech Stack:** Python/Pydantic/LangGraph, Next.js/React/parse5/DOMPurify, pytest/Vitest/Chromium.
 
-**Spec:** `docs/superpowers/specs/2026-10-25-native-html-diagrams-design.md`
+**Spec:** `docs/design/native-html-diagrams.md`
 
 ## Global Constraints
 

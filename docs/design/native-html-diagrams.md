@@ -52,7 +52,7 @@ value; an HTML diagram must not depend on a diagram skill or rasterizer.
   path, text, tspan, title, desc. SVG roots get editor IDs; SVG descendants do not
   become separate selectable regions.
 - No new dependency, service, skill installation, or deployment is needed.
-- Continue in the existing `codex/research-html` managed worktree.
+- Keep documentation, verification artifacts, and deployment records in this project’s `docs/`.
 
 ## Evidence and verification
 

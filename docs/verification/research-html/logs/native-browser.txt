@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "HTML layers and SVG flow without skills",
+    "all technical relationships rendered",
+    "atomic SVG selection",
+    "approval and byte-preserving offline download",
+    "mobile containment",
+    "six-participant readable text and keyboard scrolling",
+    "zero image requests or rasterizer calls"
+  ],
+  "artifacts": "docs/verification/research-html"
+}

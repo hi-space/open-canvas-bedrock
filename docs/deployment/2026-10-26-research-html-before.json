@@ -1,0 +1,23 @@
+{
+  "stacks": {
+    "HtmlCanvasStack": "UPDATE_COMPLETE",
+    "CanvasWorkspaceStack": "UPDATE_COMPLETE"
+  },
+  "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:19",
+  "running": 1,
+  "pending": 0,
+  "desired": 1,
+  "images": {
+    "backend": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:974fa64d91163037ccf10b331bd36a81bbd5280e428e173dc504ad3c9ead5b26",
+    "app": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:5878b7c83f6e49c7c56bc6f254c6b659ca1042a72641bd58ed1a5d91143db898"
+  },
+  "targets": [
+    "healthy"
+  ],
+  "runtime": {
+    "id": "canvas_writing_workspace-GKTOJW3k5H",
+    "status": "READY",
+    "version": "6",
+    "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:179dc76f4c49bee8eb42411ba6351f1f09a4560a2674aab368a43abd3af189f4"
+  }
+}

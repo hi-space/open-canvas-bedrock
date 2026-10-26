@@ -16,7 +16,8 @@ from cloud_workspace_smoke import create_project, read_file
 
 BASE = os.environ.get("OPEN_CANVAS_TEST_URL", "http://127.0.0.1:3107")
 BACKEND = os.environ.get("RESEARCH_HTML_TEST_BACKEND", "http://127.0.0.1:9017")
-ARTIFACTS = Path(os.environ.get("OPEN_CANVAS_TEST_ARTIFACTS", "/tmp/open-canvas-research-html-browser"))
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+ARTIFACTS = Path(os.environ.get("OPEN_CANVAS_TEST_ARTIFACTS", str(PROJECT_ROOT / "docs/verification/research-html")))
 MATERIAL = "# 프로젝트 자료\n\n대상 고객은 세 팀입니다. 자료와 그림을 함께 검토합니다.\n"
 TITLE = "프로젝트 자료로 완성한 리서치 보고서"
 
@@ -49,7 +50,7 @@ async def main():
         await page.get_by_label("결과 형식", exact=True).select_option("html")
         await expect(page.get_by_label("brief.md", exact=True)).to_be_checked()
         await expect(page.get_by_label("unused.md", exact=True)).not_to_be_checked()
-        await page.screenshot(path=str(ARTIFACTS / "composer-desktop.png"))
+        await page.screenshot(path=str(ARTIFACTS / "png-composer.png"))
         await page.get_by_label("무엇을 함께 할까요?", exact=True).fill("자료와 웹 근거를 비교하고 다이어그램이 있는 HTML을 만들어 주세요.")
         await page.get_by_role("button", name="메시지 보내기", exact=True).click()
         proposal_button = page.get_by_role("button", name=re.compile("검토할 수정안 1개"))
@@ -78,7 +79,7 @@ async def main():
         }""")
         await preview.locator("img").evaluate("(image) => image.decode()")
         assert await preview.locator("img").evaluate("(image) => image.complete && image.naturalWidth === 960")
-        await page.screenshot(path=str(ARTIFACTS / "proposal-desktop.png"))
+        await page.screenshot(path=str(ARTIFACTS / "png-proposal.png"))
         checks.append("real PNG rendered in a sandboxed proposal before canonical writes")
 
         await page.get_by_role("button", name="변경 승인", exact=True).click()
@@ -115,7 +116,7 @@ async def main():
         async with page.expect_download() as pending:
             await page.get_by_role("button", name="HTML 다운로드", exact=True).click()
         download = await pending.value
-        destination = ARTIFACTS / download.suggested_filename
+        destination = ARTIFACTS / "png-report.html"
         await download.save_as(destination)
         exported = destination.read_text()
         assert "data:image/png;base64," in exported
@@ -129,17 +130,21 @@ async def main():
         await expect(offline.get_by_role("link", name="[1]", exact=True).first).to_be_visible()
         await offline.locator("img").evaluate("(image) => image.decode()")
         assert await offline.locator("img").evaluate("(image) => image.complete && image.naturalWidth === 960")
-        await offline.screenshot(path=str(ARTIFACTS / "standalone-desktop.png"), full_page=True)
+        await offline.screenshot(path=str(ARTIFACTS / "png-desktop.png"), full_page=True)
         await offline.set_viewport_size({"width": 390, "height": 844})
         assert await offline.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        await offline.screenshot(path=str(ARTIFACTS / "standalone-mobile.png"), full_page=True)
+        await offline.screenshot(path=str(ARTIFACTS / "png-mobile.png"), full_page=True)
         checks.append("standalone HTML works offline with figures, citations, tables and mobile layout")
         assert not errors, errors
         await offline_context.close()
         await context.close()
         await browser.close()
-    (ARTIFACTS / "results.json").write_text(json.dumps(checks, ensure_ascii=False, indent=2))
-    print(json.dumps({"checks": checks, "artifacts": str(ARTIFACTS)}, ensure_ascii=False, indent=2))
+    result = {
+        "checks": checks,
+        "artifacts": str(ARTIFACTS.relative_to(PROJECT_ROOT)) if ARTIFACTS.is_relative_to(PROJECT_ROOT) else str(ARTIFACTS),
+    }
+    (ARTIFACTS / "png-results.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
