@@ -6,6 +6,11 @@ Every merge to `main` deploys through `.github/workflows/deploy.yml`; release
 from that path only, not from a local working tree. Pull requests run the tests
 without AWS access.
 
+Keep design documents, verification evidence and release records in this
+project's `docs/`. A documentation-only commit recording a completed release
+uses `[skip ci]` to avoid redeploying unchanged application code; the record
+identifies the source SHA that actually produced the deployed images.
+
 1. Backend, deployment-script and web tests (pytest, vitest, typecheck, lint).
 2. Frontend and backend images build on x86-64 runners, the agent image on an
    ARM64 runner. The agent container must answer `/ping` before it is pushed,
@@ -25,7 +30,31 @@ environment variables `AWS_DEPLOY_ROLE_ARN`, `SKILLS_BUNDLE_S3_URI` and
 `SKILLS_BUNDLE_SHA256` point to it. Workflow logs are public: they show image
 digests and resource status only.
 
-## Current release: HTML canvas and bounded revisions, 2026-10-25
+## Current release: research HTML and native diagrams, 2026-10-26
+
+Deep research can produce HTML from selected project files with native HTML/CSS
+and SVG diagrams. Specialized diagram skills remain optional. SVG selection
+and revision are atomic, source citations survive rendering, and exported HTML
+retains its diagrams. The release also includes the HTML wide preview from
+remote `main`.
+
+- Source commit: `53c3ac82965cd34dc4f7addf550dc38c859bca8a`, branch `main`.
+- GitHub Actions run: [40247301060](https://github.com/hi-space/open-canvas-bedrock/actions/runs/40247301060),
+  all six jobs successful; completed at `2026-10-26T00:10:41Z`.
+- Both CloudFormation stacks: `UPDATE_COMPLETE`.
+- ECS task definition: `HtmlCanvasStackTaskDef2E995DD4:20`; rollout `COMPLETED`,
+  one running task, zero pending, both containers and the ALB target healthy.
+  Previous revision `:19` remains `ACTIVE`.
+- AgentCore runtime and `DEFAULT` endpoint: `READY`, serving version `7`.
+- Independent verification at `2026-10-26T00:11:04Z` confirmed all three image
+  digests, the runtime lifecycle and Cognito redirects for `/` and `/api/workspaces`.
+
+The [release record](2026-10-26-research-html.md) contains the immutable image
+manifest, workflow result, before/after AWS snapshots, validation scope and
+rollback baseline. The [feature guide](../research-html.md) links the design
+documents and reproducible browser evidence, all under this project's `docs/`.
+
+## Previous release: HTML canvas and bounded revisions, 2026-10-25
 
 The workspace generates static HTML/CSS from project sources, previews new
 documents before approval, and supports element selection, rendered before/after

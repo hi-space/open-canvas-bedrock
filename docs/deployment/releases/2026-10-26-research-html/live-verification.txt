@@ -1,0 +1,3 @@
+Source commit: 53c3ac82965cd34dc4f7addf550dc38c859bca8a
+[release] verified: ECS rollout, target health, runtime READY, Cognito redirects
+Verified at: 2026-10-26T00:10:29.442433+00:00

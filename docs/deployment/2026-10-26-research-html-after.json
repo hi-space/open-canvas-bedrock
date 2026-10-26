@@ -1,0 +1,75 @@
+{
+  "verifiedAt": "2026-10-26T00:11:04.431786+00:00",
+  "sourceCommit": "53c3ac82965cd34dc4f7addf550dc38c859bca8a",
+  "workflowRun": 40247301060,
+  "region": "ap-northeast-2",
+  "stacks": {
+    "HtmlCanvasStack": "UPDATE_COMPLETE",
+    "CanvasWorkspaceStack": "UPDATE_COMPLETE"
+  },
+  "ecs": {
+    "cluster": "html-canvas",
+    "taskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:20",
+    "status": "ACTIVE",
+    "desiredCount": 1,
+    "runningCount": 1,
+    "pendingCount": 0,
+    "rolloutState": "COMPLETED",
+    "images": {
+      "app": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6ec1abbb8d3dc5fa65b2d1d279a7a9681eae125ef6a397fdc8d0b72543ef1523",
+      "backend": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:f7d0cbb6324f54a219d91d4a7618d069a8253f942a670f4715372cc08370319a"
+    },
+    "tasks": [
+      {
+        "lastStatus": "RUNNING",
+        "healthStatus": "HEALTHY",
+        "containers": [
+          {
+            "name": "app",
+            "lastStatus": "RUNNING",
+            "healthStatus": "HEALTHY",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6ec1abbb8d3dc5fa65b2d1d279a7a9681eae125ef6a397fdc8d0b72543ef1523",
+            "imageDigest": "sha256:6ec1abbb8d3dc5fa65b2d1d279a7a9681eae125ef6a397fdc8d0b72543ef1523"
+          },
+          {
+            "name": "backend",
+            "lastStatus": "RUNNING",
+            "healthStatus": "HEALTHY",
+            "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:f7d0cbb6324f54a219d91d4a7618d069a8253f942a670f4715372cc08370319a",
+            "imageDigest": "sha256:f7d0cbb6324f54a219d91d4a7618d069a8253f942a670f4715372cc08370319a"
+          }
+        ]
+      }
+    ],
+    "previousTaskDefinition": "arn:aws:ecs:ap-northeast-2:913524902871:task-definition/HtmlCanvasStackTaskDef2E995DD4:19",
+    "previousTaskDefinitionStatus": "ACTIVE"
+  },
+  "loadBalancerTargets": [
+    {
+      "state": "healthy"
+    }
+  ],
+  "agentcore": {
+    "agentRuntimeId": "canvas_writing_workspace-GKTOJW3k5H",
+    "status": "READY",
+    "version": "7",
+    "image": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:1061686fe67d798c6cf1d9db57b038881d4acbf411a65edeba0bdcbd97794724",
+    "lifecycleConfiguration": {
+      "idleRuntimeSessionTimeout": 60,
+      "maxLifetime": 900
+    },
+    "defaultEndpoint": {
+      "status": "READY",
+      "liveVersion": "7",
+      "targetVersion": null
+    }
+  },
+  "authentication": {
+    "paths": [
+      "/",
+      "/api/workspaces"
+    ],
+    "result": "Cognito login redirects verified",
+    "evidence": "releases/2026-10-26-research-html/live-verification.txt"
+  }
+}

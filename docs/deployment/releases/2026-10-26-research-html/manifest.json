@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "53c3ac82965cd34dc4f7addf550dc38c859bca8a",
+  "workflowRun": 40247301060,
+  "workflowUrl": "https://github.com/hi-space/open-canvas-bedrock/actions/runs/40247301060",
+  "region": "ap-northeast-2",
+  "images": {
+    "frontend": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:6ec1abbb8d3dc5fa65b2d1d279a7a9681eae125ef6a397fdc8d0b72543ef1523",
+    "backend": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:f7d0cbb6324f54a219d91d4a7618d069a8253f942a670f4715372cc08370319a",
+    "agent": "913524902871.dkr.ecr.ap-northeast-2.amazonaws.com/cdk-hnb659fds-container-assets-913524902871-ap-northeast-2@sha256:1061686fe67d798c6cf1d9db57b038881d4acbf411a65edeba0bdcbd97794724"
+  }
+}
