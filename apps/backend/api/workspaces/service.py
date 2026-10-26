@@ -18,7 +18,7 @@ from api.workspaces.html_documents import html_selection, is_html_path
 from api.workspaces.jobs import JobHeartbeat, job_is_stale
 from api.workspaces.proposals import create_proposal, utf16_offset
 from api.workspaces.research_context import snapshot_context
-from api.workspaces.sources import SourceLibrary
+from api.workspaces.sources import SourceCapacityError, SourceLibrary
 from core.models import get_default_model_name
 from core.source_catalog import SourceCatalog, SourceEvidence, entry_for, evidence_from_reads
 
@@ -123,6 +123,7 @@ def prepare_job(files, request):
         "history": history, "sources": [],
         "sourceSnapshot": SourceLibrary(files).snapshot(),
     }
+    job["sourceSnapshots"] = [payload["sourceSnapshot"]]
     if request.activePath:
         payload["activePath"] = request.activePath
     if selection:
@@ -199,6 +200,14 @@ def report_progress(files, job_id, status):
             files.metadata.put(files.namespace, "job:" + job_id, job)
 
 
+def retain_job_snapshot(files, job_id, snapshot):
+    """Caller holds the project lock; keep snapshots alive while tools use them."""
+    job = files.metadata.get(files.namespace, "job:" + job_id)
+    if job and job["status"] in {"queued", "running"}:
+        job["sourceSnapshots"] = list(dict.fromkeys([*job.get("sourceSnapshots", []), snapshot]))
+        files.metadata.put(files.namespace, "job:" + job_id, job)
+
+
 GENERIC_FAILURE = "에이전트 작업을 완료하지 못했습니다. 원본은 변경되지 않았습니다. 다시 요청해 주세요."
 TIME_LIMIT_FAILURE = (
     "요청이 길어 제한 시간 안에 끝나지 않았습니다. 원본은 변경되지 않았습니다. "
@@ -243,6 +252,10 @@ def run_job(owner, workspace, job_id, payload):
             if not job or job["status"] != "queued" or job_is_stale(job, now()):
                 return
             job.update(status="running", updatedAt=now())
+            if payload.get("sourceSnapshot"):
+                job["sourceSnapshots"] = list(dict.fromkeys([
+                    *job.get("sourceSnapshots", []), payload["sourceSnapshot"],
+                ]))
             files.metadata.put(files.namespace, "job:" + job_id, job)
             claimed = True
         heartbeat = JobHeartbeat(files, job_id)
@@ -253,12 +266,14 @@ def run_job(owner, workspace, job_id, payload):
         if not payload.get("sourceSnapshot"):
             with files.lock():
                 payload["sourceSnapshot"] = library.snapshot(sources=payload.get("sources", []))
+                retain_job_snapshot(files, job_id, payload["sourceSnapshot"])
         catalog = SourceCatalog(files.root, owner, workspace, payload["sourceSnapshot"])
         initial_ids = set(catalog.entries)
         fetched = fetch_requested_sources(payload["message"], list(catalog.entries.values()))
         if fetched:
             with files.lock():
                 payload["sourceSnapshot"] = library.snapshot(base=payload["sourceSnapshot"], extra=fetched)
+                retain_job_snapshot(files, job_id, payload["sourceSnapshot"])
             catalog = SourceCatalog(files.root, owner, workspace, payload["sourceSnapshot"])
         payload["sources"] = []
         if payload.get("researchGenre"):
@@ -302,6 +317,7 @@ def run_job(owner, workspace, job_id, payload):
         if overlays:
             with files.lock():
                 payload["sourceSnapshot"] = library.snapshot(base=payload["sourceSnapshot"], extra=overlays)
+                retain_job_snapshot(files, job_id, payload["sourceSnapshot"])
             catalog = SourceCatalog(files.root, owner, workspace, payload["sourceSnapshot"])
         if "sourceReads" in result:
             evidence = evidence_from_reads(catalog, result["sourceReads"])
@@ -332,7 +348,6 @@ def run_job(owner, workspace, job_id, payload):
         ) for edit in edits]
         for proposal in proposals:
             proposal["sourceReads"] = evidence.reads
-            proposal["sourceSnapshot"] = payload["sourceSnapshot"]
         with files.lock():
             job = files.metadata.get(files.namespace, "job:" + job_id)
             if not job or job["status"] != "running" or job_is_stale(job, now()):
@@ -343,6 +358,7 @@ def run_job(owner, workspace, job_id, payload):
                 raise ValueError("HTML generation cannot target an existing file")
             # A person can edit the source library while the model is running.
             # Keep their latest records and retain the job's evidence in proposals.
+            skipped = 0
             for value in [*fetched, *validated_sources]:
                 source = WritingSource.model_validate(value).model_dump(exclude_none=True)
                 if (
@@ -352,11 +368,22 @@ def run_job(owner, workspace, job_id, payload):
                 ):
                     continue
                 if source["id"] in combined:
-                    library.put(source)
+                    try:
+                        library.put(source)
+                    except SourceCapacityError:
+                        skipped += 1
+            if proposals:
+                proof_snapshot = library.subset(payload["sourceSnapshot"], combined)
             for proposal in proposals:
+                proposal["sourceSnapshot"] = proof_snapshot
                 files.put_proposal(proposal)
+            content = result["message"]
+            if skipped:
+                content = content[:15000] + "\n\n출처 보관 공간이 가득 차 새 자료를 목록에 추가하지 못했습니다."
+                if proposals:
+                    content += " 이번에 사용한 근거는 수정안에 보존했습니다."
             message = {
-                "id": str(uuid.uuid4()), "role": "assistant", "content": result["message"],
+                "id": str(uuid.uuid4()), "role": "assistant", "content": content,
                 "createdAt": now(), "jobId": job_id,
             }
             files.metadata.put(files.namespace, "message:" + message["id"], message)
@@ -379,3 +406,9 @@ def run_job(owner, workspace, job_id, payload):
     finally:
         if heartbeat is not None:
             heartbeat.stop()
+        if claimed:
+            try:
+                with files.lock():
+                    SourceLibrary(files).collect_garbage()
+            except Exception:
+                logger.warning("Source cleanup will be retried on a later source update or job.")

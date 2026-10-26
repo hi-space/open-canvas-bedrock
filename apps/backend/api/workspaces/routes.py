@@ -59,7 +59,8 @@ def snapshot(workspace: str, owner=Depends(owner_key)):
             "workspace": files.require(), "files": files.list(),
             "messages": sorted([v for k, v in records.items() if k.startswith("message:")],
                                key=lambda item: item["createdAt"])[-200:],
-            "proposals": sorted([v for k, v in records.items() if k.startswith("proposal:")],
+            "proposals": sorted([{key: item for key, item in v.items() if key != "sourceVersions"}
+                                 for k, v in records.items() if k.startswith("proposal:")],
                                 key=lambda item: item["createdAt"], reverse=True)[:100],
             "jobs": sorted([expire_job(v) for k, v in records.items() if k.startswith("job:")],
                            key=lambda item: item["createdAt"], reverse=True)[:100],

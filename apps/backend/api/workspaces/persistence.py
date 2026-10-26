@@ -76,7 +76,7 @@ class Metadata:
                     result[key] = json.loads(item["workspaceData"]["S"])
             if not page.get("LastEvaluatedKey"):
                 return result
-            if prefix != "source:" and len(result) > 5000:
+            if len(result) > 5000:
                 raise HTTPException(503, "프로젝트 기록이 너무 많습니다. 관리자에게 문의해 주세요.")
             options["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 

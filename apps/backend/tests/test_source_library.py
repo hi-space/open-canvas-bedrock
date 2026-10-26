@@ -57,6 +57,7 @@ def test_source_api_stores_more_than_one_jobs_budget_and_returns_only_summaries(
 
 def test_migrated_source_keeps_identity_and_snapshot_survives_edit_and_removal(project):
     from api.workspaces.sources import SourceLibrary
+    from api.workspaces.files import now
     from core.source_catalog import SourceCatalog
 
     old = source(1, "Originally verified text.")
@@ -64,6 +65,10 @@ def test_migrated_source_keeps_identity_and_snapshot_survives_edit_and_removal(p
         project.metadata.put(project.namespace, "source:source-1", old)
         library = SourceLibrary(project)
         snapshot = library.snapshot()
+        project.metadata.put(project.namespace, "job:snapshot-user", {
+            "id": "snapshot-user", "status": "running", "createdAt": now(), "updatedAt": now(),
+            "sourceSnapshots": [snapshot],
+        })
         record = project.metadata.get(project.namespace, "source:source-1")
         # A compatibility mirror lets the previous API image read the record
         # during a rolling deployment/rollback.

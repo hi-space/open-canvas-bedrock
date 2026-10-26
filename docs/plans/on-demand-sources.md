@@ -20,6 +20,8 @@ Keep the execution record here instead of a private skill scratch directory.
 
 - Existing source IDs, URLs, documents and proposal history survive the change.
 - No cumulative project source-count or excerpt-context gate.
+- Independent live-library storage limit: 2,000 records / 32 MiB. Reaching it
+  never blocks a job; new evidence remains in its proposal if not added to the library.
 - Individual source input remains limited to 20,000 characters.
 - Active evidence remains bounded to 50 IDs and 100,000 excerpt characters.
 - A model source read returns at most 8,000 characters; research uses at most
@@ -132,6 +134,10 @@ only matched, bounded registered evidence; `sourceReads` shares Task 2's contrac
 - Review ruling: treat unused remainder of the registered-evidence budget as
   a coverage issue, since the final question could receive no evidence. Reads
   now shrink to the available budget rather than skipping that question.
-- Verification: backend 412 tests plus 101 subtests; web 225 tests; Chromium with
+- Automated security review: added independent storage bounds and reference-aware
+  cleanup. Current sources, active jobs and retained proposals keep their versions;
+  unused blobs/catalogs are reclaimed. Proposal catalogs contain only consumed
+  evidence. A full library still permits jobs and retains new evidence in proposals.
+- Verification: backend 417 tests plus 101 subtests; web 225 tests; Chromium with
   67 stored sources, a 137-character initial model input and one 93-character
   source read. Details are in `../verification/on-demand-sources/README.md`.

@@ -208,4 +208,8 @@ class ProjectFiles:
         } | {"pendingCount": sum(change["decision"] == "pending" for change in proposal["changes"])}
         if proposal.get("savedCopy"):
             summary["savedCopy"] = proposal["savedCopy"]
+        if proposal.get("sourceSnapshot"):
+            summary["sourceSnapshot"] = proposal["sourceSnapshot"]
+            if "sourceReads" in proposal:
+                summary["sourceVersions"] = [item["version"] for item in proposal["sourceReads"]]
         self.metadata.put(self.namespace, "proposal:" + proposal["id"], summary)
